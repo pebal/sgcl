@@ -87,7 +87,9 @@ namespace sgcl::crypto::x509 {
         missing_cert_sign,              // a CA whose keyUsage lacks keyCertSign
         incompatible_usage,             // no extended key usage asked is allowed by the whole chain
         unhandled_critical_extension,   // a critical extension the module does not know
-        too_many_constraints            // name constraints that would take too many comparisons
+        too_many_constraints,           // name constraints that would take too many comparisons
+        revoked,                        // a certificate of the chain is revoked (an OCSP response, a CRL)
+        revocation_unknown              // the revocation status could not be established, or what said it does not verify
     };
 }
 

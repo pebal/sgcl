@@ -7,7 +7,8 @@
 
 // The encoding module: formats as types named after them, in
 // sgcl::encoding (base64, base32, hex, ascii85, pem, big_endian,
-// little_endian, varint, json, csv, xml), one error type for all of
+// little_endian, varint, quoted_printable, json, csv, xml, email), one
+// error type for all of
 // them, and one description of a program's types for all of them
 // (fields.h).
 #include "error.h"
@@ -17,7 +18,9 @@
 #include "base64.h"
 #include "binary.h"
 #include "csv.h"
+#include "email.h"
 #include "hex.h"
 #include "json.h"
 #include "pem.h"
+#include "quoted_printable.h"
 #include "xml.h"

@@ -10,6 +10,8 @@ namespace sgcl::txt {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::txt::searcher` is a pattern of bytes prepared once: Boyer–Moore–Horspool over the bytes, the counterpart of
 `std::boyer_moore_horspool_searcher`. The pattern is looked at once and a table of skips built from it; after that a
 pattern of *m* bytes is found in *n* bytes in about *n/m* steps on ordinary text. It is for the loop that looks for
@@ -23,8 +25,6 @@ way a text was written [find_normalized](../find_normalized.md).
 
 ## Rules
 
-- A `searcher` holds a [string](../../core/string/README.md), so it lives on the stack or inside a managed object, like any
-  other value of the library that holds one.
 - Nothing in it changes after it is built: one searcher may be used by any number of threads at once.
 - Every member that takes a text takes a string, a [slice\<const char\>](../../core/slice/README.md), an array of `char` up to
   its first NUL or its end, and a `const char*` or `char*` up to its NUL.

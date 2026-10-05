@@ -10,6 +10,8 @@ namespace sgcl::io {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `io::buffered_writer` is a writer with a buffer in front of any other, Go's `bufio.Writer`: a write fills a block of
 `config::io_buffer_size` (8 KB), and the block is written to the stream underneath when it is full, so that many
 small writes cost one write of the stream per 8 KB. [flush](flush.md) writes what the block holds;
@@ -32,10 +34,8 @@ this one's does not.
   Every write and flush after it gives that error at once and writes nothing; `close()` gives it too, after closing
   the stream all the same, and so does every later `close()`. [last_error](last_error.md) holds it.
   Whoever wants to react earlier checks the result of a single `write` or `flush`.
-- A copy is the same writer: one block, one kept error; passed by value into a task, the copy keeps the writer alive
-  for as long as the task runs. A handle is a tracked word: on a stack, in a task, in a managed object; in a global
-  or a std container, a [rooted](../../core/rooted/README.md) of it, never in a managed object or a task's frame, since a root
-  is never part of a cycle.
+- A copy is the same writer: one block, one kept error; passed by value into a task, the copy keeps the writer alive for
+  as long as the task runs.
 - A default-constructed writer holds no state (`!w`); an operation on it is a contract violation, asserted in debug
   builds.
 - The block is unmanaged memory the writer owns while it is written from the calling thread: nothing hands out a

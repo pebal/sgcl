@@ -16,6 +16,8 @@ namespace sgcl::async {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::async::mutex` lets one holder at a time through, for tasks and threads alike: [lock](lock.md) is a
 receive on a channel holding one signal and [unlock](unlock.md) a send, Go's idiom for a mutex. It is the first
 of the synchronization of tasks, and of threads with them: the mutex, the [semaphore](../semaphore/README.md), the

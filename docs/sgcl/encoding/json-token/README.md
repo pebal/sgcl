@@ -13,6 +13,8 @@ namespace sgcl::encoding {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::encoding::json::token` is a token of a [json::reader](../json-reader/README.md), what its
 [next](../json-reader/next.md) returns: its [kind](../json-token-kind.md) and its text. The text of a key or of a
 string is its characters with the escapes decoded; of a number, its literal as the input wrote it (`1.50e+2`); of
@@ -29,8 +31,7 @@ It is Go's v2 `jsontext.Token`, and what v1's `json.Token` is (a `Delim`, a `boo
 - **The text is a slice of the reader's memory**: the token holds that memory, but the reader writes over it — the
   block of a stream is reused, and a string with escapes is decoded into a scratch block that the next one is
   decoded into. A text kept past the reader's next call is copied, `string(t.text())`.
-- A token is copied as a slice is, sharing its text, and lives where a slice may: on a stack or inside a managed
-  object.
+- A token is copied as a slice is, sharing its text.
 - The conversions give the value exactly or not at all: `nullopt` for a token of another kind, and for a number
   the type does not hold. Each has a form with a fallback, `t.as_int(0)`.
 

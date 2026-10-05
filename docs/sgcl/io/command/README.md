@@ -10,6 +10,8 @@ namespace sgcl::io {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `io::command` is a program to run, Go's `exec.Cmd`, in the shapes of the library. The constructor takes the program
 and its arguments (`exec.Command`); the rest (a directory, an environment, the three standard streams, a stop) is
 set by name, in any order, before the start, as the fields of `exec.Cmd` are. [start](start.md) runs it,
@@ -32,9 +34,7 @@ a command of its own another child. What it costs against Go is on [benchmarks](
 
 ## Rules
 
-- A `command` holds tracked pointers (the streams, the process, the copying tasks), so it lives where one may: on a
-  stack, in a managed object, in a coroutine frame; never in `new` memory or a `std` container
-  ([The rules](../../core/README.md#the-rules), 1). It is moved, not copied: it owns the tasks that serve its pipes.
+- A `command` is moved, not copied: it owns the tasks that serve its pipes.
 - `start()` once; `wait()` once, from a thread (`wait()`, `waitpid`) or a task (`co_await async_wait()`, on the
   reactor). A child that ended with a failure status is `errc::exit_status` from `wait` (Go's `ExitError`), the code
   in `state`. A child never waited for stays a zombie until the program ends, as everywhere.

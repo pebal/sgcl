@@ -19,6 +19,8 @@ namespace sgcl::compress::sevenzip {
 }
 ```
 
+**Requires [rooted](../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::compress::sevenzip::options` is how an archive is written, and what reading one needs: the password and the
 limits, which are all a reader takes (`archive::open`, `from`, [extract](sevenzip-extract.md)); the
 [writer](sevenzip-writer/README.md) and [create](sevenzip-create.md) take the rest.

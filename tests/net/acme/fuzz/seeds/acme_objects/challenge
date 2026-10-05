@@ -1,0 +1,1 @@
+{"type":"http-01","url":"https://ca/ch/1","status":"invalid","token":"t","error":{"type":"urn:ietf:params:acme:error:incorrectResponse","detail":"no"}}

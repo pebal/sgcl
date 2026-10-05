@@ -12,6 +12,8 @@ namespace sgcl::io {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `io::file_info` is what [stat](../stat.md) says about a path, Go's `fs.FileInfo` as a plain struct: the name, the size,
 the type, the permissions and the time of the last modification. [lstat](../lstat.md),
 [file::stat](../file/stat.md) and [directory_entry::info](../directory_entry/info.md) return one too. `file_time`, the type
@@ -19,8 +21,6 @@ of `modified`, is the time of the system clock in nanoseconds, the resolution th
 
 ## Rules
 
-- The struct holds a [string](../../core/string/README.md), so it lives where one may: on a stack or inside a managed object
-  ([The rules](../../core/README.md#the-rules), 1).
 - It is a value read once: a later change of the file is not seen in it.
 
 ## Member objects

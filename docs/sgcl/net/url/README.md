@@ -10,6 +10,8 @@ namespace sgcl::net {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::net::url` is a URL read the way a browser reads one, by the [WHATWG URL
 Standard](https://url.spec.whatwg.org/), as curl, Node and Deno read it. The whole of the standard's test data from
 the web platform tests is the oracle, and all of it passes: `urltestdata.json` (every input with and without a base,
@@ -33,9 +35,7 @@ is dropped.
 
 ## Rules
 
-- **A url holds a string**, so it lives where a [string](../../core/string/README.md) may: on a stack, in a task, in a managed
-  object; in a global or a `std` container, a [rooted](../../core/rooted/README.md) of it ([The
-  rules](../../core/README.md#the-rules), 1). It is immutable: threads share one as they share a string.
+- **A url holds a string.** It is immutable: threads share one as they share a string.
 - **Special schemes.** `http`, `https`, `ws`, `wss`, `ftp` and `file` are read as the standard's special schemes: a
   host is required (none for file), `\` is `/`, the default port is dropped, the path is hierarchical. Any other
   scheme keeps its host opaque (`sc://1.2.3.4/` has the host `1.2.3.4`, not an address) and may have an opaque path

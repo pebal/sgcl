@@ -11,6 +11,8 @@ namespace sgcl {
 }
 ```
 
+**Requires [rooted](../rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::atomic<tracked_ptr<T>>` is `std::atomic` for a [tracked_ptr](../tracked_ptr/README.md): a word that several threads
 read and write without a lock, with `load`, `store`, `exchange`, `compare_exchange_weak`, `compare_exchange_strong`,
 `wait` and `notify` taking a `std::memory_order`. It is the answer to rule 6 ([The rules](../README.md#the-rules)): a
@@ -29,11 +31,8 @@ or queue needs no hazard pointers or epochs of its own (`benchmarks/concurrent/l
 
 ## Rules
 
-- An `atomic<tracked_ptr<T>>` holds a `tracked_ptr`, so it lives where one may: on a stack or inside a managed
-  object, never in `new`/`malloc` memory, a `std` container or a global ([The rules](../README.md#the-rules), 1 and
-  6). A global shared pointer is a `root_ptr<T>` under an `atomic_ref`, or a `unique_ptr` to a managed object
-  holding the atomic:
-  `static sgcl::unique_ptr current = sgcl::make_tracked<sgcl::atomic<sgcl::tracked_ptr<Config>>>();`.
+- A global shared pointer is a `root_ptr<T>` under an `atomic_ref`, or a `unique_ptr` to a managed object holding the
+  atomic: `static sgcl::unique_ptr current = sgcl::make_tracked<sgcl::atomic<sgcl::tracked_ptr<Config>>>();`.
 - It is neither copyable nor movable, like `std::atomic`.
 - Every operation is lock-free (`is_always_lock_free`) and may be called from any thread. A `load()` costs the read
   of the word twice around a hazard store; a `store()` or a compare-exchange the atomic operation and the write

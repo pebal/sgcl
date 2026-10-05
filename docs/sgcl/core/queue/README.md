@@ -11,6 +11,8 @@ namespace sgcl {
 }
 ```
 
+**Requires [rooted](../rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::queue<T, Container>` is `std::queue` over a managed container: a FIFO adapter with `front`, `back`, `push`,
 `emplace`, `pop`, `empty`, `size`, `swap` and the comparisons of the container. The container is `sgcl::deque<T>`
 by default; `sgcl::list<T>` works as well, as does any container with `front`, `back`, `push_back`,
@@ -24,9 +26,6 @@ at once, as in `std`.
 
 ## Rules
 
-- The container holds tracked pointers, so a queue lives where a `tracked_ptr` may: on a thread's stack or inside
-  a managed object, never in `new`/`malloc` memory, a `std` container, a global or a plain coroutine frame
-  ([The rules](../README.md#the-rules), 1).
 - An element is destroyed by `pop()` and in the destructor, exactly as with `std::queue` over the same `std`
   container; the container's memory is the collector's ([Containers](../README.md#containers)).
 - A `tracked_ptr` may not address an element ([The rules](../README.md#the-rules), 4); `front()` and `back()` are

@@ -11,6 +11,8 @@ namespace sgcl::concurrent {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::concurrent::priority_queue<T, Compare>` is a priority queue shared by any number of producers and
 consumers: a binary heap under a lock, the counterpart of Java's `PriorityBlockingQueue`, which is the same design
 (Go's library has none). The element that is least by `Compare` comes out first, as from `std::priority_queue`
@@ -40,8 +42,7 @@ containers; there is no `top()` by reference, and `pop` returns the element.
 
 ## Rules
 
-- The container is the heap's vector, the lock and its counters. It lives where a `tracked_ptr` may: on a
-  thread's stack or inside a managed object ([The rules](../../core/README.md#the-rules), 1).
+- The container is the heap's vector, the lock and its counters.
 - Every member function may be called from any thread at any time. `push`, `emplace`, `try_pop`, `try_top` and
   `clear` take the lock; `empty`, `size` and `value_comp` do not. `pop` waits while the queue is empty.
 - An element is moved out at the pop into the `optional` returned, and destroyed then, as `std::priority_queue`

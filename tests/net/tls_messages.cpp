@@ -259,6 +259,12 @@ TEST(TlsMessages_Tests, EveryTruncationIsADecodeError) {
                 case tls::HandshakeType::new_session_ticket: got = alert_of(tls::read_new_session_ticket(view(cut))); break;
                 default: got = AlertDescription::decode_error; break;
             }
+            // a ServerHello cut right after its compression method is a
+            // TLS 1.2 ServerHello without extensions (RFC 5246 §7.4.1.3)
+            if (tls::HandshakeType(m.bytes[0]) == tls::HandshakeType::server_hello && n == size_t(2 + 32 + 1 + body[34] + 2 + 1)) {
+                EXPECT_EQ(got, AlertDescription::close_notify) << m.name;
+                continue;
+            }
             // an EncryptedExtensions cut to nothing is an EncryptedExtensions
             // without extensions only when its length is gone too: it is not
             EXPECT_EQ(got, AlertDescription::decode_error) << m.name << " cut to " << n << " of " << body.size();

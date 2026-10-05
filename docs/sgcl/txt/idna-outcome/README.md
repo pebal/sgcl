@@ -15,6 +15,8 @@ namespace sgcl::txt::idna {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 What came out of [ascii_form](../idna/ascii_form.md) and [unicode_form](../idna/unicode_form.md), and what was wrong with
 it. [UTS #46](https://www.unicode.org/reports/tr46/) converts as far as it can even when it fails, and that text is
 worth having: a browser shows the user the name it would not look up, with the label the failure names marked. A
@@ -23,8 +25,7 @@ back nothing at all when something was wrong.
 
 ## Rules
 
-- An aggregate. It holds a string, so it lives where a `tracked_ptr` may: on a stack or inside a managed object
-  ([the rules of core](../../core/README.md#the-rules), 1).
+- An aggregate.
 
 ## Member objects
 

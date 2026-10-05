@@ -36,6 +36,14 @@ sgcl_test_module(containers)   # core's containers (sgcl/core), a program of the
 sgcl_test_module(immutable)
 sgcl_test_module(concurrent)
 sgcl_test_module(async "${CMAKE_CURRENT_SOURCE_DIR}/async/env_settings.cpp")   # env_settings.cpp: a program of its own, below
+# the end of a program with the runtime busy (DESIGN 478), run by tests_async
+# as a child, one case per argument (exit_teardown.cpp)
+add_executable(tests_async_exit_cases async/exit/exit_cases.cpp)
+target_link_libraries(tests_async_exit_cases sgcl)
+target_include_directories(tests_async_exit_cases PRIVATE ${CMAKE_SOURCE_DIR})
+target_compile_definitions(tests_async_exit_cases PRIVATE SGCL_TEST_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
+add_dependencies(tests_async tests_async_exit_cases)
+target_compile_definitions(tests_async PRIVATE SGCL_ASYNC_EXIT_CASES="$<TARGET_FILE:tests_async_exit_cases>")
 sgcl_test_module(io)
 sgcl_test_module(txt)
 sgcl_test_module(math)
@@ -105,6 +113,10 @@ add_dependencies(tests_slog_collector_log tests_slog_exit_cases)
 target_compile_definitions(tests_slog_collector_log PRIVATE SGCL_SLOG_EXIT_CASES="$<TARGET_FILE:tests_slog_exit_cases>")
 sgcl_test_module(net)
 sgcl_test_module(net/http)
+sgcl_test_module(net/imap)
+sgcl_test_module(net/ssh)
+sgcl_test_module(net/sftp)
+sgcl_test_module(net/acme)
 sgcl_test_module(codec)
 # codec's kernels have a road of 128-bit vectors (NEON, SSE2) and one in
 # plain C++: the same sources built for the second, every file checked on both

@@ -1,0 +1,5 @@
+
+GET / HTTP/1.0
+Forwarded: for="bad
+Keep-Alive: timeout=5
+

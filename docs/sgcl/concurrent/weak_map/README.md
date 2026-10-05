@@ -11,6 +11,8 @@ namespace sgcl::concurrent {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::concurrent::weak_map<Key, T>` is the [weak_map](../../core/weak_map/README.md) shared by any number of threads without
 a lock: a map from objects to values that does not keep the objects alive, over the lock-free hash table of
 [concurrent::map](../map/README.md), the split-ordered list of Shalev and Shavit. The key is the object itself, its identity
@@ -42,10 +44,7 @@ Go's library has no weak map.
 
 ## Rules
 
-- The map holds tracked pointers (the table's array of buckets, its head and the counters), so it lives on a
-  thread's stack or inside a managed object ([The rules](../../core/README.md#the-rules), 1); the one a program shares
-  goes into a managed object under a [root_ptr](../../core/root_ptr/README.md). The values may be, or hold, tracked pointers:
-  the nodes are managed objects.
+- The values may be, or hold, tracked pointers: the nodes are managed objects.
 - Every member function may be called from any thread at any time, and none waits. `find`, `contains` and `count`
   are wait-free and write nothing once the object's bucket has its dummy node, which the first lookup or insertion
   in the bucket makes (an allocation and a compare-exchange, lock-free, once per bucket for the array's life).
@@ -53,9 +52,8 @@ Go's library has no weak map.
   two threads inserting the same object, exactly one gets `true`. `sweep` and `clear` are walks of lock-free
   erasures.
 - Iteration is weakly consistent, as the table's: an iterator holds its node and, on a live entry, the object as a
-  strong pointer, so it is valid whatever the other threads do and the entry cannot die under it; it skips the
-  entries erased since it passed them and may or may not see the ones inserted meanwhile. An iterator is a tracked
-  object then, and lives where the map may.
+  strong pointer, so it is valid whatever the other threads do and the entry cannot die under it; it skips the entries
+  erased since it passed them and may or may not see the ones inserted meanwhile. An iterator is a tracked object then.
 - An entry is dead once a cycle has found its object unreachable; between the object becoming unreachable and that
   cycle, it is found and visited like any other: the lag of any garbage collector.
 - The values are the map's own, destroyed with the node by the collector once nothing holds it, not at the erasure:

@@ -1,0 +1,2 @@
+V	21260911085958Z		1000	unknown	/CN=SGCL Revocation Intermediate
+V	21260911085958Z		1001	unknown	/CN=SGCL Rogue Responder

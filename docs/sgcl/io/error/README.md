@@ -10,6 +10,8 @@ namespace sgcl::io {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::io::error` is what an operation of io reports when it fails: the `error_code` (`errno` in the system category,
 or an [errc](../errc.md) of the module in its own, [category](../category.md)), the operation (`"open"`, `"read"`,
 `"mkdir"`) and the path or the name of the stream it was on, so that [message](message.md) reads `open
@@ -33,8 +35,7 @@ microsecond and a lock on the unwinder each, would be the most expensive path of
 
 ## Rules
 
-- An error holds two [string](../../core/string/README.md)s, so it lives where a `tracked_ptr` may: on a stack, in a managed
-  object, in an `expected` on either ([The rules](../../core/README.md#the-rules), 1). It is copied freely.
+- An error is copied freely.
 - Nothing in the module throws its errors: `r.value()` on a failed result throws
   [bad_expected_access](../../core/bad_expected_access/README.md)`<error>` with the error inside, whose `what()` is the
   error's message, for the code that wants exceptions.

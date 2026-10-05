@@ -10,6 +10,8 @@ namespace sgcl::txt {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `txt::graphemes` is the grapheme clusters of a text, by [UAX #29](https://www.unicode.org/reports/tr29/): what a
 reader calls a character, which a code point is not. A grapheme is one combining sequence (`"é"` written as an `e` and
 a combining acute is one), one flag (two regional indicators), one emoji with its skin tone or its joined family, one
@@ -26,9 +28,7 @@ the bytes. It is a range of the library ([mixin::enumerable](../../core/mixin/en
 
 ## Rules
 
-- A `graphemes` holds a slice of the text, so it lives where a `tracked_ptr` may: on a stack or inside a managed
-  object ([the rules of core](../../core/README.md#the-rules), 1). A range over a temporary string is safe: the slice
-  keeps the string's object.
+- A `graphemes` holds a slice of the text. A range over a temporary string is safe: the slice keeps the string's object.
 - Nothing is copied and nothing is allocated per element: an element is a [slice](../../core/slice/README.md) of the text, found
   as the walk reaches it. An invalid byte of UTF-8 is one code point, `U+FFFD`.
 - An iterator refers to the text, not to the range: it is valid while the text's object lives.

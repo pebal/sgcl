@@ -13,6 +13,8 @@ namespace sgcl::txt {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::txt::collated_matches::iterator` is the forward iterator of [collated_matches](../collated_matches/README.md): its `*`
 is the slice of the original text an occurrence covers, made when it is asked for, and it knows the byte position
 of that occurrence and its size — the text's own, which need not be the pattern's.

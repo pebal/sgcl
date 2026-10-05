@@ -1,0 +1,7 @@
+a.b
+nameserver 1.1.1.1
+nameserver 2.2.2.2
+nameserver 3.3.3.3
+nameserver 4.4.4.4
+search a b c d e f g h
+sortlist 10.0.0.0/8

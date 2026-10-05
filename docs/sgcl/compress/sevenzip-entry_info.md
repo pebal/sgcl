@@ -17,6 +17,8 @@ namespace sgcl::compress::sevenzip {
 }
 ```
 
+**Requires [rooted](../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::compress::sevenzip::entry_info` is what an entry the [writer](sevenzip-writer/README.md) writes is besides its name
 and data: its times, its mode, whether it is a link. [create](sevenzip-writer/create.md),
 [add](sevenzip-writer/add.md) and [add_directory](sevenzip-writer/add_directory.md) take it. Entries are written as

@@ -1,0 +1,24 @@
+From: =?utf-8?b?xYF1Y2phIMW7w7PFgsSH?= <lucja@example.pl>
+To: "Doe, John" <john@example.com>
+Cc: =?utf-8?q?Zo=C3=AB?= <zoe@example.fr>
+Subject: =?utf-8?b?WmHFvMOzxYLEhyBnxJnFm2zEhSBqYcW6xYQg4oCU?= the encoded
+ subject goes on long enough to be folded by Python
+Date: Mon, 05 Oct 2026 14:30:00 +0200
+MIME-Version: 1.0
+Content-Type: multipart/alternative;
+ boundary="===============4707165617554855245=="
+
+--===============4707165617554855245==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+Treść po polsku: zażółć gęślą jaźń.
+
+--===============4707165617554855245==
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+MIME-Version: 1.0
+
+<p>Treść <b>po polsku</b></p>
+
+--===============4707165617554855245==--

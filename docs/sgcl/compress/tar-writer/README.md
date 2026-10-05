@@ -10,6 +10,8 @@ namespace sgcl::compress::tar {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::compress::tar::writer` writes a tar archive entry by entry into another writer, `out`, as Go's `tar.Writer`:
 [write_header](write_header.md), then exactly the entry's size in bytes through
 [write](write.md), and [close](close.md) the two blocks of zeros that end the archive, `out`
@@ -27,8 +29,7 @@ a pax header written for a directory, where Go keeps the directory's trailing pa
 
 ## Rules
 
-- The writer holds `out`, a handle of a tracked word, so it lives where a `tracked_ptr` may: a stack, a task's
-  frame, a managed object. It is move-only, and written by one thread or task at a time.
+- The writer is move-only, and written by one thread or task at a time.
 - A writer moved from is closed, its output gone with the move: its [close](close.md) does nothing, a
   [write_header](write_header.md) gives `errc::io` with `io::errc::closed` and a write gives
   `io::errc::closed`, kept as its first error. A writer moved onto itself is unchanged.

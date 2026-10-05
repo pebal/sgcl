@@ -10,6 +10,8 @@ namespace sgcl::io {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `io::process` is a running child, Go's `os.Process`: its id, a signal, the one wait. It is made by
 [command::start](../command/start.md), which keeps it in the command's `process`; a default-constructed one holds no
 child. It is a handle of one word, a `tracked_ptr` to the state the copies share: copied and passed by value, every
@@ -20,9 +22,6 @@ never waited for stays a zombie until the program ends, as everywhere.
 
 ## Rules
 
-- A handle is a tracked word: on a stack, in a task, in a managed object; in a global or a `std` container, a
-  [rooted\<io::process\>](../../core/rooted/README.md), never in a managed object or a task's frame, since a root is never
-  part of a cycle.
 - The child is waited for once, from a thread ([wait](wait.md)) or a task (`co_await async_wait()`), or let
   go of by [release](release.md). After either, [signal](signal.md) and [kill](kill.md) are
   `errc::process_done`: the id may be another process's by then.

@@ -29,6 +29,20 @@
 #include <utility>
 #include <vector>
 
+// SGCL_REACTOR_IN_WORKERS: the reactor's queue read by the workers
+// themselves (kqueue: macOS, FreeBSD), as Go's netpoll is: a worker with
+// nothing to run waits in the kernel's queue of the descriptors instead of
+// on its own word, and runs the first task an event makes ready, with no
+// thread between (detail::PollSeat). 0: the reactor's thread alone reads
+// the queue and wakes a worker for each task. A definition of the build wins
+#ifndef SGCL_REACTOR_IN_WORKERS
+#if (defined(__APPLE__) || defined(__FreeBSD__)) && !defined(SGCL_REACTOR_FORCE_EPOLL)
+#define SGCL_REACTOR_IN_WORKERS 1
+#else
+#define SGCL_REACTOR_IN_WORKERS 0
+#endif
+#endif
+
 namespace sgcl::async {
     namespace detail { using namespace sgcl::detail; }
     namespace detail {
@@ -36,6 +50,51 @@ namespace sgcl::async {
         class WakeBatch;
         inline Scheduler& scheduler_instance() noexcept;
         void resume_frame(const tracked_ptr<FrameWord>& frame);
+
+#if SGCL_REACTOR_IN_WORKERS
+        // The seat at the reactor's queue (reactor.h): who reads the
+        // kernel's events now. One holder at a time, so that one thread
+        // sleeps in the queue (the kernel wakes every thread asleep in a
+        // kqueue for an event, and one of them gets it): a worker with
+        // nothing to run (it polls the queue between its looks for work,
+        // and waits in it instead of on its word when it sleeps, taking
+        // the events and running the first task they make ready itself),
+        // or the reactor's thread, when every worker is busy (it takes
+        // the events and wakes workers for them, as it always did), or
+        // nobody for a moment. The rule that keeps someone reading:
+        // a seat that is free has a worker looking for work (which takes
+        // it at its next look, or at its sleep), or a worker woken to look,
+        // or the reactor's thread watching it, which takes it when no
+        // worker has read the queue for a while (Scheduler::_keep_looking,
+        // reactor.h: _watch). The reactor's thread gives the seat up after
+        // an event when workers look, and keeps it when none does.
+        // The reactor sets the calls once (its constructor) and `enabled`
+        // while its queue is open; the scheduler only reads them
+        struct PollSeat {
+            static constexpr uint32_t Free = 0;
+            static constexpr uint32_t Reactor = 0xFFFF;    // a worker holds it as its index + 1
+            static constexpr int Capacity = 32;            // the events a worker takes from the kernel at once
+            static constexpr size_t BufferBytes = 1024;    // their room on the worker's stack (the reactor checks the kernel's struct fits)
+
+            std::atomic<uint32_t> holder = {Reactor};
+            [[maybe_unused]] unsigned char _pad0[config::cache_line_size - sizeof(std::atomic<uint32_t>)] = {};
+            std::atomic<uint32_t> inside = {0};            // workers in a call of `wait` (the reactor's stop waits for none)
+            std::atomic<uint32_t> polls = {0};             // the calls of `wait` so far: the reactor's thread watches it move (its backstop, reactor.h: _watch)
+            [[maybe_unused]] unsigned char _pad1[config::cache_line_size - 2 * sizeof(std::atomic<uint32_t>)] = {};
+            std::atomic<bool> enabled = {false};           // the reactor's queue open to the workers
+            // The kernel's events into `events` (at most `capacity`):
+            // their count, 0 for none (a poll) or an interrupted wait, -1
+            // when the queue is closed to the workers or has failed
+            int (*wait)(void* events, int capacity, bool block) noexcept = nullptr;
+            // The events taken: the first task made ready into `first`
+            // (an executor's goes to its executor), the rest to the queues
+            void (*dispatch)(void* events, int n, tracked_ptr<FrameWord>& first) = nullptr;
+            void (*wake_poller)() noexcept = nullptr;      // the worker asleep in the queue woken
+            void (*wake_backstop)() noexcept = nullptr;    // the reactor's thread told the seat is free with every worker busy (it watches, and takes it when no worker reads the queue for a while)
+        };
+
+        inline PollSeat poll_seat;
+#endif
 
         // How long a worker (and an executor's thread) with nothing to run
         // looks for work before it sleeps, in microseconds: set by
@@ -350,6 +409,72 @@ namespace sgcl::async {
         // done, where a throw would leave the rest of the list asleep
         inline thread_local unsigned quiet_wakes = 0;
 
+        // The end of the program (DESIGN 478). The runtime's singletons
+        // (the scheduler, the reactor, the timers, the blocking pool) are
+        // function-local statics, destroyed at exit in the reverse order of
+        // their construction, while tasks may still be parked in them or
+        // running. The first of their destructors to run calls
+        // runtime_exit(), which sets Exiting, waits for every start of a
+        // thread in progress to finish (RuntimeStart), and joins the
+        // runtime's threads: the blocking pool's (the jobs queued run to
+        // their end), the workers (what is ready runs until it suspends),
+        // the timers' thread and the reactor's, the reactor's without
+        // waking its waits (a task parked at exit stays parked, as a
+        // goroutine does when main returns). No start succeeds from then
+        // on, so no thread of the runtime runs while a singleton is
+        // destroyed, and the rest of the exit is the main thread's alone:
+        // the paths it may take into a destroyed singleton look at
+        // Exiting before any lock (runtime_exiting) and lock nothing. A
+        // frame made ready is dropped (enqueue_on_workers); a task's wait
+        // for I/O, a timer or a blocking job leaves it parked; a thread's
+        // I/O wait ends cancelled, its timer at once, its blocking job
+        // runs on it. A word with no destructor, valid through every
+        // static destructor: the Exiting bit and, from RuntimeStartUnit
+        // up, the starts in progress
+        inline constinit std::atomic<uint32_t> runtime_state = {0};
+        inline constexpr uint32_t RuntimeExiting = 1;
+        inline constexpr uint32_t RuntimeStartUnit = 1u << 8;
+
+        // Whether the program is ending (runtime_exit has begun): one load,
+        // on paths that already lock or start a thread
+        SGCL_INLINE_HOT bool runtime_exiting() noexcept {
+            return runtime_state.load(std::memory_order_acquire) & RuntimeExiting;
+        }
+
+        // The start of a thread of the runtime (the workers, the reactor's,
+        // the timers', the pool's), with the lock it is made under and the
+        // hook that stops it: counted while it runs, so that runtime_exit()
+        // waits for it and then finds the thread and the hook, and refused
+        // (false) once the program is ending. Two atomic operations on a
+        // path that makes a thread
+        class RuntimeStart {
+        public:
+            SGCL_INLINE_HOT RuntimeStart() noexcept
+            : _in(!(runtime_state.fetch_add(RuntimeStartUnit, std::memory_order_seq_cst) & RuntimeExiting)) {
+                if (!_in) {
+                    runtime_state.fetch_sub(RuntimeStartUnit, std::memory_order_release);
+                }
+            }
+
+            SGCL_INLINE_HOT ~RuntimeStart() {
+                if (_in) {
+                    runtime_state.fetch_sub(RuntimeStartUnit, std::memory_order_release);
+                }
+            }
+
+            SGCL_INLINE_HOT explicit operator bool() const noexcept {
+                return _in;
+            }
+
+            RuntimeStart(const RuntimeStart&) = delete;
+            RuntimeStart& operator=(const RuntimeStart&) = delete;
+
+        private:
+            bool _in;
+        };
+
+        inline void runtime_exit();   // below the scheduler: what the first destructor of a singleton calls
+
         class QuietWakes {
         public:
             SGCL_INLINE_HOT QuietWakes() noexcept {
@@ -392,7 +517,12 @@ namespace sgcl::async {
                 std::atomic<uint32_t> park = {0};   // the worker's own wake word: 1 = woken with the credit of a looking worker
                 uint32_t cleared = 0;               // the owner's: every slot below this index nulled since it was taken
                 uintptr_t stack_floor = 0;          // the lowest address the worker's stack may be cleared to (_clear_dead_stack)
-                unsigned char _pad1[config::cache_line_size - sizeof(Frame) - 2 * sizeof(uint32_t) - sizeof(uintptr_t)] = {};
+                Frame inbox;                        // a task handed to this worker while it looks, by the one handling the reactor's events (_hand_to; under inbox_lock)
+                std::atomic<uint32_t> inbox_lock = {0};
+                std::atomic<bool> in_queue = {false};   // asleep in the reactor's queue, not on `park` (written before the bit among the sleepers, read by the waker that takes the bit)
+                std::atomic<bool> looking = {false};    // in _find_work: a task may be handed to it (set and cleared by the owner, cleared under inbox_lock)
+                std::atomic<bool> has_inbox = {false};  // the inbox holds a task: the owner's look at it in every round
+                unsigned char _pad1[config::cache_line_size - 2 * sizeof(Frame) - 3 * sizeof(uint32_t) - sizeof(uintptr_t) - 3 * sizeof(std::atomic<bool>)] = {};
                 Frame slots[Size];
             };
 
@@ -496,6 +626,11 @@ namespace sgcl::async {
                         _push_local(*local, std::move(frame));
                     }
                 } else {
+#if SGCL_REACTOR_IN_WORKERS
+                    if (_dispatching && _place_dispatched(frame)) [[unlikely]] {
+                        return;   // its last worker's inbox, or the dispatching worker's to run: nothing to wake
+                    }
+#endif
                     _global->ready.push(std::move(frame));
                 }
                 _wake_one_if_none_looking();
@@ -511,6 +646,72 @@ namespace sgcl::async {
                 return _local ? _index : MaxWorkers;
             }
 
+            // The workers looking for work now (with the credit of the ones
+            // woken to look): the reactor's thread gives the seat at its
+            // queue up when some do (reactor.h, PollSeat). Sequentially
+            // consistent: its look after the seat's release, against a
+            // looker's look at the seat after it stops looking
+            SGCL_INLINE_HOT unsigned looking() const noexcept {
+                return _spinning.load(std::memory_order_seq_cst);
+            }
+
+            // The workers of the running start (0: none)
+            SGCL_INLINE_HOT unsigned pool() const noexcept {
+                return _pool.load(std::memory_order_relaxed);
+            }
+
+            // Whether the seat's holder (PollSeat::holder) is a worker asleep
+            // in the reactor's queue: the program idle, for the reactor's
+            // thread's watch (reactor.h: _watch). Sequentially consistent,
+            // after the thread's own store of its watch's end
+#if SGCL_REACTOR_IN_WORKERS
+            bool holder_asleep_in_queue(uint32_t holder) const noexcept {
+                return holder != PollSeat::Free && holder - 1 < pool() && _locals[holder - 1]->in_queue.load(std::memory_order_seq_cst);
+            }
+#endif
+
+            // The wakes made while the reactor's events are handled, by a
+            // worker or by the reactor's thread, for the life of the object
+            // (reactor.h: _seat_dispatch, _run). A task the events make
+            // ready goes back to the worker that last ran it (the mark in
+            // its frame's header, _resume) when that worker is looking for
+            // work, through its inbox (_hand_to): its connection's buffers
+            // and state are in that core's cache, where a spinning worker
+            // that stole it from the global queue spread one connection over
+            // the cores (Server-Sent Events 1910 ns at one worker, 3900 to
+            // 4400 from two on, measured). Else the worker handling the
+            // events keeps the first it is given to run itself (`keep`), and
+            // one it ran last itself goes to its next slot (Go's runnext);
+            // the rest go where a thread that is no worker puts them, the
+            // global queue, where each worker woken or looking takes one
+            // (on the worker's own ring a thief takes half, the rest waiting
+            // behind the thief's task). A worker's wakes in the scope are
+            // a thread's that is no worker (its _local cleared), so that the
+            // wakes the events cause in turn (a channel closed for a select,
+            // a strand's turn) take the same path
+            class DispatchScope {
+            public:
+                SGCL_INLINE_HOT explicit DispatchScope(Frame* keep) noexcept
+                : _saved(std::exchange(_local, nullptr)) {
+                    _dispatch_self = _saved;
+                    _dispatch_keep = keep;
+                    _dispatching = true;
+                }
+
+                SGCL_INLINE_HOT ~DispatchScope() {
+                    _local = _saved;
+                    _dispatching = false;
+                    _dispatch_self = nullptr;
+                    _dispatch_keep = nullptr;
+                }
+
+                DispatchScope(const DispatchScope&) = delete;
+                DispatchScope& operator=(const DispatchScope&) = delete;
+
+            private:
+                Local* _saved;
+            };
+
             // The queues as they are: for the benchmarks and a look at a load
             struct Statistics {
                 unsigned workers = 0;        // the threads of the pool (0: not started)
@@ -522,6 +723,9 @@ namespace sgcl::async {
 
             Statistics statistics() {
                 Statistics st;
+                if (runtime_exiting()) {
+                    return st;   // the workers joined, the mutex perhaps destroyed (runtime_exit)
+                }
                 std::lock_guard lock(_lifecycle);
                 if (!_running.load(std::memory_order_acquire)) {
                     return st;
@@ -539,15 +743,20 @@ namespace sgcl::async {
             // The state, for a hang (debugging)
             void dump(FILE* out) noexcept {
                 std::fprintf(out, "spinning %u sleepers %llx global empty %d stop %d\n", _spinning.load(), (unsigned long long)_sleepers.load(), (int)_global->ready.empty(), (int)_stop.load());
+#if SGCL_REACTOR_IN_WORKERS
+                std::fprintf(out, "  seat %x enabled %d inside %u\n", poll_seat.holder.load(), (int)poll_seat.enabled.load(), poll_seat.inside.load());
+#endif
                 for (unsigned i = 0; i < _locals.size(); ++i) {
                     auto& l = *_locals[i];
-                    std::fprintf(out, "  w%u h %u t %u next %p park %u\n", i, l.head.load(), l.tail.load(), (void*)l.next.get(), l.park.load());
+                    std::fprintf(out, "  w%u h %u t %u next %p park %u in_queue %d\n", i, l.head.load(), l.tail.load(), (void*)l.next.get(), l.park.load(), (int)l.in_queue.load());
                 }
             }
 
             SGCL_INLINE_HOT unsigned workers() {
                 if (!_running.load(std::memory_order_acquire)) [[unlikely]] {
-                    _start();
+                    if (!_start()) {
+                        return 0;   // the program is ending: none started
+                    }
                 }
                 return (unsigned)_workers.size();
             }
@@ -560,6 +769,9 @@ namespace sgcl::async {
             // no longer there handed to the global queue (_start)
             void set_workers(unsigned n) {
                 assert(!on_worker() && "scheduler::set_workers() from a task would join the calling thread");
+                if (runtime_exiting()) {
+                    return;
+                }
                 {
                     std::lock_guard lock(_lifecycle);
                     _workers_set = true;
@@ -639,12 +851,13 @@ namespace sgcl::async {
             // where they wait for the next start, and the error is the
             // waker's, unless the waker is quiet (a QuietWakes scope, a
             // destructor's; or a noexcept call's enqueue), which lets it
-            // go: false then. Out of line, after the start, so that the
+            // go: false then. The program ending (runtime_exit): nothing
+            // started, false, and the frames dropped, their tasks left
+            // where they were. Out of line, after the start, so that the
             // enqueue's own path is what it was
             SGCL_NOINLINE bool _start_for(Frame* frames, unsigned n, bool quiet) {
                 try {
-                    _start();
-                    return true;
+                    return _start();
                 } catch (const std::system_error&) {
                     {
                         std::lock_guard lock(_lifecycle);
@@ -677,11 +890,16 @@ namespace sgcl::async {
             // workers made before it are joined without having run
             // anything (they wait at the gate until the start is done),
             // and the scheduler is as it was, not running, its queues
-            // kept; the next start makes every worker again
-            void _start() {
+            // kept; the next start makes every worker again. False, and
+            // nothing touched, once the program is ending (runtime_exit)
+            bool _start() {
+                RuntimeStart starting;
+                if (!starting) {
+                    return false;
+                }
                 std::lock_guard lock(_lifecycle);
                 if (_running.load(std::memory_order_acquire)) {
-                    return;
+                    return true;
                 }
                 _sleepers.store(0, std::memory_order_relaxed);
                 _spinning.store(0, std::memory_order_relaxed);
@@ -712,6 +930,7 @@ namespace sgcl::async {
                     _clear_taken(l, t);
                 }
                 _active = n;
+                _pool.store(n, std::memory_order_relaxed);
                 _stop.store(false, std::memory_order_release);
                 _gate.store(GateClosed, std::memory_order_relaxed);
                 _workers.reserve(n);
@@ -738,9 +957,15 @@ namespace sgcl::async {
                 _running.store(true, std::memory_order_release);
                 _gate.store(GateOpen, std::memory_order_release);
                 _gate.notify_all();
+                return true;
             }
 
-            SGCL_INLINE_HOT static void _resume(const Frame& frame) {
+            SGCL_INLINE_HOT static void _resume(const Frame& frame, void* mark) {
+#if SGCL_REACTOR_IN_WORKERS
+                frame_header(frame.get()).unused.word = mark;   // the worker that runs it, index + 1: a small number, never an address (the frame is traced conservatively)
+#else
+                (void)mark;
+#endif
                 resume_frame(frame);   // the frame held by the caller's local while the coroutine runs (by reference down from there: a tracked_ptr copied is a barrier and a registration check each)
             }
 
@@ -766,6 +991,10 @@ namespace sgcl::async {
                 local.stack_floor = detail::current_thread().stack_begin() + config::stack_guard_margin;
                 uint32_t tick = 0;
                 uint32_t chain = 0;   // frames run from `next` in a row
+                void* const mark = (void*)(uintptr_t)(index + 1);   // this worker in the header of every frame it runs (_resume)
+#if SGCL_REACTOR_IN_WORKERS
+                bool look_again = false;   // the limit of the lookers (_may_look) passed over once, after a sleep
+#endif
                 for (;;) {
                     if (local.next) {
                         // A chain of hand-overs (a ping-pong over a channel,
@@ -777,7 +1006,7 @@ namespace sgcl::async {
                         if (++chain < NextChain) {
                             Frame f = local.next;   // a move of a tracked_ptr is a copy: taken, then cleared
                             local.next = nullptr;
-                            _resume(std::move(f));
+                            _resume(std::move(f), mark);
                             continue;
                         }
                         _push_local(local, local.next);
@@ -788,33 +1017,260 @@ namespace sgcl::async {
                     // not starved by a busy ring
                     if (++tick % 61 == 0) {
                         if (auto f = _global->ready.try_pop()) {
-                            _resume(std::move(*f));
+                            _resume(std::move(*f), mark);
                             continue;
                         }
                     }
                     if (auto f = _pop_local(local)) {
-                        _resume(std::move(f));
+                        _resume(std::move(f), mark);
                         continue;
                     }
+#if SGCL_REACTOR_IN_WORKERS
+                    if (look_again || _may_look()) {
+                        look_again = false;
+                        if (auto f = _find_work(local)) {
+                            _resume(std::move(f), mark);
+                            continue;
+                        }
+                    } else {
+                        // refused a look: what the look clears first, cleared
+                        // before the sleep (the last task's words on this
+                        // stack, the ring's slots taken), or the sleeper keeps
+                        // that task's objects alive (_find_work)
+                        _clear_dead_stack(local);
+                        _clear_taken(local, local.head.load(std::memory_order_acquire));
+                    }
+#else
                     if (auto f = _find_work(local)) {
-                        _resume(std::move(f));
+                        _resume(std::move(f), mark);
                         continue;
                     }
+#endif
                     if (_stop.load(std::memory_order_acquire)) {
+#if SGCL_REACTOR_IN_WORKERS
+                        if (_unseat()) {
+                            poll_seat.wake_backstop();   // nobody else to read the reactor's queue
+                        }
+#endif
                         return;
                     }
                     if (auto hook = worker_idle_hook.load(std::memory_order_relaxed)) {
                         hook(index);   // slog's buffered lines of this worker, written before it sleeps
                     }
-                    if (_sleep(local)) {
+                    Frame found;   // a task the reactor's queue made ready, taken in the sleep
+#if SGCL_REACTOR_IN_WORKERS
+                    look_again = true;   // back from the sleep (work seen, a task run): the next look is not refused
+#endif
+                    switch (_sleep(local, found)) {
+                    case Woken::credited:
                         // woken with the credit of a looking worker: this
                         // one is looking now, and the credit is its own
-                        if (auto f = _find_work(local, true)) {
-                            _resume(std::move(f));
+                        if (found) {
+                            _leave_with_work();
+                            _resume(found, mark);
+                        } else if (auto f = _find_work(local, true)) {
+                            _resume(std::move(f), mark);
                         }
+                        break;
+                    case Woken::look:
+                        // the seat at the reactor's queue is this worker's,
+                        // and work came as it was going to sleep: a look
+                        // (which keeps the seat while it finds nothing)
+                        if (auto f = _find_work(local)) {
+                            _resume(std::move(f), mark);
+                        }
+                        break;
+                    case Woken::none:
+                        if (found) {
+                            _resume(found, mark);
+                        }
+                        break;
                     }
                 }
             }
+
+            // A worker that ran out of work and was going to sleep: how it
+            // came back (_sleep)
+            enum class Woken {
+                none,       // by itself: work seen, a stop, or a task of the reactor's queue (not counted as looking)
+                credited,   // by a wake, with the credit of a looking worker
+                look        // by itself, as a looker (the seat at the reactor's queue kept)
+            };
+
+#if SGCL_REACTOR_IN_WORKERS
+            // Go's limit of the lookers (findrunnable: 2 * nmspinning <
+            // gomaxprocs - npidle), at a worker's own start of a look (one
+            // woken with the credit always looks): one looker always, more
+            // while they are fewer than half the workers awake (running or
+            // looking). DESIGN 251 measured it and turned it down while the
+            // reactor's thread woke workers: the one that had just finished
+            // was refused, the lone looker's window expired, and every
+            // event of a ping-pong through the reactor woke a worker
+            // through the kernel. With the workers reading the queue a
+            // worker refused here sleeps in the queue when the seat is free
+            // and runs the event's task itself, one wake as Go's netpoll
+            SGCL_INLINE_HOT bool _may_look() const noexcept {
+                const unsigned looking = _spinning.load(std::memory_order_relaxed);
+                if (looking == 0) {
+                    return true;
+                }
+                const unsigned awake = _active - (unsigned)std::popcount(_sleepers.load(std::memory_order_relaxed));
+                return 2 * looking < awake;
+            }
+#endif
+
+            // A looker, counted with the credit or by itself, stops looking
+            // with a task in hand: the count down, the seat at the
+            // reactor's queue given up if it is this worker's, and someone
+            // still looking if this was the last looker, or the seat given
+            // up (_find_work: the same at its end)
+            void _leave_with_work() noexcept {
+                const auto looking = _spinning.fetch_sub(1, std::memory_order_acq_rel);
+#if SGCL_REACTOR_IN_WORKERS
+                const bool unseated = _unseat();
+#else
+                const bool unseated = false;
+#endif
+                if (looking == 1 || unseated) {
+                    _keep_looking();
+                }
+            }
+
+            // The owner's own queues: what a task of the reactor's queue,
+            // handled on this worker, put in its next slot or its ring (a
+            // channel's wake, a strand's turn)
+            Frame _take_own(Local& local) noexcept {
+                if (local.next) {
+                    Frame f = local.next;
+                    local.next = nullptr;
+                    return f;
+                }
+                return _pop_local(local);
+            }
+
+#if SGCL_REACTOR_IN_WORKERS
+            // The seat at the reactor's queue: this worker's already, or
+            // taken now that it is free (true); never while the queue is
+            // closed to the workers
+            SGCL_INLINE_HOT bool _seated() noexcept {
+                if (!poll_seat.enabled.load(std::memory_order_acquire)) {   // acquire: the reactor's calls, set before it
+                    return false;
+                }
+                const uint32_t me = _index + 1;
+                uint32_t h = poll_seat.holder.load(std::memory_order_relaxed);
+                if (h == me) {
+                    return true;
+                }
+                return h == PollSeat::Free && poll_seat.holder.compare_exchange_strong(h, me, std::memory_order_acq_rel, std::memory_order_relaxed);
+            }
+
+            // The seat given up, when it is this worker's (true): the
+            // caller then makes sure someone takes it (_keep_looking, or
+            // the reactor's thread asked)
+            SGCL_INLINE_HOT bool _unseat() noexcept {
+                uint32_t me = _index + 1;
+                return poll_seat.holder.load(std::memory_order_relaxed) == me && poll_seat.holder.compare_exchange_strong(me, PollSeat::Free, std::memory_order_seq_cst, std::memory_order_relaxed);
+            }
+
+            // A look at the reactor's queue that does not wait, by the
+            // seat's holder between its looks for work: the first task
+            // made ready, or one the events put on this worker's own
+            // queues, else null
+            Frame _poll(Local& mine) {
+                alignas(16) unsigned char events[PollSeat::BufferBytes];
+                Frame first;
+                int n = poll_seat.wait(events, PollSeat::Capacity, false);
+                if (n > 0) {
+                    poll_seat.dispatch(events, n, first);
+                    if (!first) {
+                        first = _take_own(mine);
+                    }
+                } else if (n < 0 && _unseat()) {
+                    poll_seat.wake_backstop();   // the queue closed or failed: the reactor's thread sees to it
+                }
+                return first;
+            }
+#endif
+
+#if SGCL_REACTOR_IN_WORKERS
+            // A task made ready in a DispatchScope: handed to the worker
+            // that last ran it while that worker looks, else kept by the
+            // dispatching worker (the first), or put in its next slot when
+            // it ran the task last; false: to the queues as any other
+            bool _place_dispatched(Frame& frame) {
+                const auto last = (uintptr_t)frame_header(frame.get()).unused.word;
+                Local* self = _dispatch_self;
+                Local* owner = last && last <= pool() ? _locals[last - 1].get() : nullptr;
+                if (owner && owner != self && _hand_to(*owner, frame)) {
+                    return true;
+                }
+                if (auto keep = _dispatch_keep; keep && !*keep) {
+                    *keep = std::move(frame);
+                    return true;
+                }
+                if (owner && owner == self && !self->next) {
+                    self->next = std::move(frame);   // run after the one kept, on this worker (the owner's own slot: _local is cleared, not changed)
+                    return true;
+                }
+                return false;
+            }
+
+            // The task to a worker's inbox, while it looks (true). Under
+            // the inbox's lock, which the owner takes as it stops looking
+            // (_inbox_leave): a task is put in only while the owner looks,
+            // and the owner takes what is there when it stops, so none is
+            // left in an inbox nobody looks at
+            static bool _hand_to(Local& l, Frame& frame) noexcept {
+                if (!l.looking.load(std::memory_order_relaxed)) {
+                    return false;
+                }
+                _inbox_lock(l);
+                const bool ok = l.looking.load(std::memory_order_relaxed) && !l.inbox;
+                if (ok) {
+                    l.inbox = std::move(frame);
+                    l.has_inbox.store(true, std::memory_order_release);
+                }
+                _inbox_unlock(l);
+                return ok;
+            }
+
+            // The owner: what its inbox holds, taken (null when empty)
+            static Frame _inbox_take(Local& l) noexcept {
+                _inbox_lock(l);
+                Frame f = l.inbox;
+                if (f) {
+                    l.inbox = nullptr;
+                    l.has_inbox.store(false, std::memory_order_relaxed);
+                }
+                _inbox_unlock(l);
+                return f;
+            }
+
+            // The owner stops looking: no task handed from here on, and the
+            // one handed meanwhile taken
+            static Frame _inbox_leave(Local& l) noexcept {
+                _inbox_lock(l);
+                l.looking.store(false, std::memory_order_relaxed);
+                Frame f = l.inbox;
+                if (f) {
+                    l.inbox = nullptr;
+                    l.has_inbox.store(false, std::memory_order_relaxed);
+                }
+                _inbox_unlock(l);
+                return f;
+            }
+
+            static void _inbox_lock(Local& l) noexcept {
+                Backoff<16> backoff;
+                while (l.inbox_lock.exchange(1, std::memory_order_acquire)) {
+                    backoff();
+                }
+            }
+
+            SGCL_INLINE_HOT static void _inbox_unlock(Local& l) noexcept {
+                l.inbox_lock.store(0, std::memory_order_release);
+            }
+#endif
 
             // The owner's push, at the tail; a full ring spills to the
             // global queue
@@ -971,9 +1427,19 @@ namespace sgcl::async {
                 }
                 Frame found;
             look:
+#if SGCL_REACTOR_IN_WORKERS
+                mine.looking.store(true, std::memory_order_relaxed);
+#endif
                 const uint64_t until = spin_until();
                 detail::Backoff<32> backoff;
                 do {
+#if SGCL_REACTOR_IN_WORKERS
+                    if (mine.has_inbox.load(std::memory_order_acquire)) {
+                        if ((found = _inbox_take(mine))) {
+                            break;   // a task of the reactor's queue that ran here last
+                        }
+                    }
+#endif
                     if (auto f = _global->ready.try_pop()) {
                         found = std::move(*f);
                         break;
@@ -985,16 +1451,63 @@ namespace sgcl::async {
                         if (v != _index) {
                             found = _steal(*_locals[v], mine);
                         }
+#if SGCL_REACTOR_IN_WORKERS
+                        if (mine.has_inbox.load(std::memory_order_relaxed)) {
+                            break;   // handed a task: taken at the top of the round, before any other
+                        }
+#endif
                     }
                     if (found || _stop.load(std::memory_order_acquire)) {
                         break;
                     }
+#if SGCL_REACTOR_IN_WORKERS
+                    if (mine.has_inbox.load(std::memory_order_relaxed)) {
+                        continue;
+                    }
+#endif
+#if SGCL_REACTOR_IN_WORKERS
+                    // the reactor's queue, by the one holding the seat (or
+                    // taking it, free): Go's netpoll(0) in findrunnable
+                    if (_seated()) {
+                        if ((found = _poll(mine))) {
+                            break;
+                        }
+                    }
+#endif
+#if SGCL_REACTOR_IN_WORKERS
+                    // the pauses watch the inbox: a task handed here is the
+                    // hand-over of a ping-pong's every hop, and a round ends
+                    // only after every ring, the queue and the pauses
+                    for (unsigned i = 0; i < backoff.pauses && !mine.has_inbox.load(std::memory_order_relaxed); ++i) {
+                        os::spin_pause();
+                    }
+                    if (backoff.pauses < 32) {
+                        backoff.pauses *= 2;
+                    }
+#else
                     backoff();
+#endif
                 } while (cpu_ticks() < until);
+#if SGCL_REACTOR_IN_WORKERS
+                if (Frame handed = _inbox_leave(mine)) {
+                    if (found) {
+                        _push_local(mine, std::move(found));   // the other one to the ring, where the next looker takes it (the cascade below wakes one when this was the last looker)
+                    }
+                    found = std::move(handed);
+                }
+#endif
                 const auto looking = _spinning.fetch_sub(1, std::memory_order_acq_rel);
+#if SGCL_REACTOR_IN_WORKERS
+                // with work in hand the seat goes (a worker that runs a task
+                // reads no queue); without, it is kept into the sleep, which
+                // waits in the queue
+                const bool unseated = found && _unseat();
+#else
+                const bool unseated = false;
+#endif
                 if (looking == 1) {
                     if (found) {
-                        _wake_one_if_none_looking();
+                        _keep_looking();
                     } else if (!_stop.load(std::memory_order_acquire)) {
                         std::atomic_thread_fence(std::memory_order_seq_cst);   // against the push's fence in _wake_one_if_none_looking
                         if (_work_elsewhere()) {
@@ -1002,6 +1515,8 @@ namespace sgcl::async {
                             goto look;
                         }
                     }
+                } else if (unseated) {
+                    _keep_looking();   // others were looking at the count: one of them takes the seat, or, gone since, sees it free (_keep_looking after its fence)
                 }
                 return found;
             }
@@ -1054,26 +1569,106 @@ namespace sgcl::async {
             // worker yet woke nobody when no other worker slept, and only
             // this look finds its frame (Go's stopm comes after the P is
             // given back to the idle list and the queues looked at again).
-            // True when woken by a wake (with the credit), false when it
-            // found work itself or the scheduler stops
-            bool _sleep(Local& local) noexcept {
+            // Woken::credited when woken by a wake (with the credit), none
+            // when it found work itself or the scheduler stops.
+            //
+            // With the seat at the reactor's queue (SGCL_REACTOR_IN_WORKERS)
+            // the wait is in the queue instead of on the word: the kernel
+            // ends it for an event of a descriptor, and a wake for it (a
+            // sleeper's bit taken, as for any sleeper) is a trigger of the
+            // queue's user event (PollSeat::wake_poller), which the waker
+            // sends instead of the word's notify when it reads `in_queue`,
+            // written before the bit. Back from the queue the bit is taken
+            // back (or the wake's credit taken) before the events are
+            // handled, since they may put tasks on this worker's ring, which
+            // a sleeper's bit says is empty (_work_elsewhere). The first task
+            // the events make ready is this worker's to run (`found`): with
+            // the credit it stops looking (the caller: _leave_with_work);
+            // without, it is not counted as looking, and as Go's findrunnable
+            // after its netpoll it gives the seat up and makes sure someone
+            // else looks (_keep_looking: a spinner takes the seat, or a
+            // sleeper is woken to, or the reactor's thread when every worker
+            // is busy). Events that made no task ready for this worker (a
+            // thread's wait, a channel, a stale wake): the sleep again.
+            // A seat that is free at the look after the bit (its holder gave
+            // it up before it could see this bit) is taken by a look instead
+            // of a sleep on the word: a sleeper on the word is not woken
+            // for a seat (_keep_looking wakes one only when nobody looks,
+            // and the reactor's thread when it finds no bit)
+            Woken _sleep(Local& local, Frame& found) noexcept {
                 auto bit = uint64_t(1) << _index;
+#if SGCL_REACTOR_IN_WORKERS
+            again:
+                const bool seated = _seated();
+                local.in_queue.store(seated, std::memory_order_relaxed);   // published by the bit's release
+#else
+                (void)found;   // only the reactor's queue gives one
+#endif
                 _sleepers.fetch_or(bit, std::memory_order_acq_rel);
                 std::atomic_thread_fence(std::memory_order_seq_cst);
-                if (_has_work(local) || _work_elsewhere() || _stop.load(std::memory_order_acquire)) {
+                if (_has_work(local) || _work_elsewhere() || _stop.load(std::memory_order_acquire)
+#if SGCL_REACTOR_IN_WORKERS
+                    || (!seated && poll_seat.enabled.load(std::memory_order_relaxed) && poll_seat.holder.load(std::memory_order_seq_cst) == PollSeat::Free)
+#endif
+                ) {
                     if (_sleepers.fetch_and(~bit, std::memory_order_acq_rel) & bit) {
-                        return false;   // the bit was still ours: nobody woke us
+                        // the bit was still ours: nobody woke us
+#if SGCL_REACTOR_IN_WORKERS
+                        local.in_queue.store(false, std::memory_order_relaxed);
+                        if (seated || poll_seat.holder.load(std::memory_order_relaxed) == PollSeat::Free) {
+                            return Woken::look;   // a look keeps (or takes) the seat while it finds nothing
+                        }
+#endif
+                        return Woken::none;
                     }
                     while (local.park.load(std::memory_order_acquire) == 0) {   // a wake is on its way: take its credit
                     }
                     local.park.store(0, std::memory_order_relaxed);
-                    return true;
+#if SGCL_REACTOR_IN_WORKERS
+                    local.in_queue.store(false, std::memory_order_relaxed);
+#endif
+                    return Woken::credited;
                 }
+#if SGCL_REACTOR_IN_WORKERS
+                if (seated) {
+                    alignas(16) unsigned char events[PollSeat::BufferBytes];
+                    const int n = poll_seat.wait(events, PollSeat::Capacity, true);
+                    bool credited = false;
+                    if (!(_sleepers.fetch_and(~bit, std::memory_order_acq_rel) & bit)) {
+                        while (local.park.load(std::memory_order_acquire) == 0) {   // the waker's store comes before its trigger
+                        }
+                        local.park.store(0, std::memory_order_relaxed);
+                        credited = _spinning_credit_taken();
+                    }
+                    local.in_queue.store(false, std::memory_order_relaxed);
+                    if (n > 0) {
+                        poll_seat.dispatch(events, n, found);
+                        if (!found) {
+                            found = _take_own(local);
+                        }
+                    } else if (n < 0 && _unseat()) {
+                        poll_seat.wake_backstop();   // the queue closed or failed: the reactor's thread sees to it
+                    }
+                    if (credited) {
+                        return Woken::credited;
+                    }
+                    if (found) {
+                        if (_unseat()) {
+                            _keep_looking();
+                        }
+                        return Woken::none;
+                    }
+                    if (_stop.load(std::memory_order_acquire)) {
+                        return Woken::none;
+                    }
+                    goto again;
+                }
+#endif
                 while (local.park.load(std::memory_order_acquire) == 0) {
                     local.park.wait(0, std::memory_order_acquire);
                 }
                 local.park.store(0, std::memory_order_relaxed);
-                return _spinning_credit_taken();
+                return _spinning_credit_taken() ? Woken::credited : Woken::none;
             }
 
             // A wake by stop() carries no credit; one by an enqueue does
@@ -1093,27 +1688,86 @@ namespace sgcl::async {
                 if (_spinning.load(std::memory_order_relaxed) != 0) {
                     return;
                 }
+                (void)_wake_one();
+            }
+
+            // The same for a looker gone with work in hand as the last one
+            // (the cascade), or a seat at the reactor's queue given up: when
+            // nobody looks and no sleeper is there to wake (every worker
+            // busy), and the seat is free, the reactor's thread is told to
+            // watch it (reactor.h: _watch): it takes the seat when no worker
+            // has read the queue for a while, so that the queue is read while
+            // the workers run long tasks or block (a thread's wait on a
+            // descriptor, a worker blocked in one), and stays out of the
+            // queue while they come back to it between short tasks (Go: the
+            // network polled by the scheduler when idle, by sysmon after 10
+            // ms). Its fence pairs with a looker's fence after its count
+            // goes down, with a sleeper's after its bit (see PollSeat), and
+            // with the thread's after the end of its watch
+            void _keep_looking() noexcept {
+                std::atomic_thread_fence(std::memory_order_seq_cst);
+                if (_spinning.load(std::memory_order_relaxed) != 0) {
+                    return;
+                }
+                if (_wake_one()) {
+                    return;
+                }
+#if SGCL_REACTOR_IN_WORKERS
+                if (poll_seat.enabled.load(std::memory_order_acquire) && poll_seat.holder.load(std::memory_order_seq_cst) == PollSeat::Free) {
+                    poll_seat.wake_backstop();
+                }
+#endif
+            }
+
+            // One sleeper's bit taken, the credit counted, its wake sent:
+            // false when no bit was there. A sleeper asleep in the
+            // reactor's queue is woken through the queue, and only when no
+            // other sleeps: the others' wake costs as much, and leaves the
+            // queue read
+            bool _wake_one() noexcept {
                 auto set = _sleepers.load(std::memory_order_acquire);
                 while (set) {
-                    auto i = (unsigned)std::countr_zero(set);
+                    auto pick = set;
+#if SGCL_REACTOR_IN_WORKERS
+                    const uint32_t h = poll_seat.holder.load(std::memory_order_relaxed);
+                    if (h - 1 < MaxWorkers) {
+                        if (auto others = set & ~(uint64_t(1) << (h - 1))) {
+                            pick = others;
+                        }
+                    }
+#endif
+                    auto i = (unsigned)std::countr_zero(pick);
                     auto bit = uint64_t(1) << i;
                     if (_sleepers.fetch_and(~bit, std::memory_order_acq_rel) & bit) {
                         _spinning.fetch_add(1, std::memory_order_acq_rel);
-                        auto& park = _locals[i]->park;
-                        park.store(1, std::memory_order_release);
-                        park.notify_one();
-                        return;
+                        auto& l = *_locals[i];
+                        l.park.store(1, std::memory_order_release);
+#if SGCL_REACTOR_IN_WORKERS
+                        if (l.in_queue.load(std::memory_order_relaxed)) {
+                            poll_seat.wake_poller();
+                            return true;
+                        }
+#endif
+                        l.park.notify_one();
+                        return true;
                     }
                     set = _sleepers.load(std::memory_order_acquire);
                 }
+                return false;
             }
 
-            // stop(): every worker woken, without a credit
+            // stop(): every worker woken, without a credit (the one asleep
+            // in the reactor's queue through the queue)
             void _wake_all() noexcept {
                 for (auto& l : _locals) {
                     l->park.store(1, std::memory_order_release);
                     l->park.notify_one();
                 }
+#if SGCL_REACTOR_IN_WORKERS
+                if (poll_seat.enabled.load(std::memory_order_acquire)) {
+                    poll_seat.wake_poller();
+                }
+#endif
             }
 
             // xorshift, a thread's own
@@ -1127,6 +1781,9 @@ namespace sgcl::async {
 
             inline static thread_local Local* _local = nullptr;
             inline static thread_local unsigned _index = 0;
+            inline static thread_local bool _dispatching = false;        // in a DispatchScope
+            inline static thread_local Local* _dispatch_self = nullptr;  // its worker (null on the reactor's thread)
+            inline static thread_local Frame* _dispatch_keep = nullptr;  // where the first task it keeps goes (null: none kept)
 
             std::vector<unique_ptr<Local>> _locals;
             unique_ptr<Global> _global;
@@ -1139,14 +1796,22 @@ namespace sgcl::async {
             std::atomic<int> _gate = {GateClosed};   // the workers of a start wait at it until the last is made (open) or one cannot be (aborted)
             std::vector<std::thread> _workers;
             unsigned _active = 0;          // the workers of this start: written before they are made, read by them
+            std::atomic<unsigned> _pool = {0};   // the same, for other threads (the reactor's: pool())
             unsigned _workers_asked = 0;   // set_workers (under _lifecycle)
             unsigned _workers_env = 0;     // SGCL_WORKERS, or config::workers
             bool _workers_set = false;
             bool _env_read = false;
         };
 
+        // The singleton: its destruction at exit ends the runtime first
+        // (runtime_exit, below); a Scheduler of a test's own does not
         inline Scheduler& scheduler_instance() noexcept {
-            static Scheduler scheduler;
+            struct Instance : Scheduler {
+                ~Instance() {
+                    runtime_exit();
+                }
+            };
+            static Instance scheduler;
             return scheduler;
         }
 
@@ -1254,6 +1919,14 @@ namespace sgcl::async {
                 }
             }
 
+            // The frames placed as Scheduler::DispatchScope says before
+            // they are gathered (the reactor's events: each to the worker
+            // that last ran it, or to the dispatching worker); the rest
+            // are gathered as ever. Before the first add, in the scope
+            SGCL_INLINE_HOT void affine() noexcept {
+                _affine = true;
+            }
+
         private:
             friend class Scheduler;
             using Frame = tracked_ptr<FrameWord>;
@@ -1294,6 +1967,7 @@ namespace sgcl::async {
 
             alignas(Frame) uintptr_t _storage[Capacity];   // words, not bytes: an array of chars on the stack gets the stack protector's canary, a nanosecond at every walk (a broadcast's send, 27.1 to 28.4 ns with no subscriber waiting)
             unsigned _n = 0;
+            bool _affine = false;     // affine(): placed first (Scheduler::_place_dispatched)
         };
 
         // A frame gathered, or on its executor's queue at once (enqueue).
@@ -1307,6 +1981,11 @@ namespace sgcl::async {
                 executor->push(std::move(frame), false);
                 return;
             }
+#if SGCL_REACTOR_IN_WORKERS
+            if (batch._affine && _place_dispatched(frame)) [[unlikely]] {
+                return;   // its last worker's inbox, or the dispatching worker's to run: nothing to wake
+            }
+#endif
             if (!batch._n) {
                 _wake_one_if_none_looking();
             }
@@ -1360,6 +2039,38 @@ namespace sgcl::async {
         inline std::atomic<void (*)()> scheduler_stop_hook = {nullptr};
         inline std::atomic<void (*)()> scheduler_stop_hook2 = {nullptr};
         inline std::atomic<void (*)()> scheduler_stop_hook3 = {nullptr};
+        // The reactor's stop at the end of the program, which wakes none of
+        // its waits; set when the reactor is made (reactor.h)
+        inline std::atomic<void (*)()> reactor_exit_hook = {nullptr};
+
+        // The first destructor of a singleton of the runtime (the others
+        // find Exiting set and return): no start from here on, the starts
+        // in progress waited for, and the runtime's threads joined, the
+        // pool's first (its jobs may wait for tasks), then the workers
+        // (their tasks for timers and I/O), the timers' thread and the
+        // reactor's. Every thread these could start is started by now, its
+        // hook stored before its start was counted out, and nothing starts
+        // another: the set joined here is all there is. On the main thread
+        // (exit), before any singleton is destroyed: each hook calls into a
+        // live object
+        inline void runtime_exit() {
+            if (runtime_state.fetch_or(RuntimeExiting, std::memory_order_seq_cst) & RuntimeExiting) {
+                return;
+            }
+            while (runtime_state.load(std::memory_order_acquire) >= RuntimeStartUnit) {
+                std::this_thread::yield();   // a start in progress: a thread made, a lock held for a moment
+            }
+            if (auto hook = scheduler_stop_hook3.load(std::memory_order_acquire)) {
+                hook();
+            }
+            scheduler_instance().stop();
+            if (auto hook = scheduler_stop_hook.load(std::memory_order_acquire)) {
+                hook();
+            }
+            if (auto hook = reactor_exit_hook.load(std::memory_order_acquire)) {
+                hook();
+            }
+        }
 
         SGCL_INLINE_HOT void enqueue(tracked_ptr<FrameWord> frame, bool next) {
             scheduler_instance().enqueue(std::move(frame), next);
@@ -1426,6 +2137,9 @@ namespace sgcl::async {
         // wants its threads gone at a point of its own (the end of the
         // program does it); the next spawn starts the scheduler again
         SGCL_INLINE_HOT static void stop() {
+            if (detail::runtime_exiting()) {
+                return;   // the end of the program stopped everything already (runtime_exit)
+            }
             if (auto hook = detail::scheduler_stop_hook.load(std::memory_order_acquire)) {
                 hook();
             }

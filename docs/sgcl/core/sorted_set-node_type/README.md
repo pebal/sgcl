@@ -14,6 +14,8 @@ namespace sgcl {
 }
 ```
 
+**Requires [rooted](../rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::sorted_set<Key, Compare>::node_type` is the node handle of the set, what `std::set::node_type` is: the owner
 of one node taken out of a tree by [extract](../sorted_set/extract.md), with its element in it. Through the handle the
 element is reached and changed, the key too, since the node is in no tree; [insert](../sorted_set/insert.md) links the
@@ -25,9 +27,6 @@ The type depends on `Key` alone: it is the `node_type` of every `sorted_set<Key,
 
 ## Rules
 
-- A handle holds its node by a `tracked_ptr`, so it lives where one may: on a stack or inside a managed object,
-  never in `new`/`malloc` memory, a `std` container, a global or a plain coroutine frame
-  ([The rules](../README.md#the-rules), 1).
 - A handle moves and does not copy: one node, one owner. A handle moved from is empty.
 - The element is destroyed by the handle's destructor, or by an assignment over the handle, unless the node went
   back into a set first. A handle dying in a sweep, inside a managed object nobody refers to any more, leaves the

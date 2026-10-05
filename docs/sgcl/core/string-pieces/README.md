@@ -14,6 +14,8 @@ namespace sgcl {
 }
 ```
 
+**Requires [rooted](../rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::string::pieces` is what [split](../string/split.md) and [fields](../string/fields.md) return: a forward range of
 [slices](../slice/README.md) into a string, the pieces between the occurrences of a separator, the words between runs of white
 space, or the characters one by one. Each piece is found as the walk reaches it, one search per step, and nothing is
@@ -30,8 +32,6 @@ in a string of its own, and a string given as the separator held as it is.
 
 ## Rules
 
-- A `pieces` holds strings, so it lives where a `tracked_ptr` may: on a stack or inside a managed object
-  ([The rules](../README.md#the-rules), 1).
 - It is made only by `split` and `fields`; it is copied as a value, and a copy walks the same pieces.
 - The range is walked again from the start by every `begin()`, and the pieces are computed anew each time: a walk
   costs one search per piece, never an allocation.

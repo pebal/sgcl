@@ -76,6 +76,16 @@ namespace sgcl::net::http::detail {
             }
         }
 
+        // Bytes put in the buffer as if they had come from the connection
+        // (a test's request: its body read from memory, test.h)
+        void preload(std::string_view bytes) noexcept {
+            if (_cap - _end < bytes.size()) {
+                _grow(buffered() + bytes.size());
+            }
+            sgcl::detail::copy_bytes(_data.get() + _end, bytes.data(), bytes.size());
+            _end += bytes.size();
+        }
+
         SGCL_INLINE_HOT std::string_view view() const noexcept {
             return std::string_view(reinterpret_cast<const char*>(_data.get()) + _begin, _end - _begin);
         }
@@ -645,6 +655,20 @@ namespace sgcl::net::http::detail {
                             if (_wire->buffered()) {
                                 continue;
                             }
+                        }
+                        if (_chunked && _chunked->data_left()) {
+                            // the rest of a chunk's data, the buffer empty:
+                            // read straight into out, as much as it takes
+                            const size_t want = size_t(std::min<uint64_t>(_chunked->data_left(), out.size()));
+                            auto r = co_await _wire->async_read(out.first(want));
+                            if (!r) {
+                                co_return fail(r);
+                            }
+                            if (*r == 0) {
+                                co_return fail(io::error(io::errc::unexpected_eof, "read", "body"));
+                            }
+                            _chunked->data_taken(*r);
+                            co_return *r;
                         }
                         auto r = co_await _wire->fill();
                         if (!r) {

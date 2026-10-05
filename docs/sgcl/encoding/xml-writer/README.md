@@ -13,6 +13,8 @@ namespace sgcl::encoding {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::encoding::xml::writer` writes XML onto an [io::writer](../../io/writer/README.md) — Go's `xml.Encoder`
 with `EncodeToken`: calls that make the document in order, each returning the writer so that they chain, gathered
 in memory until [flush](flush.md) writes them out. For a whole [tree](../xml/README.md) there is
@@ -44,8 +46,8 @@ program's type, [value](value.md).
 - `flush()` writes on the thread that calls it; `async_flush()` in a task gives the worker back while the stream
   waits. What was gathered is written in one write, so `flush()` is called between the parts of a large document.
   A writer destroyed without a flush writes nothing.
-- A writer holds tracked pointers: it lives where a `tracked_ptr` may. It is moved, not copied, as the
-  [reader](../xml-reader/README.md) is: two writers would hold one pending text and write it twice.
+- A writer is moved, not copied, as the [reader](../xml-reader/README.md) is: two writers would hold one pending text
+  and write it twice.
 
 ### From code written for Go
 

@@ -10,6 +10,8 @@ namespace sgcl::txt {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `txt::bidi_runs` is the pieces of a text in the order they are drawn, each with the level it runs at: the answer of
 the bidirectional algorithm of [UAX #9](https://www.unicode.org/reports/tr9/) for whoever draws text that runs both
 ways at once, a user interface or a terminal, and for moving a caret through it. Storing, searching and comparing
@@ -33,9 +35,7 @@ Nothing is copied: every piece is a slice of the text. The range is a range of t
 
 ## Rules
 
-- A `bidi_runs` holds a slice of the text, so it lives where a `tracked_ptr` may: on a stack or inside a managed
-  object ([the rules of core](../../core/README.md#the-rules), 1). A range over a temporary string is safe: the slice
-  keeps the string's object.
+- A `bidi_runs` holds a slice of the text. A range over a temporary string is safe: the slice keeps the string's object.
 - The pieces are worked out when the range is constructed, the whole text at once, and held in a vector of the
   range; the walk reads them.
 - A text of several paragraphs is cut after each paragraph separator (rule P1), the separator kept with the paragraph

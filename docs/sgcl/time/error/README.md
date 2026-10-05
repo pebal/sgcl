@@ -10,6 +10,8 @@ namespace sgcl::time {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::time::error` is why a text is not a date or a time, or a file not a time zone: a sentence and the byte of the
 text or of the file the reading stopped on. It is the one type of error of the whole module.
 
@@ -25,8 +27,7 @@ its `what()` the error's [message](message.md). What else in the module throws, 
 
 ## Rules
 
-- An error is two words, the sentence (a [string](../../core/string/README.md)) and the offset: it lives where a string
-  may.
+- An error is two words, the sentence (a [string](../../core/string/README.md)) and the offset.
 - The sentences are the library's, one per refusal: `"a month from 01 to 12 expected"`,
   `"unknown time zone \"Europe/Warsw\""`, `"TZif: the header is cut short"`. The offset is the byte where the
   field that failed starts, in the text or in the bytes of the file; 0 where the whole input is refused, a name

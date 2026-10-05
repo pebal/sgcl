@@ -11,6 +11,8 @@ namespace sgcl::concurrent {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::concurrent::copy_on_write<T>` holds a value read by many threads and replaced by few, whole: the
 copy-on-write of Java's `CopyOnWriteArrayList`, for any copyable `T`. The value lives in a managed object of its
 own and is never modified there. A reader loads the pointer, one atomic load, and has an immutable snapshot that
@@ -27,9 +29,7 @@ listeners, anything read on every request and changed once in a while; the versi
 
 ## Rules
 
-- The container is one word, the atomic pointer. It lives where a `tracked_ptr` may: on a thread's stack or inside
-  a managed object ([The rules](../../core/README.md#the-rules), 1). A snapshot is a `tracked_ptr<const T>` and lives
-  where one may.
+- The container is one word, the atomic pointer. A snapshot is a `tracked_ptr<const T>`.
 - Every member function may be called from any thread at any time. `load` is one atomic load, wait-free. `store`,
   `operator=`, `update` and `compare_exchange` are lock-free: a writer that loses the exchange to another writer
   copies again, so `update`'s function may run more than once, on copies nobody else sees. Writers are meant to be

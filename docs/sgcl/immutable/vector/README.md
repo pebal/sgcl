@@ -11,6 +11,8 @@ namespace sgcl::immutable {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::immutable::vector<T>` is the immutable vector, the persistent vector of Clojure and Scala: a sequence
 every operation of which returns a new vector and leaves the old one exactly as it was, the two sharing everything
 but the path that changed. The elements live in a trie of 32-way branches indexed by five bits of the position
@@ -36,8 +38,6 @@ place and its random access is one load, where the trie's is a walk of a few bra
 
 ## Rules
 
-- A vector holds its root and its tail by `tracked_ptr`, so it lives where one may: on a thread's stack or inside
-  a managed object ([The rules](../../core/README.md#the-rules), 1).
 - Every member but the assignment is `const`. `push_back`, `emplace_back`, `pop_back` and `set` return the new
   vector; the one they were called on is unchanged, and stays so for as long as it is held. The elements are
   reached as `const`.

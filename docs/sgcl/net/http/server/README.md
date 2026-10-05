@@ -10,13 +10,17 @@ namespace sgcl::net::http {
 }
 ```
 
+**Requires [rooted](../../../core/rooted/README.md) outside a stack or a managed object.**
+
 `net::http::server` is Go's `http.Server` and `ServeMux` in one: routes are registered with a handler each
 ([route](route.md), the patterns of Go 1.22), [serve](serve.md) listens and runs one task for each
 connection, and [shutdown](shutdown.md) or [close](close.md) ends it. A handler is a function of
 `(request, response_writer)` that returns `void`, for one that never waits (a [write](../response_writer/write.md) only
 buffers), or `async::task<>`, for one that reads the body or calls another service; the server tells the two apart
 by the type. The same handlers serve HTTP/1.1 and HTTP/2, on a plain port and over TLS 1.3
-([serve_tls](serve_tls.md), or a listener of [tls::listen](../../tls/listen.md)).
+([serve_tls](serve_tls.md), or a listener of [tls::listen](../../tls/listen.md)); over TLS a handler reads the
+client's certificate, when the config asks for one, and whether its session was resumed through the request's
+[tls](../request/tls.md).
 
 A server is a word and its settings: a `tracked_ptr` to the routes and the connections, which the copies share, as
 the copies of a [connection](../../connection/README.md) share it, and the [settings](#member-objects) — the limits, the
@@ -27,8 +31,6 @@ timeout and a smaller limit by default (10 s and 32 KB, where Go has none and 1 
 
 ## Rules
 
-- A server holds a `tracked_ptr`, so it lives where one may: on a stack, in a task, in a managed object; in a global
-  or a `std` container, a [rooted](../../../core/rooted/README.md) of it ([The rules](../../../core/README.md#the-rules), 1).
 - The routes, [not_found](not_found.md) and [access_log](access_log.md) are set before `serve`, the
   settings too: what changes after `serve` was called does not reach its connections.
 - `serve`, `serve_tls` and `shutdown` block the calling thread (main's: `server.serve(":8080")` is Go's
@@ -293,6 +295,8 @@ true
 - [request](../request/README.md), [response_writer](../response_writer/README.md): what a handler gets
 - [client](../client/README.md): the other side
 - [serve](../serve.md), [serve_tls](../serve_tls.md): a directory, or one handler over https, in one call
+- [reverse_proxy](../reverse_proxy/README.md): a handler that passes requests on to backends
+- [test_server](../test_server/README.md), [response_recorder](../response_recorder/README.md): a server and a handler in a test
 - [tls](../../tls/README.md): the listener of https, the identity
 - [Benchmarks](../benchmarks.md): the server under load against Go's
 - `tests/net/http/parser.cpp` (every rule of the head, by section, and the smuggling payloads),

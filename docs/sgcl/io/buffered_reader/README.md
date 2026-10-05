@@ -10,6 +10,8 @@ namespace sgcl::io {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `io::buffered_reader` is a reader with a buffer in front of any other: Go's `bufio.Reader` and `bufio.Scanner` in one
 class. The stream underneath is read in blocks of `config::io_buffer_size` (8 KB) into a managed `array<byte, N>`
 held by a `tracked_ptr` — one object without a header, `config::page_size / config::io_buffer_size` of them (eight)
@@ -29,9 +31,6 @@ the state, as the copies of a `file` share the file. `std` has no counterpart: a
 - A copy is the same reader: one block, one position. What one copy reads the other does not see again; passed by
   value into a task, the copy keeps the reader alive for as long as the task runs. Two readers made over the same
   stream are two blocks and two positions, each reading what the other has not taken.
-- A handle is a tracked word: on a stack, in a task, in a managed object; in a global or a std container, a
-  [rooted](../../core/rooted/README.md) of it (`rooted<io::buffered_reader> in(std::in_place, f);`, then
-  `in->read_line()`), never in a managed object or a task's frame, since a root is never part of a cycle.
 - A default-constructed reader holds no state (`!r`); an operation on it is a contract violation, asserted in
   debug builds.
 - A line is a `slice<const char>` into the reader's block, valid as text until the next read: the block is reused,

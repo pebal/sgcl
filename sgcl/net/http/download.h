@@ -164,3 +164,5 @@ namespace sgcl::net::http {
         return detail::save_body(*this, std::move(path));
     }
 }
+
+#include "detail/websocket_client.h"   // client::websocket and websocket::connect: the client of the process's above

@@ -10,6 +10,8 @@ namespace sgcl::io {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::io::multi_writer` is a writer that writes to every one of several writers, in their order: what Go's
 `io.MultiWriter` is. A log to the terminal and to a file, a download to a file and to a hash, with one write. The
 first error stops it: the writers after the one that failed are not written to. The standard library has no
@@ -17,8 +19,6 @@ counterpart.
 
 ## Rules
 
-- It holds a [vector](../../core/vector/README.md) of [io::writer](../writer/README.md)s, so it lives where a `tracked_ptr` may: on a
-  stack, in a task, in a managed object ([The rules](../../core/README.md#the-rules), 1).
 - An object, not a handle: given by reference to an `io::writer` or to `io::copy`, it is referenced, and the caller
   keeps it alive; given as a temporary, it is copied into a managed object of its own.
 - [async_write](write.md) is over each writer's own `async_write`; a writer that has only `write` has

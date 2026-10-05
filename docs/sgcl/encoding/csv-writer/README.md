@@ -13,6 +13,8 @@ namespace sgcl::encoding {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::encoding::csv::writer` writes CSV into an [io::writer](../../io/writer/README.md) a record at a time, as Go's
 `csv.Writer` writes it: [write](write.md) takes a record's fields — a list of texts, any range of texts,
 a [row](../csv-row/README.md) as it was read, or a value of a type of the program with its fields as the columns — and quotes
@@ -34,8 +36,7 @@ the fields that must be quoted; [flush](flush.md) hands the text gathered to the
   of the stream.
 - **`flush()` writes on the thread that calls it**; a task uses `co_await w.async_flush()`. `write` never reaches
   the stream and never waits.
-- A writer is one thread's at a time, and it is neither copied nor moved. It holds the stream, never closes it, and
-  lives where a `tracked_ptr` may.
+- A writer is one thread's at a time, and it is neither copied nor moved. It holds the stream and never closes it.
 
 ### From code written for Go
 

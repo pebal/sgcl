@@ -26,6 +26,8 @@ namespace sgcl::compress::sevenzip {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::compress::sevenzip::entry` is one entry of a 7z archive: what the archive's header says of it. The
 [archive](../sevenzip-archive/README.md) lists them ([entries](../sevenzip-archive/entries.md)) and gives one with a reader of
 its data in a [walk](../sevenzip-archive/walk.md).

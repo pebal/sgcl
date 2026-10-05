@@ -10,6 +10,8 @@ namespace sgcl::io {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `io::mapping` is a file mapped into memory: its bytes as a [slice](../../core/slice/README.md), read and written where they
 lie, the operating system bringing the pages in as they are touched (`mmap`; `MapViewOfFile` on Windows). It is made
 by [map](../map.md): the whole file for reading by default, a writable mapping, a private one or a range of the file
@@ -48,10 +50,8 @@ and `golang.org/x/exp/mmap`, a reader of a mapped file; here the bytes are a sli
   collected.
 - Any thread or task may read and write the region at once; the bytes are plain memory, with no ordering between
   threads beyond what the program makes (atomics in the region are the program's own business).
-- A handle is a tracked word: on a stack, in a task, in a managed object; in a global or a `std` container, a
-  [rooted\<io::mapping\>](../../core/rooted/README.md), as a slice of the region is a `rooted<slice<const byte>>` there.
-  It is a [req::handle](../../core/req/handle.md), so an [atomic](../../core/atomic-handle/README.md) of it compares and swaps
-  by identity.
+- A `mapping` is a [req::handle](../../core/req/handle.md), so an [atomic](../../core/atomic-handle/README.md) of it
+  compares and swaps by identity.
 - A `mapping` made by its default constructor holds none (`!m`); an operation on it is a contract violation,
   asserted in a debug build.
 

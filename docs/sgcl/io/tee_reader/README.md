@@ -10,14 +10,14 @@ namespace sgcl::io {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::io::tee_reader` is a reader that writes what it reads to a writer as well: what Go's `io.TeeReader` is. A
 stream read through it is copied on the way, into a hash, a log or a buffer kept for a second look, with no pass of
 its own. An error of the write is the read's error. The standard library has no counterpart.
 
 ## Rules
 
-- It holds an [io::reader](../reader/README.md) and an [io::writer](../writer/README.md), `tracked_ptr`s, so it lives where one may:
-  on a stack, in a task, in a managed object ([The rules](../../core/README.md#the-rules), 1).
 - An object, not a handle: given by reference to an `io::reader` or to `io::copy`, it is referenced, and the caller
   keeps it alive; given as a temporary, it is copied into a managed object of its own.
 - [async_read](read.md) is over the source's own `async_read` and the writer's own `async_write`; a

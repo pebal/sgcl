@@ -17,6 +17,8 @@ namespace sgcl::async {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::async::shared_mutex` lets any number of readers in at once, or one writer, for tasks and threads alike: Go's
 `sync.RWMutex`, Java's `ReentrantReadWriteLock`, `std::shared_mutex` with a wait that holds no thread. It is not a
 channel under a name, as the [mutex](../mutex/README.md) and its family are: a reader takes the lock by adding one to a word
@@ -36,9 +38,8 @@ waits for them, so that a stream of writers cannot starve them.
 
 ## Rules
 
-- A shared mutex is an object, not a handle: it lives where a `tracked_ptr` may, on a stack or inside a managed
-  object ([The rules](../../core/README.md#the-rules), 1), and is neither copied nor moved. Tasks reach it through the
-  object that holds it.
+- A shared mutex is an object, not a handle: it is neither copied nor moved. Tasks reach it through the object that
+  holds it.
 - Not recursive either way: a reader that takes the lock again while a writer waits waits for ever (the writer
   blocks new readers, Go's rule), and a writer that takes it again waits for itself.
 - A thread locks with the standard's Lockable members, through `std::shared_lock<sgcl::async::shared_mutex>` for a

@@ -10,6 +10,8 @@ namespace sgcl::txt {
 }
 ```
 
+**Requires [rooted](../core/rooted/README.md) outside a stack or a managed object.**
+
 A function of the pipeline of a [stencil](stencil/README.md): `{{ name | upper }}`, `{{ n | default 0 }}`. What comes down
 the pipe is the first argument, and whatever was written after the name is the second — literals and paths both,
 already worked out, at most eight. A function answers a [value](value/README.md), so functions compose and one may hand a

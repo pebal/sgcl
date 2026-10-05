@@ -14,6 +14,8 @@ namespace sgcl::immutable {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::immutable::set<Key, Hash, KeyEqual>::builder` is a set changed in place, one element at a time, and frozen
 into a [set](../set/README.md) when it is done, as the [map's builder](../map-builder/README.md) is for a map. [thaw()](../set/thaw.md)
 is the builder over a set's trie, which the two share, and copies nothing; an `insert` or an `erase` changes the
@@ -24,8 +26,6 @@ nodes the builder made in place and copies a node it shares once, the first time
 
 - A builder is one thread's, and it moves but does not copy: two builders would change one node. A builder moved
   from is empty.
-- A builder holds the root of its trie by a `tracked_ptr`, so it lives where one may: on a thread's stack or
-  inside a managed object ([The rules](../../core/README.md#the-rules), 1).
 - A builder has no iterators and no `find`: its nodes change under them.
 - An element added or taken out moves the elements after it in its node when the move of `Key` cannot throw;
   otherwise the builder copies that one node, and still never the path above it.

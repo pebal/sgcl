@@ -1,0 +1,6 @@
+V	21260911085958Z		2000	unknown	/CN=SGCL OCSP Responder
+V	21260911085958Z		2001	unknown	/CN=good.localhost
+R	21260911085958Z	261005085958Z,keyCompromise	2002	unknown	/CN=revoked.localhost
+R	21260911085958Z	261005085958Z,certificateHold	2003	unknown	/CN=held.localhost
+V	21260911085958Z		2004	unknown	/CN=staple.localhost
+V	21260911085958Z		2005	unknown	/CN=crlonly.localhost

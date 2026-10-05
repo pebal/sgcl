@@ -16,6 +16,8 @@ namespace sgcl::compress {
 }
 ```
 
+**Requires [rooted](../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::compress::gzip::options` is how a gzip stream is made: the [level](level/README.md) of the encoder and the
 [header](gzip_header.md) written before the data — a name, a comment, the time the data was modified, an extra
 field, the system that made it. [compress](gzip/compress.md) and the [writer](gzip-writer/README.md) take it.

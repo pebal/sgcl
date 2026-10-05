@@ -10,6 +10,8 @@ namespace sgcl::time {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::time::datetime` is an instant on the time line and the zone it is seen in: Go's `time.Time`. The instant is
 the nanoseconds since 1970-01-01T00:00:00Z in 64 bits — the years 1677 to 2262, the range and the unit of
 `std::chrono::system_clock` and of [io::file_info::modified](../../io/file_info/README.md), which a datetime is made from as it is —
@@ -36,9 +38,8 @@ clock becomes a datetime by a date's [at](../date/at.md) (Go's `time.Date`), and
 
 ## Rules
 
-- A datetime is a value of sixteen bytes, the count and the zone's pointer, not trivially copyable: it lives where a
-  `tracked_ptr` may — on a stack, in a managed object, in a container of the library — as a
-  [string](../../core/string/README.md) does, and is taken as `const datetime&`.
+- A datetime is a value of sixteen bytes, the count and the zone's pointer, not trivially copyable, and is taken as
+  `const datetime&`.
 - The range is 1677-09-21T00:12:43.145224192Z to 2262-04-11T23:47:16.854775807Z. A date beyond it
   (`date(3000, 1, 1).at(0, 0, z)`), a sum or a difference past it, and `from_unix` of more seconds than it holds
   give its end; a text of an instant beyond it is refused by [parse](parse.md).

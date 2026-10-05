@@ -13,6 +13,8 @@ namespace sgcl::slog {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::slog::value` is the value of an attribute as a handler reads it, slog's `Value` and its kinds:
 [type](type.md) says the [kind](../value-kind.md), and an `as_` accessor gives the value of that kind.
 [text](text.md) and [json](json.md) write it as the two handlers of the module do, whatever its kind.

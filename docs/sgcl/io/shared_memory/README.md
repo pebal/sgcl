@@ -10,6 +10,8 @@ namespace sgcl::io {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `io::shared_memory` is a region of memory shared between processes under a name: one process makes it with
 [create](create.md), others map it with [open](open.md), and what one writes into
 [data](data.md) the others read there, with no copy and no call between them (`shm_open` and `mmap`
@@ -39,9 +41,7 @@ of the session, since `Global\` needs a privilege an ordinary program does not h
 - The processes see each other's writes at once, with no ordering beyond what they make themselves: a flag written
   after the data is an `std::atomic` in the region (lock-free, so trivial), stored with release and loaded with
   acquire. Inter-process mutexes and semaphores are not part of io.
-- A handle is a tracked word: on a stack, in a task, in a managed object; in a global or a `std` container, a
-  [rooted\<io::shared_memory\>](../../core/rooted/README.md), as a slice of the region is a `rooted<slice<byte>>` there. It
-  is a [req::handle](../../core/req/handle.md).
+- A `shared_memory` is a [req::handle](../../core/req/handle.md).
 - A `shared_memory` made by its default constructor holds no region (`!s`); an operation on it is a contract
   violation, asserted in a debug build.
 

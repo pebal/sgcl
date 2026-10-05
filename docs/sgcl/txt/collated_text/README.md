@@ -10,6 +10,8 @@ namespace sgcl::txt {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::txt::collated_text` is a text weighed once by a [collator](../collator/README.md) and asked as often as you like
 whether a pattern is in it, counting as equal what the collator counts as equal: the counterpart, for a search by
 collation, of [folded_text](../folded_text/README.md). Weighing is the whole cost of such a search — every letter goes through
@@ -25,10 +27,10 @@ nothing the collator looks at found nowhere — are those of [collator::find](..
 
 ## Rules
 
-- A collated text holds its [collator](../collator/README.md), the text as a [string](../../core/string/README.md) and the weighed
-  elements, so it lives where a string may: on a stack or inside a managed object. It keeps the text as the string
-  it is, not as a slice: a slice is two raw pointers into a managed buffer, which may not live inside a managed
-  object, and a [collated_matches](../collated_matches/README.md) keeps one of these in one.
+- A collated text holds its [collator](../collator/README.md), the text as a [string](../../core/string/README.md) and
+  the weighed elements. It keeps the text as the string it is, not as a slice: a slice is two raw pointers into a
+  managed buffer, which may not live inside a managed object, and a [collated_matches](../collated_matches/README.md)
+  keeps one of these in one.
 - Nothing in it changes after it is built: one text may be asked by any number of threads at once.
 - The positions it answers with are bytes of the text as it was given. Each element carries the start of the
   combining sequence it came from, and those positions ascend — the canonical ordering moves a mark inside a

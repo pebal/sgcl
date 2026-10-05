@@ -1,0 +1,6 @@
+h
+port 5353
+nameserver 127.0.0.1
+domain one.example
+options use-vc ndots:99 timeout:0 attempts:x
+; comment

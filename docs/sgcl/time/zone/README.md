@@ -10,6 +10,8 @@ namespace sgcl::time {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::time::zone` is a time zone: the rules that give a place's clock its offset from UTC at every moment, the
 abbreviation it shows (`CEST`) and whether it is daylight saving time. It is Go's `*time.Location`, Java's
 `ZoneId`, the `const time_zone*` of C++20's `tzdb` — which the C++ library of this system does not have: libc++

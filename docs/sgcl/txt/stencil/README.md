@@ -10,6 +10,8 @@ namespace sgcl::txt {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 A text written from a shape the program did not write: a page, a letter, a report, whose form lives in a file and
 is changed by whoever owns the words rather than by whoever owns the program. The shape is text with **actions** in
 it — `{{ name }}`, `{{ if }}`, `{{ range }}` — and the values that go in are handed over by the caller as a
@@ -38,9 +40,7 @@ value trees over thirteen templates, `render` against `render_to` into a buffer 
 
 ## Rules
 
-- A template holds its source and its steps in [strings](../../core/string/README.md) and [vectors](../../core/vector/README.md), so it
-  lives where those may: on a stack or inside a managed object ([the rules of core](../../core/README.md#the-rules), 1).
-  A render is `const` and changes nothing in it.
+- A render is `const` and changes nothing in the template.
 - It keeps the source rather than copying out of it: a string of the library is shared and immutable, so holding it
   costs a pointer, and every run of literal text in the page is a pair of offsets into it, written out whole.
 - It keeps the functions its pipelines call, copied from the table at [parse](parse.md); the table need not

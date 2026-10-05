@@ -3,20 +3,26 @@
 # sgcl::net::http::client::post, async_post
 
 ```cpp
-expected<response, io::error> post(const string& url, const string& content_type,            // (1)
+expected<response, io::error> post(const string& url, const string& content_type,             // (1)
                                    const string& body) const;
-async::task<expected<response, io::error>> async_post(const string& url,                     // (2)
+async::task<expected<response, io::error>> async_post(const string& url,                      // (2)
                                                       const string& content_type,
                                                       const string& body) const noexcept;
+expected<response, io::error> post(const string& url, const http::form& f) const;             // (3)
+async::task<expected<response, io::error>> async_post(const string& url,                      // (4)
+                                                      const http::form& f) const noexcept;
 ```
 
 Sends a POST of `body` to `url` with `Content-Type: content_type`, Go's `http.Post`: [send](send.md) of a request
 with the field and the body set. The body is held in memory, so a 307 or a 308 sends it again and a retry on a new
 connection may; it goes with its `Content-Length`. A 301, a 302 or a 303 goes on as a GET without the body.
 
-1. Blocks the calling thread: the exchange runs on the scheduler and the thread waits for it. For a thread of the
-   program, never a worker.
-2. Returns a task that does the same, for a task to `co_await`.
+- (3–4) Send a [form](../form/README.md) instead, `multipart/form-data`: its fields and its files, `Content-Type`
+  the form's, each file read from disk as the body goes out, never whole in memory. A form is sent again as a body in
+  memory is; a file that cannot be read is the send's error before anything is dialed.
+- (1, 3) Block the calling thread: the exchange runs on the scheduler and the thread waits for it. For a thread of
+  the program, never a worker.
+- (2, 4) Return a task that does the same, for a task to `co_await`.
 
 ## Parameters
 
@@ -25,11 +31,13 @@ connection may; it goes with its `Content-Length`. A 301, a 302 or a 303 goes on
 | `url` | the URL, `http://` or `https://` |
 | `content_type` | the value of `Content-Type` |
 | `body` | the body |
+| `f` | the form |
 
 ## Return value
 
 The response, its body not read yet; a 4xx or a 5xx is a response. Or the error, as [send](send.md) gives it:
-`net::errc::invalid_url` for a URL that does not parse or is past 512 MiB ([the limit](../../url/README.md#rules)).
+`net::errc::invalid_url` for a URL that does not parse or is past 512 MiB ([the limit](../../url/README.md#rules));
+(3–4) the error of a file of the form that cannot be read (`ENOENT`, `EISDIR`).
 
 ## Complexity
 
@@ -37,8 +45,8 @@ That of [send](send.md), and linear in the size of the body.
 
 ## Exceptions
 
-- (1) `std::system_error` when the wait starts the scheduler and a worker's thread cannot be started.
-- (2) None.
+- (1, 3) `std::system_error` when the wait starts the scheduler and a worker's thread cannot be started.
+- (2, 4) None.
 
 ## Example
 
@@ -92,5 +100,6 @@ Output:
 ## See also
 
 - [send](send.md): another method, a body of bytes or a stream
+- [form](../form/README.md): the form and its files
 - [json](../response/json.md): the answer read as JSON
 - [sgcl::net::http::client](README.md)

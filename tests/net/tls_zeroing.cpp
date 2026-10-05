@@ -10,7 +10,10 @@
 // block of secrets after its destructor, before its memory is freed — is
 // searched for them. Our client and our server over the loopback exchange
 // lines and a record larger than the reader's buffer, close, and are
-// collected: no secret, key or IV is left in any block.
+// collected: no secret, key or IV is left in any block. The exchange is made
+// twice, the second resuming the first's session (a cache on the client),
+// and the secrets of resumption (the derived hook: the resumption master
+// secrets, the tickets' PSKs, the ticket key) are searched for too.
 #include "tests/types.h"
 #include "tests/source_root.h"
 
@@ -33,12 +36,19 @@ namespace {
     struct Seen {
         std::mutex lock;
         std::vector<bytes_t> secrets;   // the traffic secrets, their keys and IVs
-        size_t installs = 0, blocks = 0, connection_blocks = 0, found = 0;
+        size_t installs = 0, blocks = 0, connection_blocks = 0, found = 0, derived = 0;
     };
 
     Seen& seen() {
         static Seen s;
         return s;
+    }
+
+    void on_derived(const void* p, size_t n) {
+        auto& z = seen();
+        std::lock_guard<std::mutex> g(z.lock);
+        z.secrets.emplace_back(static_cast<const uint8_t*>(p), static_cast<const uint8_t*>(p) + n);
+        ++z.derived;
     }
 
     void on_install(tls::detail::Cipher c, const tls::detail::Secret& s) {
@@ -84,14 +94,10 @@ namespace {
     }
 
     // One exchange over our client and server, everything dropped at its end
-    SGCL_NOINLINE void exchange() {
-        auto l = net::tcp::listen("127.0.0.1:0");
-        ASSERT_TRUE(l.has_value());
-        tls::config scfg;
-        scfg.identities = {tls::identity(sgcl::string(slurp(testdata("ecdsa.pem"))), sgcl::string(slurp(testdata("ecdsa.key"))))};
+    SGCL_NOINLINE void exchange(const net::listener& l, const tls::config& scfg, const tls::config& ccfg) {
         std::string served;
         std::thread server([&] {
-            auto a = l->accept();
+            auto a = l.accept();
             if (!a) {
                 return;
             }
@@ -118,12 +124,9 @@ namespace {
             (void)s->read(buf);   // the close_notify
             (void)s->close();
         });
-        tls::config ccfg;
-        ccfg.roots = crypto::x509::certificate_pool::from_pem(sgcl::string(slurp(testdata("ca.pem"))));
-        ccfg.server_name = sgcl::string("localhost");
         // (the blocking connect to an endpoint and the handshake on this
         // thread: no worker's stack keeps a word of the connection)
-        auto t = net::tcp::connect(l->local_endpoint());
+        auto t = net::tcp::connect(l.local_endpoint());
         ASSERT_TRUE(t.has_value());
         auto c = tls::client(*t, ccfg);
         ASSERT_TRUE(c.has_value());
@@ -133,8 +136,22 @@ namespace {
         ASSERT_TRUE(c->write(sgcl::string(std::string(40000, 'k'))).has_value());
         (void)c->close();
         server.join();
-        (void)l->close();
         EXPECT_EQ(served, "hello");
+    }
+
+    // Two exchanges, the second resumed
+    SGCL_NOINLINE void exchanges() {
+        auto l = net::tcp::listen("127.0.0.1:0");
+        ASSERT_TRUE(l.has_value());
+        tls::config scfg;
+        scfg.identities = {tls::identity(sgcl::string(slurp(testdata("ecdsa.pem"))), sgcl::string(slurp(testdata("ecdsa.key"))))};
+        tls::config ccfg;
+        ccfg.roots = crypto::x509::certificate_pool::from_pem(sgcl::string(slurp(testdata("ca.pem"))));
+        ccfg.server_name = sgcl::string("localhost");
+        ccfg.session_cache = tls::session_cache();
+        exchange(*l, scfg, ccfg);
+        exchange(*l, scfg, ccfg);
+        (void)l->close();
     }
 }
 
@@ -169,14 +186,15 @@ TEST(TlsZeroing, NoSecretLeftInTheBlocksAConnectionLetsGo) {
     }
     tls::detail::ZeroingProbe::installed.store(&on_install);
     tls::detail::ZeroingProbe::released.store(&on_release);
-    std::thread([] { exchange(); }).join();   // its stack gone with it
+    tls::detail::ZeroingProbe::derived.store(&on_derived);
+    std::thread([] { exchanges(); }).join();   // its stack gone with it
     // the connections collected: their blocks of secrets released
     for (int i = 0; i < 200; ++i) {
         collector::clear_stack();
         collector::force_collect(true);
         {
             std::lock_guard<std::mutex> g(z.lock);
-            if (z.connection_blocks >= 2) {
+            if (z.connection_blocks >= 4) {
                 break;
             }
         }
@@ -185,10 +203,12 @@ TEST(TlsZeroing, NoSecretLeftInTheBlocksAConnectionLetsGo) {
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     tls::detail::ZeroingProbe::installed.store(nullptr);
     tls::detail::ZeroingProbe::released.store(nullptr);
+    tls::detail::ZeroingProbe::derived.store(nullptr);
     std::lock_guard<std::mutex> g(z.lock);
-    // both sides: handshake read and write, application read and write
-    EXPECT_GE(z.installs, 8u);
-    EXPECT_GE(z.connection_blocks, 2u);   // the client's and the server's, after their collection
+    // both sides, both connections: handshake read and write, application read and write
+    EXPECT_GE(z.installs, 16u);
+    EXPECT_GE(z.derived, 9u);              // two resumption master secrets and two PSKs a side, a ticket key
+    EXPECT_GE(z.connection_blocks, 4u);   // the clients' and the servers', after their collection
     EXPECT_GE(z.blocks, 8u);
     EXPECT_EQ(z.found, 0u) << "a secret, a key or an IV left in a block a connection let go of";
 }

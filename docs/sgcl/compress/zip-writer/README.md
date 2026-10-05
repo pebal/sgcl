@@ -10,6 +10,8 @@ namespace sgcl::compress::zip {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::compress::zip::writer` writes a zip archive entry after entry into another writer, `out`, as Go's
 `zip.Writer`: [create](create.md) gives an [io writer](../../io/writer/README.md) of an entry's data, which the next
 `create` ends (the entry writer's `close()` does too, and may be left out); [add](add.md) writes a whole
@@ -20,9 +22,8 @@ socket, an HTTP response.
 
 ## Rules
 
-- The writer holds `out` and a state shared with its entry writers, tracked words, so it lives where a `tracked_ptr`
-  may. It is moved, not copied: a copy would share the archive's state and not its current entry. One thread or
-  task writes it at a time.
+- The writer holds `out` and a state shared with its entry writers. It is moved, not copied: a copy would share the
+  archive's state and not its current entry. One thread or task writes it at a time.
 - A writer moved from is closed, with no archive: its [create](create.md), [add](add.md) and
   [set_comment](set_comment.md) are refused as after the close (kept as its first error), and its
   [close](close.md) does nothing. A writer moved onto itself is unchanged.

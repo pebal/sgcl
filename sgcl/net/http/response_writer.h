@@ -172,9 +172,101 @@ namespace sgcl::net::http {
             }
         };
 
+        // A field of a trailer section the library writes: not one that
+        // frames or routes the message (RFC 9110 §6.5.1), which the parsers
+        // of both sides refuse in trailers (parser.h), nor one of the
+        // connection's
+        SGCL_INLINE_HOT bool trailer_allowed(std::string_view n) noexcept {
+            return !(iequal(n, "content-length") || iequal(n, "transfer-encoding") || iequal(n, "host") || iequal(n, "trailer")
+                     || iequal(n, "connection") || iequal(n, "keep-alive") || iequal(n, "te") || iequal(n, "upgrade")
+                     || iequal(n, "proxy-connection") || iequal(n, "content-type") || iequal(n, "content-encoding")
+                     || iequal(n, "content-range") || iequal(n, "cache-control") || iequal(n, "expect") || iequal(n, "authorization")
+                     || iequal(n, "set-cookie") || iequal(n, "cookie"));
+        }
+
+        // The trailers fit to go: every field a token's name and a value
+        // without CR, LF or another control, its name allowed in a trailer
+        // section. Ones that are not are left out (the writer's trailers are
+        // the program's, often copied from another message)
+        SGCL_INLINE_HOT bool trailer_writable(std::string_view n, std::string_view v) noexcept {
+            if (!is_token(n) || !trailer_allowed(n)) {
+                return false;
+            }
+            for (unsigned char c : v) {
+                if (!field_value_char(c)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        // A trailer section of HTTP/2 (RFC 9113 §8.1): the fields in lower
+        // case, no pseudo-field, the ones not fit to go left out
+        struct TrailerFields final : h2::FieldBlock {
+            const http::headers& fields;
+
+            SGCL_INLINE_HOT explicit TrailerFields(const http::headers& fields) noexcept
+            : fields(fields) {
+            }
+
+            void encode(h2::Encoder& e, std::string& out) const noexcept override {
+                thread_local std::string lower;
+                for (auto& f : HeadersAccess::fields(fields)) {
+                    if (!trailer_writable(f.first.view(), f.second.view())) {
+                        continue;
+                    }
+                    lower.assign(f.first.view());
+                    for (auto& c : lower) {
+                        c = ascii_lower(c);
+                    }
+                    e.encode(out, lower, f.second.view());
+                }
+            }
+        };
+
+        // An informational response of HTTP/2 (103 Early Hints): :status
+        // and the fields, none of a connection's
+        struct InformationalFields final : h2::FieldBlock {
+            int status;
+            const http::headers& fields;
+
+            SGCL_INLINE_HOT InformationalFields(int status, const http::headers& fields) noexcept
+            : status(status), fields(fields) {
+            }
+
+            void encode(h2::Encoder& e, std::string& out) const noexcept override {
+                char code[4] = {char('0' + status / 100 % 10), char('0' + status / 10 % 10), char('0' + status % 10), 0};
+                e.encode(out, ":status", std::string_view(code, 3));
+                thread_local std::string lower;
+                for (auto& f : HeadersAccess::fields(fields)) {
+                    if (ResponseFields::connection_field(f.first.view())) {
+                        continue;
+                    }
+                    lower.assign(f.first.view());
+                    for (auto& c : lower) {
+                        c = ascii_lower(c);
+                    }
+                    e.encode(out, lower, f.second.view());
+                }
+            }
+        };
+
+        // What a response recorder (test.h) keeps of a writer that sends
+        // nowhere: the head as it went at the first flush, the bytes the
+        // flushes took, the informational responses, the count of flushes
+        struct RecordState {
+            bool head_sent = false;
+            int status = 200;
+            http::headers fields;
+            vector<byte> body;
+            vector<pair<int, http::headers>> informational;
+            int flushes = 0;
+        };
+
         // The server's side of one exchange: the response as the handler
         // builds it, and how it goes out (over the wire of HTTP/1.1, or on
-        // an HTTP/2 stream when h2 is set)
+        // an HTTP/2 stream when h2 is set, or into a record when record is
+        // set: a response recorder's)
         struct WriterImpl {
             tracked_ptr<Wire> wire;
             tracked_ptr<h2::StreamState> h2;
@@ -199,6 +291,10 @@ namespace sgcl::net::http {
             uint64_t file_at = 0;             // its bytes: from file_at, file_n of them
             uint64_t file_n = 0;
             bool has_file = false;
+            bool aborted = false;             // the response broken off (a reverse proxy's backend failed half-way): no end is sent
+            http::headers trailers;           // sent after the body (a chunked body's trailer section, HTTP/2's trailing HEADERS)
+            std::string trailer_tail;         // the last chunk and the trailer section of HTTP/1.1, while they are written
+            tracked_ptr<RecordState> record;  // a response recorder's writer: nothing sent, everything kept
 
             SGCL_INLINE_HOT static bool bodiless(int status) noexcept {
                 return (status >= 100 && status < 200) || status == 204 || status == 304;
@@ -221,7 +317,7 @@ namespace sgcl::net::http {
             // bytes read into the body now
             void write_file(const io::file& f) {
                 touched = true;
-                if (!h2 && !head_sent && !has_file && body.empty()) {
+                if (wire && !h2 && !head_sent && !has_file && body.empty()) {
                     if (auto rest = net::detail::file_rest(f)) {
                         file = f;
                         file_at = rest->first;
@@ -343,6 +439,22 @@ namespace sgcl::net::http {
                         close = true;
                     }
                 }
+                if (chunked && !trailers.empty() && !HeadersAccess::count(fields, "trailer")) {
+                    // the names of the trailers known now announced (RFC
+                    // 9110 §6.6.2); ones set later still go
+                    bool first = true;
+                    for (auto& f : HeadersAccess::fields(trailers)) {
+                        if (!trailer_writable(f.first.view(), f.second.view())) {
+                            continue;
+                        }
+                        h += first ? "Trailer: " : ", ";
+                        h += f.first.view();
+                        first = false;
+                    }
+                    if (!first) {
+                        h += "\r\n";
+                    }
+                }
                 if (close) {
                     close_after = true;
                     h += "Connection: close\r\n";
@@ -350,6 +462,18 @@ namespace sgcl::net::http {
                     h += "Connection: keep-alive\r\n";
                 }
                 h += "\r\n";
+            }
+
+            // The length of a body sent whole: what is buffered; to a HEAD,
+            // the handler's Content-Length when it gave one (the length a
+            // GET would have had: a reverse proxy's, a handler of its own)
+            SGCL_INLINE_HOT uint64_t whole_length() const noexcept {
+                if (head_request && body.empty()) {
+                    if (auto h = handler_length()) {
+                        return *h;
+                    }
+                }
+                return uint64_t(body.size());
             }
 
             // The handler's Content-Length, when it gave one that is a number
@@ -426,7 +550,7 @@ namespace sgcl::net::http {
                         int k = std::snprintf(size, sizeof(size), "%zx\r\n", n);
                         out.append(size, size_t(k));
                         sent += size_t(k) + n + 2;
-                        tail = last ? std::string_view("\r\n0\r\n\r\n") : std::string_view("\r\n");
+                        tail = last ? _last_chunk(true) : std::string_view("\r\n");
                     } else if (declared) {
                         const uint64_t room = *declared > sent ? *declared - sent : 0;
                         if (n > room) {
@@ -438,7 +562,14 @@ namespace sgcl::net::http {
                         sent += n;
                     }
                 } else if (bodyful && chunked && last) {
-                    tail = "0\r\n\r\n";
+                    tail = _last_chunk(false);
+                }
+                if (last && aborted) {
+                    // broken off: no last chunk, the connection ends with
+                    // what went (a client reads a body cut short, never a
+                    // whole one)
+                    tail = std::string_view();
+                    close_after = true;
                 }
                 if (last && declared && sent != *declared) {
                     close_after = true;
@@ -466,6 +597,35 @@ namespace sgcl::net::http {
                     parts.push_back(slice<const byte>(reinterpret_cast<const byte*>(tail.data()), tail.size()));
                 }
                 return _write_parts(parts, now);
+            }
+
+            // The last chunk of a chunked body with the trailer section
+            // (RFC 9112 §7.1.2), after the CRLF of the chunk before it when
+            // `after_data`: static text without trailers, else made in
+            // trailer_tail, which the writer holds while it goes
+            std::string_view _last_chunk(bool after_data) noexcept {
+                bool any = false;
+                for (auto& f : HeadersAccess::fields(trailers)) {
+                    any = any || trailer_writable(f.first.view(), f.second.view());
+                }
+                if (!any) {
+                    return after_data ? std::string_view("\r\n0\r\n\r\n") : std::string_view("0\r\n\r\n");
+                }
+                trailer_tail.clear();
+                if (after_data) {
+                    trailer_tail += "\r\n";
+                }
+                trailer_tail += "0\r\n";
+                for (auto& f : HeadersAccess::fields(trailers)) {
+                    if (trailer_writable(f.first.view(), f.second.view())) {
+                        trailer_tail += f.first.view();
+                        trailer_tail += ": ";
+                        trailer_tail += f.second.view();
+                        trailer_tail += "\r\n";
+                    }
+                }
+                trailer_tail += "\r\n";
+                return trailer_tail;
             }
 
             // The pieces as one write begun without a frame; the body's
@@ -519,12 +679,30 @@ namespace sgcl::net::http {
             }
 
             async::task<expected<void, io::error>> flush() noexcept {
+                expected<void, io::error> now;
+                if (auto rest = flush_start(now)) {
+                    co_return co_await *rest;
+                }
+                co_return now;
+            }
+
+            // flush() begun without a frame: what is written sent as far as
+            // the connection takes it at once (the result in `now`), a task
+            // only for what would wait (and for HTTP/2's stream). A server's
+            // event (events.h) flushed this way costs its own frame alone
+            optional<async::task<expected<void, io::error>>> flush_start(expected<void, io::error>& now) {
                 if (failed) {
-                    co_return io::detail::fail(*failed);
+                    now = io::detail::fail(*failed);
+                    return nullopt;
+                }
+                if (record) {
+                    record_flush();
+                    now = expected<void, io::error>();
+                    return nullopt;
                 }
                 if (h2) {
                     flushed += body.size();
-                    co_return co_await _h2_flush();
+                    return _h2_flush();
                 }
                 take_file();   // a flush sends what is written: the file's bytes among them
                 flushed += body.size();
@@ -532,17 +710,14 @@ namespace sgcl::net::http {
                 out.clear();
                 if (!head_sent) {
                     if (!fields_writable()) {
-                        co_return io::detail::fail(*failed);
+                        now = io::detail::fail(*failed);
+                        return nullopt;
                     }
                     set_optional(declared, handler_length());
                     head_to(out, nullopt);
                     head_sent = true;
                 }
-                expected<void, io::error> now;
-                if (auto rest = send_framed(now, false)) {
-                    co_return co_await *rest;
-                }
-                co_return now;
+                return send_framed(now, false);
             }
 
             // After the handler: the rest of the response
@@ -563,11 +738,41 @@ namespace sgcl::net::http {
                     now = expected<void, io::error>();
                     return nullopt;
                 }
+                if (record) {
+                    record_flush();
+                    now = expected<void, io::error>();
+                    return nullopt;
+                }
                 if (h2) {
                     return _h2_finish_start(now);
                 }
                 std::string& out = wire->out;
                 out.clear();
+                if (aborted && head_sent) {
+                    // broken off after the head: the end left unsent, the
+                    // connection ended (send_framed sends no last chunk)
+                    return send_framed(now, true);
+                }
+                if (!head_sent && !trailers.empty() && request_minor >= 1 && !head_request && !bodiless(status)) {
+                    // trailers go after a chunked body only: the head as a
+                    // flush makes it (no length of the handler's: the body
+                    // is chunked), then the body, the last chunk and them
+                    take_file();
+                    if (!fields_writable()) {
+                        now = io::detail::fail(*failed);
+                        return nullopt;
+                    }
+                    declared.reset();
+                    head_to(out, nullopt);
+                    head_sent = true;
+                    if (chunked) {
+                        flushed += body.size();
+                        return send_framed(now, true);
+                    }
+                    body.copy_to(out);   // not chunked after all (a length the handler set): the body whole, the trailers dropped
+                    body.release();
+                    return send_start(now);
+                }
                 if (has_file && !head_sent) {
                     // the body is the file alone: its length from fstat
                     // (write_file), the head, then sendfile
@@ -592,7 +797,7 @@ namespace sgcl::net::http {
                         now = io::detail::fail(*failed);
                         return nullopt;
                     }
-                    head_to(out, uint64_t(body.size()));
+                    head_to(out, whole_length());
                     head_sent = true;
                     if (!head_request && !bodiless(status)) {
                         if (!body.chunks().empty() && !failed) {
@@ -709,6 +914,97 @@ namespace sgcl::net::http {
                 co_return co_await _h2_send(std::move(data), false, taken);
             }
 
+            // After the handler, with trailers: the head (with the length
+            // of a body known whole), the body without END_STREAM, then the
+            // trailers' HEADERS with it
+            async::task<expected<void, io::error>> _h2_finish_trailers() noexcept {
+                size_t taken = 0;
+                if (auto r = _h2_now(false, head_sent ? declared : optional<uint64_t>(uint64_t(body.size())), taken); !r) {
+                    co_return r;
+                }
+                if (taken != SIZE_MAX && !body.empty()) {
+                    BodyBuffer rest = std::move(body);
+                    body.clear();
+                    if (auto r = co_await _h2_send(std::move(rest), false, taken); !r) {
+                        co_return r;
+                    }
+                }
+                TrailerFields block(trailers);
+                auto r = h2->owner->send_headers(h2->id, block, true);
+                if (!r) {
+                    failed = r.error();
+                }
+                co_return r;
+            }
+
+            // A recorder's flush: the head kept as it is now (the first
+            // time), what is buffered moved into the record
+            void record_flush() {
+                take_file();
+                if (!record->head_sent) {
+                    record->head_sent = true;
+                    record->status = status;
+                    record->fields = fields;
+                    head_sent = true;
+                }
+                if (!head_request && !bodiless(status)) {
+                    body.each([&](const slice<const byte>& part) {
+                        record->body.insert(record->body.end(), part.data(), part.data() + part.size());
+                    });
+                }
+                flushed += body.size();
+                body.release();
+                ++record->flushes;
+            }
+
+            // An informational response (1xx but 101) sent now, before the
+            // head: on HTTP/1.1 its own head, on HTTP/2 a HEADERS without
+            // END_STREAM; nothing to a client of HTTP/1.0 (RFC 9110 §15.2)
+            async::task<expected<void, io::error>> informational(int code, http::headers f) noexcept {
+                if (hijacked || ended || head_sent) {
+                    co_return io::detail::fail(io::error(io::errc::closed, "write", "informational response after the head"));
+                }
+                if (auto e = invalid_field(f)) {
+                    co_return io::detail::fail(io::error(std::make_error_code(std::errc::invalid_argument), "response", *e));
+                }
+                if (record) {
+                    record->informational.push_back(pair<int, http::headers>(code, f));
+                    co_return expected<void, io::error>();
+                }
+                if (h2) {
+                    InformationalFields block(code, f);
+                    co_return h2->owner->send_headers(h2->id, block, false);
+                }
+                if (request_minor == 0) {
+                    co_return expected<void, io::error>();
+                }
+                std::string h;
+                h.reserve(64);
+                h += "HTTP/1.1 ";
+                h += std::to_string(code);
+                h += ' ';
+                h += reason(code);
+                h += "\r\n";
+                for (auto& x : HeadersAccess::fields(f)) {
+                    auto n = x.first.view();
+                    if (ResponseFields::connection_field(n)) {
+                        continue;
+                    }
+                    h += n;
+                    h += ": ";
+                    h += x.second.view();
+                    h += "\r\n";
+                }
+                h += "\r\n";
+                auto r = co_await wire->connection().async_write(string(std::string_view(h)));
+                if (!r) {
+                    failed = r.error();
+                    close_after = true;
+                    co_return io::detail::fail(r);
+                }
+                co_return expected<void, io::error>();
+            }
+
             // After the handler: the head with the length of a body known
             // whole, or the rest after a flush, and END_STREAM; at once
             // when the windows take it (no frame), a task only for the rest
@@ -717,8 +1013,15 @@ namespace sgcl::net::http {
                     now = io::detail::fail(*failed);
                     return nullopt;
                 }
+                if (aborted && head_sent) {
+                    now = io::detail::fail(io::error(io::errc::closed, "write", "response broken off"));   // the stream reset by the server
+                    return nullopt;
+                }
+                if (!trailers.empty() && !head_request && !bodiless(status)) {
+                    return _h2_finish_trailers();
+                }
                 size_t taken = 0;
-                now = _h2_now(true, uint64_t(body.size()), taken);
+                now = _h2_now(true, whole_length(), taken);
                 if (!now || taken == SIZE_MAX) {
                     return nullopt;
                 }
@@ -887,6 +1190,9 @@ namespace sgcl::net::http {
         // server sends nothing more on it and does not close it. Only
         // before the head has gone: io::errc::closed after.
         SGCL_INLINE_HOT expected<pair<net::connection, io::reader>, io::error> hijack() noexcept {
+            if (_impl->record) {
+                return io::detail::fail(io::error(std::make_error_code(std::errc::operation_not_supported), "hijack", "response recorder"));
+            }
             if (_impl->h2) {
                 // an HTTP/2 stream is not a connection (Go: no Hijacker in HTTP/2)
                 return io::detail::fail(io::error(std::make_error_code(std::errc::operation_not_supported), "hijack", "HTTP/2 response"));
@@ -897,6 +1203,39 @@ namespace sgcl::net::http {
             _impl->hijacked = true;
             _impl->close_after = true;
             return pair<net::connection, io::reader>(_impl->wire->connection(), io::reader(_impl->wire));
+        }
+
+        // The fields sent after the body, its trailer section (RFC 9110
+        // §6.5): set any time before the response ends. On HTTP/1.1 they
+        // need a chunked body, so a response with trailers is chunked to a
+        // client of HTTP/1.1 (one of HTTP/1.0, or a length the handler set
+        // before a flush, gets none); on HTTP/2 they are the stream's last
+        // HEADERS. The names known when the head goes are announced in a
+        // Trailer field, unless the handler set one. A field that frames or
+        // routes a message (Content-Length, Transfer-Encoding, Host,
+        // Trailer, the connection's, Content-Type, Set-Cookie...) or is not
+        // fit to be written is left out
+        SGCL_INLINE_HOT http::headers& trailers() const noexcept {
+            return _impl->trailers;
+        }
+
+        // An informational response sent now, before the head: 103 Early
+        // Hints with its Link fields, or any 1xx but 101 (a switch of
+        // protocols is hijack()'s) and 100 (the server's own, when the
+        // handler reads a body that expects it); invalid_argument for
+        // another code. A client of HTTP/1.0 gets none (RFC 9110 §15.2):
+        // success, nothing sent. After the head has gone (or the response
+        // ended, or was hijacked): io::errc::closed; fields not fit to be
+        // written: std::errc::invalid_argument, nothing sent. A handler is a
+        // task and writes `co_await w.async_send_informational(103, f)`
+        SGCL_INLINE_HOT expected<void, io::error> send_informational(int code, const http::headers& fields = {}) const {
+            _check_informational(code);
+            return _impl->informational(code, fields).wait();
+        }
+
+        SGCL_INLINE_HOT async::task<expected<void, io::error>> async_send_informational(int code, const http::headers& fields = {}) const {
+            _check_informational(code);
+            return _impl->informational(code, fields);
         }
 
         // Whether the head has gone (a flush was made)
@@ -913,6 +1252,12 @@ namespace sgcl::net::http {
 
         tracked_ptr<detail::WriterImpl> _impl;
 
+        SGCL_INLINE_HOT static void _check_informational(int code) {
+            if (code < 102 || code > 199) {
+                throw invalid_argument("http::response_writer: an informational status is 102 to 199");
+            }
+        }
+
         static async::task<expected<void, io::error>> _co_flush(tracked_ptr<detail::WriterImpl> impl) noexcept {
             if (impl->hijacked || impl->ended) {
                 co_return io::detail::fail(io::error(io::errc::closed, "flush", "response"));
@@ -925,6 +1270,44 @@ namespace sgcl::net::http {
         struct WriterAccess {
             SGCL_INLINE_HOT static response_writer make(const tracked_ptr<WriterImpl>& impl) noexcept {
                 return response_writer(impl);
+            }
+
+            SGCL_INLINE_HOT static const tracked_ptr<WriterImpl>& impl(const response_writer& w) noexcept {
+                return w._impl;
+            }
+
+            // The response broken off (a reverse proxy's backend failed
+            // after the head went): no end is sent, the connection (HTTP/1.1)
+            // ends, the stream (HTTP/2) is reset
+            SGCL_INLINE_HOT static void abort(const response_writer& w) noexcept {
+                w._impl->aborted = true;
+                w._impl->close_after = true;
+            }
+
+            // async_flush begun without a frame (WriterImpl::flush_start),
+            // with its checks: the result in `now`, or the task of the rest
+            static optional<async::task<expected<void, io::error>>> flush_start(const response_writer& w, expected<void, io::error>& now) {
+                auto& impl = *w._impl;
+                if (impl.hijacked || impl.ended) {
+                    now = io::detail::fail(io::error(io::errc::closed, "flush", "response"));
+                    return nullopt;
+                }
+                return impl.flush_start(now);
+            }
+
+            // The connection taken over as hijack() takes it, the bytes the
+            // server had read past the request moved into rest (a
+            // WebSocket's first frames), so that the taker reads the
+            // connection itself
+            static expected<net::connection, io::error> take_over(const response_writer& w, std::string& rest) noexcept {
+                auto h = const_cast<response_writer&>(w).hijack();
+                if (!h) {
+                    return unexpected(h.error());
+                }
+                auto& wire = *w._impl->wire;
+                rest.assign(wire.view());
+                wire.consume(rest.size());
+                return h->first;
             }
         };
     }

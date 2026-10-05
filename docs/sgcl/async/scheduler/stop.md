@@ -6,11 +6,13 @@
 static void stop();
 ```
 
-Joins the workers, for a program that wants its threads gone at a point of its own; the end of the program does
-the same. The timer thread, the [reactor](../readable.md) and the [blocking pool](../blocking_pool/README.md) are stopped
-first, in that order, those of them that were started: the waits still registered with the reactor end with
-nothing (their events set), and the jobs queued on the pool run to their end. The workers then run what is ready
-and leave; a task that never suspends holds the stop, as it would hold the end of the program.
+Joins the workers, for a program that wants its threads gone at a point of its own. The timer thread, the
+[reactor](../readable.md) and the [blocking pool](../blocking_pool/README.md) are stopped first, in that order, those
+of them that were started: the waits still registered with the reactor end with nothing (their events set), and the
+jobs queued on the pool run to their end. The workers then run what is ready and leave; a task that never suspends
+holds the stop, as it would hold the end of the program. The end of the program stops the same threads, for good:
+the blocking pool first, then the workers, the timer thread and the reactor, waking none of the reactor's waits
+([async](../README.md#coroutines)).
 
 The queues stay. A frame made ready while the workers are being joined (a promise set from a callback, a send from a
 plain thread) is queued, and runs at the next start; a task suspended at the stop stays suspended until something
@@ -36,7 +38,8 @@ The join of every worker and of the threads of the timers, the reactor and the p
 ## Notes
 
 The call joins the workers, so it is never made from a task: debug builds assert. A program stops the scheduler
-when nothing runs.
+when nothing runs. From a static destructor after the end of the program has stopped the runtime, the call does
+nothing.
 
 ## Example
 

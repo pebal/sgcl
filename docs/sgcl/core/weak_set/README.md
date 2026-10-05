@@ -11,6 +11,8 @@ namespace sgcl {
 }
 ```
 
+**Requires [rooted](../rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::weak_set<Key>` is a set of objects that does not keep them alive: the [weak_map](../weak_map/README.md) of nothing but
 keys. An object is inserted, found and erased by a `tracked_ptr<Key>` to it and held by a [weak_ptr](../weak_ptr/README.md);
 an entry whose object the collector has found unreachable is dead: never found, passed over by the iteration,
@@ -31,12 +33,10 @@ of its own and makes one with `Collections.newSetFromMap(new WeakHashMap<>())`: 
 
 ## Rules
 
-- A `weak_set` holds tracked pointers, so it lives on a stack or inside a managed object
-  ([The rules](../README.md#the-rules), 1).
 - An entry is dead once a cycle has found its object unreachable; between the object becoming unreachable and that
   cycle, it is found and visited like any other: the lag of any garbage collector.
-- The iteration hands out the object as a strong pointer, held while the iterator stands on the entry: the object
-  cannot die under it. An iterator is a tracked object then, and lives where the set's pointers may.
+- The iteration hands out the object as a strong pointer, held while the iterator stands on the entry: the object cannot
+  die under it. An iterator is a tracked object then.
 - A null pointer is not an object: [insert](insert.md) asserts in debug builds, the lookups find nothing.
 - Thread safety is that of `std::unordered_set`: concurrent readers, or one writer, with the program's own
   synchronization ([The rules](../README.md#the-rules), 6). The collector clearing an object's cell at the same time

@@ -12,6 +12,8 @@ namespace sgcl::net {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::net::udp::socket` is a UDP socket: what [udp::bind](../udp/bind.md) and [udp::connect](../udp/connect.md) give.
 Bound, it receives datagrams from anyone ([receive_from](receive_from.md), which says who sent each, a
 [udp::datagram](../udp-datagram.md)) and sends them to any address ([send_to](send_to.md)): Go's
@@ -28,9 +30,8 @@ operation that may wait comes twice, a blocking form and an `async_` one, both o
 
 - A socket made by the default constructor holds none (`!s`); an operation on it is a contract violation (debug
   builds assert).
-- A handle is a tracked word: on a stack, in a task, in a managed object; in a global or a `std` container, a
-  [rooted](../../core/rooted/README.md) of it. It takes part in the atomics by its word
-  ([atomic](../../core/atomic-handle/README.md)), `atomic<net::udp::socket>`, compared by identity.
+- A socket takes part in the atomics by its word ([atomic](../../core/atomic-handle/README.md)),
+  `atomic<net::udp::socket>`, compared by identity.
 - A datagram is sent whole or not at all. `ENOBUFS` (the interface's queue full) is an error, as in Go, not a wait:
   the socket has room, so a wait for it to be writable would come back at once.
 - A datagram longer than the buffer of a receive is cut to it, and `truncated` says so (`MSG_TRUNC`).
@@ -40,6 +41,9 @@ operation that may wait comes twice, a blocking form and an `async_` one, both o
   A socket not closed is closed by its destructor, on the collector's thread after the sweep that finds it dead.
 - Errors are values, [expected\<T, io::error\>](../../io/error/README.md), the operation `read` or `write` and the path the
   socket (`udp 127.0.0.1:5353`, `udp 127.0.0.1:50000->127.0.0.1:53` once connected).
+- The multicast members never wait. A group must be multicast and of the socket's family: an IPv4 socket's groups are
+  IPv4, an IPv6 socket's IPv6 (a socket of both families takes no IPv4 group, as macOS takes none). The sender's
+  settings (interface, TTL, loopback) are IPv4's on an IPv4 socket and IPv6's on the others.
 
 ## Member functions
 
@@ -74,6 +78,20 @@ operation that may wait comes twice, a blocking form and an `async_` one, both o
 | [set_write_deadline](set_write_deadline.md) | sets the deadline of the sends |
 | [read_deadline](read_deadline.md) | the deadline of the receives |
 | [write_deadline](write_deadline.md) | the deadline of the sends |
+
+#### Multicast
+
+| Function | Description |
+|---|---|
+| [join_group](join_group.md) | joins a multicast group on an interface |
+| [leave_group](leave_group.md) | leaves a group |
+| [join_source_group](join_source_group.md) | joins a group for one source's datagrams alone |
+| [leave_source_group](leave_source_group.md) | leaves a source of a group |
+| [set_multicast_interface](set_multicast_interface.md) | sets the interface the datagrams to groups leave by |
+| [set_multicast_ttl](set_multicast_ttl.md) | sets their TTL, the hop limit for IPv6 |
+| [multicast_ttl](multicast_ttl.md) | their TTL |
+| [set_multicast_loopback](set_multicast_loopback.md) | sets whether this machine's members get them too |
+| [multicast_loopback](multicast_loopback.md) | whether this machine's members get them |
 
 #### Observers
 
@@ -133,6 +151,6 @@ datagram: 8
 
 ## See also
 
-- [udp](../udp/README.md): what makes a socket
+- [udp](../udp/README.md): what makes a socket, [listen_multicast](../udp/listen_multicast.md) a multicast one
 - [udp::datagram](../udp-datagram.md): what a `receive_from` gives
 - [connection](../connection/README.md): a stream

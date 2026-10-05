@@ -10,6 +10,8 @@ namespace sgcl::codec {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::codec::frames` is the frames of an animation, GIF or WebP, read one by one as they are asked for. Each
 [frame](../frame.md) is a new [image](../image/README.md) of the whole canvas, with what came before composed under it as the
 format says: the disposal and transparency of GIF, the disposal and alpha blending of WebP. Nothing is decoded ahead
@@ -24,10 +26,9 @@ covers, leaving the composing to the program; here the frames come composed, one
 
 ## Rules
 
-- A handle of one word: a tracked pointer to the state of the reading, so it lives where a `tracked_ptr` may (on a
-  stack, in a task, inside a managed object). Copies share the reading, and a frame read through one copy is not read
-  again through another. A move copies the word, as a `tracked_ptr`'s does: the moved-from frames are another handle
-  of the same reading.
+- A handle of one word: a tracked pointer to the state of the reading. Copies share the reading, and a frame read
+  through one copy is not read again through another. A move copies the word, as a `tracked_ptr`'s does: the moved-from
+  frames are another handle of the same reading.
 - What it reads from lives while the frames do: the file's bytes, held (a slice of memory that is not managed must
   outlive the frames), or the stream, read as the frames are asked for.
 - After the last frame, [next](next.md) gives `nullopt`, and again on every call. An error of the data comes

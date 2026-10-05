@@ -10,6 +10,8 @@ namespace sgcl::compress::zip {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::compress::zip::archive` is a zip archive to read, Go's `zip.Reader`: its central directory read when it is
 opened, the entries then open in any order and any number of times at once. [open](open.md) reads the
 central directory, where the archive lists its entries, in pieces of 256 KB, and nothing else;
@@ -19,8 +21,7 @@ of entries may be open at once, from any threads (the file is read at offsets).
 
 ## Rules
 
-- A value, copied cheaply: the entries and the source are shared by the copies. It lives where a `tracked_ptr` may:
-  a stack, a task's frame, a managed object.
+- A value, copied cheaply: the entries and the source are shared by the copies.
 - **Checked against the directory.** An entry's sizes and CRC-32 are the central record's (a failure read through
   the io handle names the entry as its path): its reader gives exactly `e.size` bytes, and fewer or more is
   `errc::corrupt`, a wrong CRC-32 `errc::checksum`, at the read that reaches the end. A whole

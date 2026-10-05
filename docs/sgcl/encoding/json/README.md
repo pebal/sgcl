@@ -10,6 +10,8 @@ namespace sgcl::encoding {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::encoding::json` is one JSON value ([RFC 8259](https://www.rfc-editor.org/rfc/rfc8259)): null, a boolean,
 a number, a string, an array or an object. It is immutable, as a [string](../../core/string/README.md) is: a copy is a copy
 of the handle, a value is shared between threads with no lock, and a change — [set](set.md),
@@ -30,14 +32,12 @@ an [error](../error/README.md) with the place it failed at, never an exception.
 
 ## Rules
 
-- **A json is 24 bytes:** a tracked pointer to what does not fit in a word, a word for a boolean or a number, and
-  the kind. It holds a `tracked_ptr`, so it lives where one may: on a stack or inside a managed object, in a
-  container of the library ([the rules of core](../../core/README.md#the-rules), 1). A string is its
-  [string](../../core/string/README.md)'s object; an array is its elements side by side in one managed buffer, an object
-  its members side by side, so [elements](elements.md) and [members](members.md) are slices of the
-  buffer and walk it in order. A number costs nothing past the 24 bytes. The tree of a text in memory takes about
-  the text's size to three times it: numbers in short arrays cost the most (a buffer each), objects of repeated
-  keys the least (the keys shared).
+- **A json is 24 bytes:** a tracked pointer to what does not fit in a word, a word for a boolean or a number, and the
+  kind. A string is its [string](../../core/string/README.md)'s object; an array is its elements side by side in one
+  managed buffer, an object its members side by side, so [elements](elements.md) and [members](members.md) are slices of
+  the buffer and walk it in order. A number costs nothing past the 24 bytes. The tree of a text in memory takes about
+  the text's size to three times it: numbers in short arrays cost the most (a buffer each), objects of repeated keys the
+  least (the keys shared).
 - **Numbers keep their value.** An integer literal is an `int64_t` when one holds it, else an `uint64_t`, else it
   is kept as its text — `123456789012345678901234567890` is never rounded, where Go's `any` makes it a
   `float64`. Any other number is a `double`, rounded once from the decimal (`1e400` is `out_of_range`, `1e-400`

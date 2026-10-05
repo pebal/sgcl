@@ -10,6 +10,8 @@ namespace sgcl::async {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::async::condition_variable` is a wait under the module's [mutex](../mutex/README.md) for a notify, for tasks and
 threads alike: Go's `sync.Cond`, and `std::condition_variable_any` over that mutex. A [wait](wait.md)
 lets go of the mutex, waits for a notify and takes the mutex back; a task waiting holds no thread, and takes the
@@ -25,9 +27,8 @@ must; the forms of `wait` with a predicate do it.
 
 ## Rules
 
-- A condition variable is an object, not a handle: it lives where a `tracked_ptr` may, on a stack or inside a
-  managed object ([The rules](../../core/README.md#the-rules), 1), and is neither copied nor moved. Tasks reach it
-  through the object that holds it.
+- A condition variable is an object, not a handle: it is neither copied nor moved. Tasks reach it through the object
+  that holds it.
 - It waits with the module's `mutex`: a task with the [guard](../mutex-guard/README.md) of `scoped_lock`, a thread with that
   guard or with a lock that has `unlock()` and `lock()` over the mutex, `std::unique_lock<sgcl::async::mutex>`.
 - There is no spurious wakeup: a notify wakes the waiter it took from the queue, and a waiter never leaves the queue

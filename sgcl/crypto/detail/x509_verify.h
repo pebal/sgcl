@@ -39,9 +39,10 @@ namespace sgcl::crypto::x509::detail {
     }
 
     // The hash a signature algorithm signs, and whether the algorithm is
-    // one verified here; MD2, MD5 and SHA-1 refused as insecure
-    inline expected<void, error> signature_hash(const CertData& child, hash_id& id) noexcept {
-        switch (child.sig_algorithm) {
+    // one verified here; MD2, MD5 and SHA-1 refused as insecure. `what`
+    // names the signed object in the message ("the certificate \"CN=x\"")
+    inline expected<void, error> signature_hash(signature_algorithm alg, const string& alg_oid, const std::string& what, hash_id& id) noexcept {
+        switch (alg) {
             case signature_algorithm::sha256_with_rsa:
             case signature_algorithm::sha256_with_rsa_pss:
             case signature_algorithm::ecdsa_with_sha256:
@@ -63,39 +64,34 @@ namespace sgcl::crypto::x509::detail {
             case signature_algorithm::md5_with_rsa:
             case signature_algorithm::sha1_with_rsa:
             case signature_algorithm::ecdsa_with_sha1:
-                return unexpected<error>(reject(reason::insecure_algorithm, "the certificate " + describe(child) + " is signed with MD2, MD5 or SHA-1 (" + std::string(child.sig_algorithm_oid.view()) + ")"));
+                return unexpected<error>(reject(reason::insecure_algorithm, what + " is signed with MD2, MD5 or SHA-1 (" + std::string(alg_oid.view()) + ")"));
             case signature_algorithm::unknown:
                 break;
         }
-        return unexpected<error>(reject(reason::unsupported_algorithm, "the certificate " + describe(child) + " is signed with an algorithm not verified here (" + std::string(child.sig_algorithm_oid.view()) + ")"));
+        return unexpected<error>(reject(reason::unsupported_algorithm, what + " is signed with an algorithm not verified here (" + std::string(alg_oid.view()) + ")"));
     }
 
-    // Whether parent's key signed child: parent a CA (a version 3
-    // certificate needs basicConstraints with cA; a keyUsage, where there
-    // is one, needs keyCertSign), the algorithm one of the list, the key of
-    // that algorithm, the signature valid. Never an exception: every input
-    // here comes from a certificate
-    inline expected<void, error> check_signature(const CertData& child, const CertData& parent) noexcept {
-        if ((parent.version == 3 && !parent.basic_constraints_valid) || (parent.basic_constraints_valid && !parent.is_ca)) {
-            return unexpected<error>(reject(reason::not_a_ca, "the certificate " + describe(parent) + " is not a CA (basicConstraints), and cannot sign " + describe(child)));
-        }
-        if (parent.has_key_usage && (parent.key_usage_bits & uint16_t(key_usage::cert_sign)) == 0) {
-            return unexpected<error>(reject(reason::missing_cert_sign, "the key usage of " + describe(parent) + " lacks keyCertSign"));
-        }
+    SGCL_INLINE_HOT expected<void, error> signature_hash(const CertData& child, hash_id& id) noexcept {
+        return signature_hash(child.sig_algorithm, child.sig_algorithm_oid, "the certificate " + describe(child), id);
+    }
+
+    // Whether `key` signed `tbs` with the algorithm: the algorithm one of
+    // the list, the key of that algorithm, the signature valid. `what` and
+    // `signer` name the two in the messages. The checks of a certificate,
+    // an OCSP response and a CRL share it
+    inline expected<void, error> check_signed(signature_algorithm alg, const string& alg_oid, const slice<const byte>& tbs, const slice<const byte>& sig, bool whole,
+                                              const public_key& key, const std::string& what, const std::string& signer, const string& key_error = string()) noexcept {
         hash_id id = hash_id::sha256;
-        if (auto h = signature_hash(child, id); !h) {
+        if (auto h = signature_hash(alg, alg_oid, what, id); !h) {
             return h;
         }
-        const public_key& key = parent.key;
         if (!key.has_value()) {
-            return unexpected<error>(reject(reason::unsupported_algorithm, "the public key of " + describe(parent) + " is not one verified here (" + std::string(key.algorithm().view()) + ")"
-                                                                            + (parent.key_error.empty() ? std::string() : ": " + std::string(parent.key_error.view()))));
+            return unexpected<error>(reject(reason::unsupported_algorithm, "the public key of " + signer + " is not one verified here (" + std::string(key.algorithm().view()) + ")"
+                                                                            + (key_error.empty() ? std::string() : ": " + std::string(key_error.view()))));
         }
-        slice<const byte> tbs = child.range(child.tbs_at, child.tbs_size);
-        slice<const byte> sig = child.signature.as_slice();
         bool ok = false;
         bool matched = true;
-        switch (child.sig_algorithm) {
+        switch (alg) {
             case signature_algorithm::sha256_with_rsa:
             case signature_algorithm::sha384_with_rsa:
             case signature_algorithm::sha512_with_rsa:
@@ -132,12 +128,32 @@ namespace sgcl::crypto::x509::detail {
                 break;
         }
         if (!matched) {
-            return unexpected<error>(reject(reason::invalid_signature, "the signature of " + describe(child) + " is of another algorithm than the key of " + describe(parent)));
+            return unexpected<error>(reject(reason::invalid_signature, "the signature of " + what + " is of another algorithm than the key of " + signer));
         }
-        if (!ok || !child.signature_whole) {
-            return unexpected<error>(reject(reason::invalid_signature, "the signature of " + describe(child) + " does not verify under the key of " + describe(parent)));
+        if (!ok || !whole) {
+            return unexpected<error>(reject(reason::invalid_signature, "the signature of " + what + " does not verify under the key of " + signer));
         }
         return {};
+    }
+
+    // Whether parent's key signed child: parent a CA (a version 3
+    // certificate needs basicConstraints with cA; a keyUsage, where there
+    // is one, needs keyCertSign), the algorithm one of the list, the key of
+    // that algorithm, the signature valid. Never an exception: every input
+    // here comes from a certificate
+    inline expected<void, error> check_signature(const CertData& child, const CertData& parent) noexcept {
+        if ((parent.version == 3 && !parent.basic_constraints_valid) || (parent.basic_constraints_valid && !parent.is_ca)) {
+            return unexpected<error>(reject(reason::not_a_ca, "the certificate " + describe(parent) + " is not a CA (basicConstraints), and cannot sign " + describe(child)));
+        }
+        if (parent.has_key_usage && (parent.key_usage_bits & uint16_t(key_usage::cert_sign)) == 0) {
+            return unexpected<error>(reject(reason::missing_cert_sign, "the key usage of " + describe(parent) + " lacks keyCertSign"));
+        }
+        hash_id id = hash_id::sha256;
+        if (auto h = signature_hash(child, id); !h) {
+            return h;
+        }
+        return check_signed(child.sig_algorithm, child.sig_algorithm_oid, child.range(child.tbs_at, child.tbs_size), child.signature.as_slice(), child.signature_whole,
+                            parent.key, describe(child), describe(parent), parent.key_error);
     }
 
     // The validity of one certificate at a time (seconds since 1970)

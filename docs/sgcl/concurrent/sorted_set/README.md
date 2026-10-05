@@ -11,6 +11,8 @@ namespace sgcl::concurrent {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::concurrent::sorted_set<Key, Compare>` is a lock-free sorted set shared by any number of threads: the skip
 list of [sorted_map](../sorted_map/README.md) with the key as the element, the structure Java's `ConcurrentSkipListSet` is.
 The bottom level is a sorted singly linked list holding every key; each node also stands in a random number of the
@@ -28,10 +30,8 @@ goroutines.
 
 ## Rules
 
-- The container holds the head node, a sentinel of the maximum height and no key, by a `tracked_ptr`, and the
-  number of levels in use, so it lives where a `tracked_ptr` may: on a thread's stack or inside a managed object
-  ([The rules](../../core/README.md#the-rules), 1). Its iterators hold their node by a `tracked_ptr` and live where
-  the set may.
+- The container holds the head node, a sentinel of the maximum height and no key, by a `tracked_ptr`, and the number of
+  levels in use. Its iterators hold their node by a `tracked_ptr`.
 - Every member function may be called from any thread at any time. `insert`, `emplace`, `erase` and `clear` are
   lock-free and linearizable: an insertion takes effect at the compare-exchange that links the node into the
   bottom list, an erasure at the one that marks it there. `find`, `contains`, `count`, `lower_bound` and

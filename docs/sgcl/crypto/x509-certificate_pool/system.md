@@ -7,17 +7,24 @@ static expected<certificate_pool, error> system();                              
 static async::task<expected<certificate_pool, error>> async_system() noexcept;    // (2)
 ```
 
-Returns the system's roots: the file the environment variable `SSL_CERT_FILE` names, else the first of the bundles Go
-looks for — `/etc/ssl/certs/ca-certificates.crt`, `/etc/pki/tls/certs/ca-bundle.crt`, `/etc/ssl/ca-bundle.pem`,
+Returns the system's roots. On macOS they are the Keychain's trust settings, read through Security.framework: the
+system's anchors (`SecTrustCopyAnchorCertificates`), less those an administrator or the user distrusted for TLS
+servers, with those they trusted added (`SecTrustSettingsCopyCertificates` of the admin and user domains, and each
+certificate's settings, the user's over the administrator's); a root a user or an administrator added to the
+Keychain is seen, one distrusted is not. When Security cannot be read there, or `SSL_CERT_FILE` or `SSL_CERT_DIR`
+is set, and on every other system, they are the file the environment variable `SSL_CERT_FILE` names, else the first
+of the bundles Go looks for — `/etc/ssl/certs/ca-certificates.crt`, `/etc/pki/tls/certs/ca-bundle.crt`, `/etc/ssl/ca-bundle.pem`,
 `/etc/pki/tls/cacert.pem`, `/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem`, `/etc/ssl/cert.pem` (the last is
 macOS's) — else every file of the directories `SSL_CERT_DIR` names (separated by `:`), or of `/etc/ssl/certs` and
-`/etc/pki/tls/certs`. The files are read once per process, and each call is given a clone: a change to the pool
+`/etc/pki/tls/certs`. They are read once per process, at the first call, and each call is given a clone: a change to the pool
 returned touches no other. The roots are kept until the program ends, nothing of them runs at exit.
 
 1. Reads the files on this thread, the first time.
 2. The same, the files read on the blocking pool, for a task.
 
-A [verification](../x509-certificate/verify.md) without roots of its own takes these.
+A [verification](../x509-certificate/verify.md) without roots of its own takes these, and so does a TLS client
+([net::tls::config](../../net/tls/config.md)). On macOS the library links Security and CoreFoundation for it (the
+CMake target does); their headers are never included: the library declares the few calls it makes itself.
 
 ## Parameters
 
@@ -30,7 +37,7 @@ certificate.
 
 ## Complexity
 
-The first call reads and parses the bundle, a few hundred certificates; every call clones the pool, linear in its
+The first call reads and parses the Keychain's anchors or the bundle, a few hundred certificates; every call clones the pool, linear in its
 size.
 
 ## Exceptions

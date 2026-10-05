@@ -439,6 +439,227 @@ namespace sgcl::crypto::detail {
             return r;
         }
 
+        // --- Variable time: public data alone (a signature's verification) ---
+        //
+        // u1 G + u2 Q in one run of doublings (Straus and Shamir's trick),
+        // each scalar in its width-w non-adjacent form (odd digits, at
+        // least w - 1 zeros after each), so that a digit of 0 costs
+        // nothing: the generator's odd multiples up to 63 G in a table made
+        // once (affine, mixed additions), Q's up to 15 Q made per call
+        // (Jacobian). The doublings and additions are Jacobian, with the
+        // cases their formulas leave out (the identity, a point added to
+        // itself or to its negative) branched on: nothing here is secret
+
+        SGCL_INLINE_HOT static bool is_zero(const fe& a) noexcept {
+            return limbs_zero_mask(a) != 0;
+        }
+
+        SGCL_INLINE_HOT static jacobian jacobian_identity() noexcept {
+            return jacobian{F::one(), F::one(), fe{}};
+        }
+
+        // p + q, q affine: madd-2007-bl (7M + 4S)
+        static void add_affine_vartime(jacobian& p, const affine& q) noexcept {
+            if (is_zero(p.z)) {
+                p = jacobian{q.x, q.y, F::one()};
+                return;
+            }
+            fe z1z1, u2, s2, h, rr;
+            F::sqr(z1z1, p.z);
+            F::mul(u2, q.x, z1z1);
+            F::mul(s2, q.y, p.z);
+            F::mul(s2, s2, z1z1);
+            F::sub(h, u2, p.x);
+            F::sub(rr, s2, p.y);
+            if (is_zero(h)) {
+                if (is_zero(rr)) {
+                    dbl_jacobian(p);
+                } else {
+                    p = jacobian_identity();
+                }
+                return;
+            }
+            fe hh, i, j, v, t, x3, y3, z3;
+            F::add(rr, rr, rr);
+            F::sqr(hh, h);
+            F::add(i, hh, hh);
+            F::add(i, i, i);
+            F::mul(j, h, i);
+            F::mul(v, p.x, i);
+            F::sqr(x3, rr);
+            F::sub(x3, x3, j);
+            F::sub(x3, x3, v);
+            F::sub(x3, x3, v);
+            F::sub(t, v, x3);
+            F::mul(y3, rr, t);
+            F::mul(t, p.y, j);
+            F::add(t, t, t);
+            F::sub(y3, y3, t);
+            F::add(z3, p.z, h);
+            F::sqr(z3, z3);
+            F::sub(z3, z3, z1z1);
+            F::sub(z3, z3, hh);
+            p = jacobian{x3, y3, z3};
+        }
+
+        // p + q: add-2007-bl (11M + 5S)
+        static void add_vartime(jacobian& p, const jacobian& q) noexcept {
+            if (is_zero(q.z)) {
+                return;
+            }
+            if (is_zero(p.z)) {
+                p = q;
+                return;
+            }
+            fe z1z1, z2z2, u1, u2, s1, s2, h, rr;
+            F::sqr(z1z1, p.z);
+            F::sqr(z2z2, q.z);
+            F::mul(u1, p.x, z2z2);
+            F::mul(u2, q.x, z1z1);
+            F::mul(s1, p.y, q.z);
+            F::mul(s1, s1, z2z2);
+            F::mul(s2, q.y, p.z);
+            F::mul(s2, s2, z1z1);
+            F::sub(h, u2, u1);
+            F::sub(rr, s2, s1);
+            if (is_zero(h)) {
+                if (is_zero(rr)) {
+                    dbl_jacobian(p);
+                } else {
+                    p = jacobian_identity();
+                }
+                return;
+            }
+            fe i, j, v, t, x3, y3, z3;
+            F::add(rr, rr, rr);
+            F::add(i, h, h);
+            F::sqr(i, i);
+            F::mul(j, h, i);
+            F::mul(v, u1, i);
+            F::sqr(x3, rr);
+            F::sub(x3, x3, j);
+            F::sub(x3, x3, v);
+            F::sub(x3, x3, v);
+            F::sub(t, v, x3);
+            F::mul(y3, rr, t);
+            F::mul(t, s1, j);
+            F::add(t, t, t);
+            F::sub(y3, y3, t);
+            F::add(z3, p.z, q.z);
+            F::sqr(z3, z3);
+            F::sub(z3, z3, z1z1);
+            F::sub(z3, z3, z2z2);
+            F::mul(z3, z3, h);
+            p = jacobian{x3, y3, z3};
+        }
+
+        // The width-(w + 1) non-adjacent form of a public scalar (size
+        // bytes, big-endian): digits d_i, odd or 0, |d_i| < 2^w, k = the
+        // sum of d_i 2^i; 8 size + 1 of them
+        static constexpr size_t wnaf_digits = 8 * size + 1;
+
+        template<unsigned W>
+        static void wnaf(int8_t (&d)[wnaf_digits], const unsigned char* k) noexcept {
+            constexpr int half = 1 << W;
+            constexpr int full = half << 1;
+            // the low W + 1 bits not yet written as digits, with the carry
+            // of the digits written negative
+            int window = 0;
+            for (unsigned j = 0; j <= W; ++j) {
+                window |= int(bit(k, j)) << j;
+            }
+            for (size_t j = 0; j < wnaf_digits; ++j) {
+                int digit = 0;
+                if (window & 1) {
+                    digit = (window & half) ? window - full : window;
+                    window -= digit;
+                }
+                d[j] = int8_t(digit);
+                window >>= 1;
+                window += int(bit(k, j + W + 1)) << W;
+            }
+        }
+
+        // The generator's odd multiples 1G, 3G, ..., 63G, affine
+        struct OddTable {
+            affine t[32];
+        };
+
+        static const OddTable& odd_table() noexcept {
+            static const std::unique_ptr<OddTable> table = build_odd_table();
+            return *table;
+        }
+
+        // Made projective by the complete formulas and turned affine
+        // together, one inversion for all (Montgomery's trick)
+        static std::unique_ptr<OddTable> build_odd_table() noexcept {
+            point pts[32];
+            point g2;
+            dbl(g2, generator());
+            pts[0] = generator();
+            for (size_t i = 1; i < 32; ++i) {
+                add(pts[i], pts[i - 1], g2);
+            }
+            fe prefix[32];
+            fe acc = F::one();
+            for (size_t i = 0; i < 32; ++i) {
+                prefix[i] = acc;
+                F::mul(acc, acc, pts[i].z);
+            }
+            fe inv = F::inverse(acc);
+            auto table = std::make_unique<OddTable>();
+            for (size_t i = 32; i-- > 0;) {
+                fe zi;
+                F::mul(zi, inv, prefix[i]);
+                F::mul(inv, inv, pts[i].z);
+                F::mul(table->t[i].x, pts[i].x, zi);
+                F::mul(table->t[i].y, pts[i].y, zi);
+            }
+            return table;
+        }
+
+        // u1 G + u2 Q (scalars of size bytes, big-endian; q affine, on the
+        // curve), Jacobian
+        static jacobian double_mult_vartime(const unsigned char* u1, const affine& q, const unsigned char* u2) noexcept {
+            int8_t d1[wnaf_digits];
+            int8_t d2[wnaf_digits];
+            wnaf<6>(d1, u1);
+            wnaf<4>(d2, u2);
+            jacobian qt[8];
+            qt[0] = jacobian{q.x, q.y, F::one()};
+            jacobian q2 = qt[0];
+            dbl_jacobian(q2);
+            for (size_t i = 1; i < 8; ++i) {
+                qt[i] = qt[i - 1];
+                add_vartime(qt[i], q2);
+            }
+            const OddTable& gt = odd_table();
+            jacobian r = jacobian_identity();
+            bool started = false;
+            for (size_t i = wnaf_digits; i-- > 0;) {
+                if (started) {
+                    dbl_jacobian(r);
+                }
+                if (int g = d1[i]; g != 0) {
+                    affine a = gt.t[(g < 0 ? -g : g) / 2];
+                    if (g < 0) {
+                        F::sub(a.y, fe{}, a.y);
+                    }
+                    add_affine_vartime(r, a);
+                    started = true;
+                }
+                if (int h = d2[i]; h != 0) {
+                    jacobian b = qt[(h < 0 ? -h : h) / 2];
+                    if (h < 0) {
+                        F::sub(b.y, fe{}, b.y);
+                    }
+                    add_vartime(r, b);
+                    started = true;
+                }
+            }
+            return r;
+        }
+
         // The generator's table: base[w][j - 1] = j * 32^w * G, affine
         struct BaseTable {
             affine t[booth_windows][16];

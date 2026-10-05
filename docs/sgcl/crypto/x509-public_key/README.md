@@ -10,6 +10,8 @@ namespace sgcl::crypto::x509 {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::crypto::x509::public_key` is the public key of a [certificate](../x509-certificate/README.md) as one of the module's key
 types, or none: [kind](kind.md) says which, and [rsa](rsa.md),
 [p256](p256.md), [p384](p384.md) and [ed25519](ed25519.md) give it.
@@ -25,8 +27,6 @@ Go's `Certificate.PublicKey` is an `any` that a program asserts to a type; here 
   rather than a named curve is `key_kind::none`, and the certificate is still read. A certificate signed by such a key
   does not verify (`unsupported_algorithm`).
 - **The wrong kind is the program's mistake**: `rsa()` of a key that is not RSA is `logic_error`, as the others are.
-- It holds a [string](../../core/string/README.md), so it lives where a `tracked_ptr` may.
-
 ## Member types
 
 | Type | Definition |

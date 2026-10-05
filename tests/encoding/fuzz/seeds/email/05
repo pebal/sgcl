@@ -1,0 +1,49 @@
+From: a@example.com
+To: b@example.com
+Subject: Related
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="===============5759534247323089560=="
+
+--===============5759534247323089560==
+Content-Type: multipart/alternative;
+ boundary="===============0745617914263780462=="
+
+--===============0745617914263780462==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+text version
+
+--===============0745617914263780462==
+MIME-Version: 1.0
+Content-Type: multipart/related;
+ boundary="===============7924266742253734288=="
+
+--===============7924266742253734288==
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+<p><img src="cid:logo"></p>
+
+--===============7924266742253734288==
+Content-Type: image/png
+Content-Transfer-Encoding: base64
+Content-ID: <logo>
+MIME-Version: 1.0
+Content-Disposition: inline
+
+iVBORyBmYWtlIGltYWdl
+
+--===============7924266742253734288==--
+
+--===============0745617914263780462==--
+
+--===============5759534247323089560==
+Content-Type: application/zip
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="x.zip"
+MIME-Version: 1.0
+
+emlwIGJ5dGVz
+
+--===============5759534247323089560==--

@@ -66,7 +66,7 @@ peer sent has a code of its own in the category, and [alert_of](alert_of.md) giv
 | `access_denied` | "access denied": a valid certificate the peer does not let through |
 | `decode_error` | "error decoding message": a message that does not parse |
 | `decrypt_error` | "error decrypting message": a signature or a `Finished` that does not verify |
-| `protocol_version` | "protocol version not supported": a peer without TLS 1.3 |
+| `protocol_version` | "protocol version not supported": a peer with no version of the other's range (a client without TLS 1.3 to the server, a server of 1.1 or older, a server of 1.2 to a client whose `min_version` is 1.3) |
 | `insufficient_security` | "insufficient security level": parameters weaker than the peer accepts |
 | `internal_error` | "internal error": a failure of the sender's own, not of the protocol |
 | `inappropriate_fallback` | "inappropriate fallback": a retry at a lower version the server refuses |

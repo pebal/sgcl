@@ -11,6 +11,8 @@ namespace sgcl {
 }
 ```
 
+**Requires [rooted](../rooted/README.md) outside a stack or a managed object.**
+
 An `expiry_queue<T>` decides what to do with an object once nothing else reaches it, by an observer rather than by
 the object's destructor. [watch(object, f)](watch.md) makes a weak cell for the object and keeps `f`
 next to it. When a cycle finds the object unreachable it does not destroy it: it keeps it alive for the queue, and
@@ -32,9 +34,7 @@ the calls that paid for it, at least 16); a thread that watches little and wants
 
 ## Rules
 
-- An `expiry_queue` lives where a `tracked_ptr` may: on a stack or inside a managed object; never in `new`/`malloc`
-  memory, a `std` container, a global or a plain coroutine frame ([The rules](../README.md#the-rules), rule 1). Its
-  entries are a `sgcl::vector` of a `tracked_ptr` to the cell and the function.
+- Its entries are a `sgcl::vector` of a `tracked_ptr` to the cell and the function.
 - `f` is an [sgcl::function](../function/README.md): its closure may capture tracked pointers, kept in a managed object of its
   own and followed by the collector. A closure holding a strong pointer to the watched object itself keeps the
   object alive, and the entry never expires: the object comes as the argument instead. Capture a raw pointer to an

@@ -11,6 +11,8 @@ namespace sgcl::concurrent {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::concurrent::weak_set<Key>` is the [weak_set](../../core/weak_set/README.md) shared by any number of threads without a
 lock: a set of objects that does not keep them alive, the [concurrent::weak_map](../weak_map/README.md) of nothing but keys,
 over the lock-free hash table of [concurrent::set](../set/README.md), the split-ordered list of Shalev and Shavit. An object
@@ -33,9 +35,6 @@ lock, and compares by identity, not by `equals`. Go's library has no weak set.
 
 ## Rules
 
-- The set holds tracked pointers (the table's array of buckets, its head and the counters), so it lives on a
-  thread's stack or inside a managed object ([The rules](../../core/README.md#the-rules), 1); the one a program shares
-  goes into a managed object under a [root_ptr](../../core/root_ptr/README.md).
 - Every member function may be called from any thread at any time, and none waits. `find`, `contains` and `count`
   are wait-free and write nothing once the object's bucket has its dummy node, which the first lookup or insertion
   in the bucket makes (an allocation and a compare-exchange, lock-free, once per bucket for the array's life).

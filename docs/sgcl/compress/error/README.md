@@ -10,6 +10,8 @@ namespace sgcl::compress {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::compress::error` is what went wrong in compressed data or in an archive: the [code](../errc.md), the byte of the
 compressed input (of the archive) where it was found, the error of the stream underneath when one failed, and a
 [message](message.md) that says all of it. It is the error of every format of the module, one type under each
@@ -23,8 +25,7 @@ or the error that says why not. A reader of the module is an [io stream](../../i
 
 ## Rules
 
-- A value: copied, compared, held in an `expected`. It holds a [string](../../core/string/README.md) (the detail) and an
-  optional `io::error`, so it lives where a string may.
+- A value: copied, compared, held in an `expected`.
 - The offset counts bytes from the start of the compressed input or of the archive.
 - An error that did not come from the data has no place: a file that does not open, cannot be made, written or
   closed, a failure of what a writer writes into, a mistake of the calls to a writer, a name the archive does not

@@ -41,6 +41,12 @@ The exit status is 1 when anything was found. The rules, by name:
   async-pair      `async_x` is on the page of `x`, never a page of its own
   enum            an enumeration's page has the table `Value | Description`
   constant        a constant or a variable has no page of its own
+  rooted          a page listed in tools/rooted_types.txt (a type that holds
+                  a tracked word) has the line `**Requires [rooted](…)
+                  outside a stack or a managed object.**` once, exactly,
+                  directly under its names block, its link resolving to
+                  docs/sgcl/core/rooted/README.md; a page not listed has none;
+                  a listed page that does not exist is reported on the list
 """
 
 import os
@@ -58,9 +64,12 @@ METHOD_SECTIONS = ['Parameters', 'Return value', 'Complexity', 'Exceptions', 'No
 METHOD_REQUIRED = ['Parameters', 'Return value', 'Complexity', 'Exceptions', 'Example', 'See also']
 REQ_SECTIONS = ['Satisfied by', 'Notes', 'Example', 'See also']
 OPERATOR_PAGES = {'operator_assign', 'operator_at', 'operator_cmp', 'operator_call', 'operator_deref',
-                  'operator_bool', 'operator_arith', 'operator_inc', 'operator_conv'}
+                  'operator_bool', 'operator_arith', 'operator_inc', 'operator_conv', 'operator_logical'}
 FUNCTION_SECTIONS = METHOD_SECTIONS
 ENUM_SECTIONS = ['Rules', 'Example', 'Examples', 'See also']
+ROOTED_LIST = os.path.join(ROOT, 'tools', 'rooted_types.txt')
+ROOTED_PAGE = os.path.join(DOCS, 'core', 'rooted', 'README.md')
+ROOTED_LINE = re.compile(r'\*\*Requires \[rooted\]\(([^)\s]+)\) outside a stack or a managed object\.\*\*')
 README_SECTIONS = ['The rules', 'Pointers', 'Functions', 'Classes', 'Sequences and associative containers',
                    'Weak containers', 'Immutable containers', 'Mixins', 'Requirements', 'See also']
 
@@ -398,8 +407,57 @@ def check_enum(p):
         p.report(1, 'enum', 'no table `Value | Description` of the enumerators')
 
 
+_rooted_cache = []
+
+
+def rooted_list():
+    """The pages of tools/rooted_types.txt, {absolute path: line of the list}: the first word of every line that
+    is not a comment or blank."""
+    if not _rooted_cache:
+        listed = {}
+        with open(ROOTED_LIST, encoding='utf-8') as f:
+            for n, line in enumerate(f, 1):
+                if line.strip() and not line.startswith('#'):
+                    listed[os.path.normpath(os.path.join(ROOT, line.split()[0]))] = n
+        _rooted_cache.append(listed)
+    return _rooted_cache[0]
+
+
+def check_rooted(p):
+    """The line of rooted: on the page of a type that holds a tracked word, the one listed in
+    tools/rooted_types.txt, directly under the names block, once; on any other page, none."""
+    hits = [(i, l) for i, l in p.prose if 'Requires [rooted]' in l or 'Requires rooted' in l]
+    if p.path not in rooted_list():
+        for i, _ in hits:
+            p.report(i, 'rooted', 'the line of rooted on a page not in tools/rooted_types.txt: its type holds no '
+                                  'tracked word, or the list misses it')
+        return
+    for i, _ in hits[1:]:
+        p.report(i, 'rooted', 'the line of rooted appears once')
+    if not hits:
+        p.report(1, 'rooted', 'listed in tools/rooted_types.txt, no line `**Requires [rooted](…) outside a stack or '
+                              'a managed object.**` under the names block')
+        return
+    i, line = hits[0]
+    m = ROOTED_LINE.fullmatch(line)
+    if not m:
+        p.report(i, 'rooted', 'not the line exactly: `**Requires [rooted](…) outside a stack or a managed object.**`')
+    elif os.path.normpath(os.path.join(os.path.dirname(p.path), m.group(1))) != ROOTED_PAGE:
+        p.report(i, 'rooted', f'{m.group(1)}: the link goes to docs/sgcl/core/rooted/README.md')
+    names = p.blocks[0] if p.blocks and p.blocks[0][1] == 'cpp' else None
+    end = names[0] + len(names[2]) + 1 if names else 0   # the closing ``` of the names block
+    if not names or i != end + 2 or p.lines[end].strip() or (i < len(p.lines) and p.lines[i].strip()):
+        p.report(i, 'rooted', 'the line of rooted stands directly under the names block, a blank line before and after')
+
+
+def check_rooted_list(findings):
+    for path, n in rooted_list().items():
+        if not os.path.exists(path):
+            findings.append(f'tools/rooted_types.txt:{n}: rooted: {os.path.relpath(path, ROOT)}: no such page')
+
+
 CHECKS = [check_files, check_enum, check_breadcrumb, check_title, check_html, check_links, check_tables, check_blocks, check_sections,
-          check_readme_tables]
+          check_readme_tables, check_rooted]
 
 
 def pages(args):
@@ -432,6 +490,7 @@ def main(argv):
         for check in CHECKS:
             check(p)
         findings += p.findings
+    check_rooted_list(findings)
     for f in findings:
         print(f)
     print(f'{len(targets)} pages, {len(findings)} findings')

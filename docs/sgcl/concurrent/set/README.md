@@ -11,6 +11,8 @@ namespace sgcl::concurrent {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::concurrent::set<Key, Hash, KeyEqual>` is a lock-free hash set shared by any number of threads: the
 split-ordered list of Shalev and Shavit under [map](../map/README.md), which has the account of the algorithm, with the key
 as the element. Every key sits in one sorted singly linked list ordered by the bit reversal of its hash, and an
@@ -27,10 +29,8 @@ building the element only for a key that is absent. Go's library has no set.
 
 ## Rules
 
-- The container holds its bucket array and its head node by `tracked_ptr`s, and its counters by a
-  `std::unique_ptr` (plain memory of numbers alone, freed with the set), so it lives where a `tracked_ptr` may: on a
-  thread's stack or inside a managed object ([The rules](../../core/README.md#the-rules), 1). Its iterators hold
-  their node by a `tracked_ptr` and live where it may.
+- The container holds its bucket array and its head node by `tracked_ptr`s, and its counters by a `std::unique_ptr`
+  (plain memory of numbers alone, freed with the set). Its iterators hold their node by a `tracked_ptr`.
 - Every member function may be called from any thread at any time, concurrently with any other. `find`,
   `contains` and `count` are wait-free once the key's bucket has its dummy node; `insert`, `emplace` and `erase`
   are lock-free and linearizable, an insertion at the compare-exchange that links its node into the list, an

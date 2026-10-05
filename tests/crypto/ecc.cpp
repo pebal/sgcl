@@ -156,6 +156,95 @@ TYPED_TEST(Crypto_Ec, GroupLaw) {
     }
 }
 
+// Verification's variable-time u1 G + u2 Q against the constant-time
+// multiplications and the complete addition: random pairs, the scalars'
+// edges (0, 1, n - 1, all ones), Q = G (the digits of both scalars meet on
+// one point: the additions' doubling case), u2 = n - u1 with Q = G (the sum
+// is the identity), and the Jacobian additions' corners: O + P, P + O,
+// P + P against doubling, P + (-P), mixed and full
+TYPED_TEST(Crypto_Ec, VariableTimeDoubleMult) {
+    using A = Arith<TypeParam>;
+    using E = typename A::E;
+    using F = typename E::F;
+    random_source r(2);
+    auto encode_j = [](const typename E::jacobian& j) {
+        typename E::point p;
+        E::from_jacobian(p, j);
+        return A::encode(p);
+    };
+    auto reference = [](const bytes_t& u1, const typename E::affine& q, const bytes_t& u2) {
+        typename E::point x = E::base_mult(u1.data());
+        typename E::point y = E::scalar_mult(typename E::point{q.x, q.y, F::one()}, u2.data());
+        E::add(x, x, y);
+        return A::encode(x);
+    };
+    bytes_t zero(TypeParam::size, 0);
+    bytes_t one = zero;
+    one.back() = 1;
+    bytes_t n = unhex(TypeParam::order);
+    bytes_t n1 = n;
+    n1.back() -= 1;
+    bytes_t ones(TypeParam::size, 0xff);
+    const typename E::affine g = E::to_affine(E::generator());
+    std::vector<bytes_t> edges = {zero, one, n1, ones};
+    for (int i = 0; i < 40; ++i) {
+        typename E::affine q = i % 4 == 0 ? g : E::to_affine(A::base(r.bytes(TypeParam::size)));
+        bytes_t u1 = i < 16 ? edges[size_t(i) % 4] : r.bytes(TypeParam::size);
+        bytes_t u2 = i < 16 ? edges[size_t(i) / 4] : i % 3 == 0 ? u1 : r.bytes(TypeParam::size);
+        EXPECT_EQ(encode_j(E::double_mult_vartime(u1.data(), q, u2.data())), reference(u1, q, u2)) << hex(u1) << ' ' << hex(u2);
+    }
+    for (int i = 0; i < 20; ++i) {
+        bytes_t u1 = r.bytes(TypeParam::size);
+        u1.front() &= 0x7f;   // below n
+        BIGNUM *b1 = BN_bin2bn(u1.data(), int(u1.size()), nullptr), *bn = BN_bin2bn(n.data(), int(n.size()), nullptr), *b2 = BN_new();
+        BN_sub(b2, bn, b1);
+        bytes_t u2(TypeParam::size);
+        BN_bn2binpad(b2, u2.data(), int(u2.size()));
+        BN_free(b1);
+        BN_free(b2);
+        BN_free(bn);
+        EXPECT_TRUE(E::is_zero(E::double_mult_vartime(u1.data(), g, u2.data()).z)) << hex(u1);
+    }
+    for (int i = 0; i < 20; ++i) {
+        typename E::point p = A::base(r.bytes(TypeParam::size));
+        typename E::affine pa = E::to_affine(p);
+        typename E::point d;
+        E::dbl(d, p);
+        typename E::jacobian pj{pa.x, pa.y, F::one()};
+        typename E::jacobian dj = pj;
+        E::dbl_jacobian(dj);   // 2P with Z other than 1, the full addition's both inputs general
+        typename E::jacobian neg = pj;
+        F::sub(neg.y, typename E::fe{}, neg.y);
+        typename E::jacobian t = E::jacobian_identity();
+        E::add_affine_vartime(t, pa);
+        EXPECT_EQ(encode_j(t), A::encode(p));
+        E::add_affine_vartime(t, pa);
+        EXPECT_EQ(encode_j(t), A::encode(d));
+        t = neg;
+        E::add_affine_vartime(t, pa);
+        EXPECT_EQ(encode_j(t), bytes_t{0});
+        t = E::jacobian_identity();
+        E::add_vartime(t, dj);
+        EXPECT_EQ(encode_j(t), A::encode(d));
+        E::add_vartime(t, E::jacobian_identity());
+        EXPECT_EQ(encode_j(t), A::encode(d));
+        E::add_vartime(t, dj);   // 2P + 2P
+        typename E::point q;
+        E::dbl(q, d);
+        EXPECT_EQ(encode_j(t), A::encode(q));
+        typename E::jacobian nd = dj;
+        F::sub(nd.y, typename E::fe{}, nd.y);
+        t = dj;
+        E::add_vartime(t, nd);
+        EXPECT_EQ(encode_j(t), bytes_t{0});
+        t = pj;
+        E::add_vartime(t, dj);   // P + 2P = 3P
+        typename E::point three;
+        E::add(three, d, p);
+        EXPECT_EQ(encode_j(t), A::encode(three));
+    }
+}
+
 // The field and the scalars: Montgomery products against OpenSSL's modular
 // arithmetic on random numbers and on the edges (0, 1, m - 1), inverses
 TYPED_TEST(Crypto_Ec, ModularArithmetic) {

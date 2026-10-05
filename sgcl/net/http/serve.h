@@ -9,6 +9,7 @@
 #include "response_writer.h"
 #include "server.h"
 #include "status.h"
+#include "detail/mime.h"
 #include "../tls.h"
 #include "../../async/coroutine.h"
 #include "../../core/aliases.h"
@@ -29,72 +30,6 @@
 // net::http::serve_tls.
 namespace sgcl::net::http {
     namespace detail {
-        // The Content-Type of a file by its extension, as Go's built-in
-        // table and mime.types have it; application/octet-stream for any
-        // other (Go sniffs the first bytes; this does not)
-        inline const char* content_type_of(std::string_view name) noexcept {
-            const auto dot = name.rfind('.');
-            const auto slash = name.rfind('/');
-            if (dot == std::string_view::npos || (slash != std::string_view::npos && dot < slash)) {
-                return "application/octet-stream";
-            }
-            char ext[8] = {};
-            const std::string_view e = name.substr(dot + 1);
-            if (e.size() >= sizeof(ext)) {
-                return "application/octet-stream";
-            }
-            for (size_t i = 0; i < e.size(); ++i) {
-                const char c = e[i];
-                ext[i] = c >= 'A' && c <= 'Z' ? char(c - 'A' + 'a') : c;
-            }
-            static constexpr struct {
-                const char* ext;
-                const char* type;
-            } table[] = {
-                {"html", "text/html; charset=utf-8"},
-                {"htm", "text/html; charset=utf-8"},
-                {"css", "text/css; charset=utf-8"},
-                {"js", "text/javascript; charset=utf-8"},
-                {"mjs", "text/javascript; charset=utf-8"},
-                {"json", "application/json"},
-                {"txt", "text/plain; charset=utf-8"},
-                {"md", "text/markdown; charset=utf-8"},
-                {"csv", "text/csv; charset=utf-8"},
-                {"xml", "text/xml; charset=utf-8"},
-                {"svg", "image/svg+xml"},
-                {"png", "image/png"},
-                {"jpg", "image/jpeg"},
-                {"jpeg", "image/jpeg"},
-                {"gif", "image/gif"},
-                {"webp", "image/webp"},
-                {"avif", "image/avif"},
-                {"heic", "image/heic"},
-                {"ico", "image/vnd.microsoft.icon"},
-                {"pdf", "application/pdf"},
-                {"wasm", "application/wasm"},
-                {"woff", "font/woff"},
-                {"woff2", "font/woff2"},
-                {"ttf", "font/ttf"},
-                {"otf", "font/otf"},
-                {"mp3", "audio/mpeg"},
-                {"wav", "audio/wav"},
-                {"ogg", "audio/ogg"},
-                {"mp4", "video/mp4"},
-                {"webm", "video/webm"},
-                {"zip", "application/zip"},
-                {"gz", "application/gzip"},
-                {"tar", "application/x-tar"},
-                {"7z", "application/x-7z-compressed"},
-            };
-            const std::string_view x(ext, e.size());
-            for (const auto& t : table) {
-                if (x == t.ext) {
-                    return t.type;
-                }
-            }
-            return "application/octet-stream";
-        }
-
         // One request for a file under the directory: the name (the path
         // value, unescaped) through io::path::under, so that no name reaches
         // a file outside it ("..%2f" included); a directory by its
@@ -217,5 +152,19 @@ namespace sgcl::net::http {
         server srv;
         srv.route("/", std::move(handler));
         return srv.serve_tls(address, *cfg);
+    }
+
+    // The same with a TLS config of the program's: an identity of its own,
+    // or identity_for (acme::manager's tls_config(), certificates obtained
+    // and renewed by themselves):
+    //
+    //     net::http::serve_tls(":443", manager.tls_config(), handler);
+    //
+    // The config's ALPN list completed as server::serve_tls completes it
+    template<class H>
+    SGCL_INLINE_HOT expected<void, io::error> serve_tls(const string& address, const net::tls::config& c, H handler) {
+        server srv;
+        srv.route("/", std::move(handler));
+        return srv.serve_tls(address, c);
     }
 }

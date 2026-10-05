@@ -14,6 +14,8 @@ namespace sgcl {
 }
 ```
 
+**Requires [rooted](rooted/README.md) outside a stack or a managed object.**
+
 The promise of a generator's coroutine: what the compiler finds through the return type `generator<T>` of a
 coroutine function, constructs in the frame and calls at the coroutine's points of suspension. A program does not
 call it; it writes `co_yield v` and `co_return;`, and the promise keeps the value and the error for `next()` and

@@ -14,6 +14,8 @@ namespace sgcl::immutable {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::immutable::map<Key, T, Hash, KeyEqual>::builder` is a map changed in place, one element at a time, and
 frozen into a [map](../map/README.md) when it is done: the transient of Clojure and immer. [thaw()](../map/thaw.md) is the
 builder over a map's trie, which the two share, and copies nothing. An `insert` or an `erase` changes in place the
@@ -33,8 +35,6 @@ large map at once.
 
 - A builder is one thread's, and it moves but does not copy: two builders would change one node. A builder moved
   from is empty.
-- A builder holds the root of its trie by a `tracked_ptr`, so it lives where one may: on a thread's stack or
-  inside a managed object ([The rules](../../core/README.md#the-rules), 1).
 - A builder has no iterators: its nodes change under them. [try_get](try_get.md) hands back a pointer
   valid until the builder's next change, which may move the element within its node.
 - An element added or taken out moves the elements after it in its node, which needs a move of

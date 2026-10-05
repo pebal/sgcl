@@ -10,6 +10,8 @@ namespace sgcl::io {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::io::limit_reader` is a reader of the first `n` bytes of another reader, then the end: what Go's
 `io.LimitReader` is. `io::copy(w, io::limit_reader(r, n))` is Go's `io.CopyN`, and a decoder given a member of an
 archive or the body of a message reads no further than its length. The source keeps what the limit did not read:
@@ -18,8 +20,6 @@ for one call, not for a stream).
 
 ## Rules
 
-- It holds an [io::reader](../reader/README.md), a `tracked_ptr`, so it lives where one may: on a stack, in a task, in a
-  managed object ([The rules](../../core/README.md#the-rules), 1).
 - An object, not a handle: a copy reads the same source with a count of its own. Given by reference to an
   `io::reader` or to `io::copy`, it is referenced, and the caller keeps it alive; given as a temporary, it is copied
   into a managed object of its own.

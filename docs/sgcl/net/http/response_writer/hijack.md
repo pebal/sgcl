@@ -88,4 +88,5 @@ WORLD
 ## See also
 
 - [connection](../../connection/README.md): what is handed over
+- [websocket::accept](../websocket/accept.md): a WebSocket's upgrade, which takes the connection over this way
 - [sgcl::net::http::response_writer](README.md)

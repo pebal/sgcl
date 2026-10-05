@@ -239,6 +239,57 @@ TEST(HttpHttps_Tests, OurClientAgainstGosTlsServer) {
     pclose(p);
 }
 
+// Our client against Go's net/http over TLS 1.2 alone (a server without
+// 1.3, as some load balancers are): HTTP/2 by ALPN over 1.2 (RFC 7540 §9.2:
+// ECDHE and an AEAD) and HTTP/1.1, transparently; the client's next
+// connection resuming the session (its cache, no code of the user's)
+TEST(HttpHttps_Tests, OurClientAgainstGosTls12Server) {
+    if (peer().empty()) {
+        GTEST_SKIP() << "no go to build the peer with";
+    }
+    FILE* p = popen(("GO_PEER_TLS12=1 '" + peer() + "' server '" + testdata("ecdsa.pem") + "' '" + testdata("ecdsa.key") + "'").c_str(), "r");
+    ASSERT_TRUE(p);
+    char line[64] = {};
+    ASSERT_TRUE(fgets(line, sizeof(line), p));
+    int port = std::atoi(line + 5);
+    ASSERT_GT(port, 0);
+    std::string base = "https://localhost:" + std::to_string(port);
+    for (bool http2 : {true, false}) {
+        SCOPED_TRACE(http2);
+        auto c = trusting();
+        c.http2 = http2;
+        auto hello = c.get(sgcl::string(base + "/hello"));
+        ASSERT_TRUE(hello) << text(hello.error().message());
+        EXPECT_EQ(*hello->text(), "hello from go\n");
+        EXPECT_EQ(text(hello->proto()), http2 ? "HTTP/2.0" : "HTTP/1.1");
+        std::string body(100000, 'q');
+        auto echo = c.post(sgcl::string(base + "/echo"), "text/plain", sgcl::string(body));
+        ASSERT_TRUE(echo);
+        EXPECT_EQ(text(*echo->text()), body);
+    }
+    // a new connection of the client resumes the session of the one before, by ticket
+    for (bool http2 : {true, false}) {
+        SCOPED_TRACE(http2);
+        auto c = trusting();
+        c.http2 = http2;
+        auto first = c.get(sgcl::string(base + "/tls"));
+        ASSERT_TRUE(first) << text(first.error().message());
+        EXPECT_EQ(text(*first->text()), "resumed=false version=303");
+        c.close_idle_connections();
+        auto second = c.get(sgcl::string(base + "/tls"));
+        ASSERT_TRUE(second) << text(second.error().message());
+        EXPECT_EQ(text(*second->text()), "resumed=true version=303");
+    }
+    // a client that requires 1.3: refused
+    auto strict = trusting();
+    strict.tls.min_version = net::tls::version::tls13;
+    auto refused = strict.get(sgcl::string(base + "/hello"));
+    ASSERT_FALSE(refused);
+    EXPECT_NE(text(refused.error().message()).find("protocol version"), std::string::npos) << text(refused.error().message());
+    (void)trusting().get(sgcl::string(base + "/quit"));
+    pclose(p);
+}
+
 // curl against our server, when curl is on the PATH
 TEST(HttpHttps_Tests, CurlAgainstOurServer) {
     if (std::system("command -v curl > /dev/null 2>&1") != 0) {

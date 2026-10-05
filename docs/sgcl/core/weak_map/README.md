@@ -11,6 +11,8 @@ namespace sgcl {
 }
 ```
 
+**Requires [rooted](../rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::weak_map<Key, T>` maps objects to values without keeping the objects alive. The key is the object itself,
 its identity and not its contents: an entry is looked up, made and erased by a `tracked_ptr<Key>` to the object,
 and held by a [weak_ptr](../weak_ptr/README.md). An entry whose object the collector has found unreachable is dead: never
@@ -40,14 +42,12 @@ the map is moved but not copied. What differs from Java's `WeakHashMap`: the key
 
 ## Rules
 
-- A `weak_map` holds tracked pointers, so it lives on a stack or inside a managed object
-  ([The rules](../README.md#the-rules), 1).
 - The values may be, or hold, tracked pointers: the nodes are managed objects. A value that reaches its own key
   keeps the key, and so the entry, alive for as long as the entry is in the map.
 - An entry is dead once a cycle has found its object unreachable; between the object becoming unreachable and that
   cycle, it is found and visited like any other: the lag of any garbage collector.
-- The iteration hands out the object as a strong pointer, held while the iterator stands on the entry: the entry
-  cannot die under it. An iterator is a tracked object then, and lives where the map's pointers may.
+- The iteration hands out the object as a strong pointer, held while the iterator stands on the entry: the entry cannot
+  die under it. An iterator is a tracked object then.
 - The value of an entry is stable while the entry is in the map; a reference to it is invalid once the entry is
   erased or swept, as in `std::unordered_map`.
 - Thread safety is that of `std::unordered_map`: concurrent readers, or one writer, with the program's own

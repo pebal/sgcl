@@ -10,6 +10,8 @@ namespace sgcl::async {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 The side of cancellation that requests the stop: the [stop_token](../stop_token/README.md)s handed down from it see it.
 Cancellation the way Go's `context` has it, under the names of `std::stop_source` and `std::stop_token`.
 `request_stop()` stops at once; a deadline is a timer that requests the stop, after a span
@@ -31,8 +33,6 @@ frame, in a managed object or on a stack keeps the state, and a state nobody hol
   request is nothing.
 - The stop is a state, not an event: a wait that starts after the stop ends at once, a child made after the stop
   is stopped at once.
-- A source lives where a `tracked_ptr` may ([The rules](../../core/README.md#the-rules), 1): on a stack, inside a
-  managed object, in a task's frame; in a global or a std container, a `rooted<async::stop_source>`.
 - A parent keeps a weak entry per child made under it, and drops the entries of children gone as new ones
   register, so a long-lived source with a child per request holds no more than the live ones.
 - A deadline is one timer: the earliest armed stands, a later one beside it arms nothing, and the stop, by hand

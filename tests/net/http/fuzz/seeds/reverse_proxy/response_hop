@@ -1,0 +1,8 @@
+€HTTP/1.1 200 OK
+Connection: X-Gone, close
+X-Gone: 1
+Keep-Alive: timeout=9
+Trailer: X-Sum
+Transfer-Encoding: chunked
+Proxy-Authenticate: Basic
+

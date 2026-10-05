@@ -22,7 +22,9 @@ namespace sgcl::crypto::x509 {
         missing_cert_sign,
         incompatible_usage,
         unhandled_critical_extension,
-        too_many_constraints
+        too_many_constraints,
+        revoked,
+        revocation_unknown
     };
 }
 ```
@@ -50,6 +52,8 @@ Each value is given with what Go and OpenSSL answer in its place.
 | `incompatible_usage` | no extended key usage asked is allowed by the whole chain (Go's `IncompatibleUsage`; OpenSSL's `INVALID_PURPOSE`) |
 | `unhandled_critical_extension` | a critical extension the module does not know (Go's `UnhandledCriticalExtension`; OpenSSL's `UNHANDLED_CRITICAL_EXTENSION`) |
 | `too_many_constraints` | name constraints that would take more than a million comparisons (Go's `TooManyConstraints`) |
+| `revoked` | a certificate is revoked: by an OCSP response or a CRL, in a TLS connection's check ([net::tls::revocation_mode](../net/tls/revocation_mode.md); OpenSSL's `CERT_REVOKED`) |
+| `revocation_unknown` | the revocation status cannot be had: an OCSP response that is not successful or holds no status of the certificate, a CRL that does not cover it, a staple that does not verify, a Must-Staple leaf without one, a status `hard_fail` cannot have (OpenSSL's `UNABLE_TO_GET_CRL`, `OCSP_VERIFY_FAILED`) |
 
 ## Example
 

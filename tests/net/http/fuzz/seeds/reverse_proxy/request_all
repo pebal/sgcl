@@ -1,0 +1,9 @@
+GET /a?b=1 HTTP/1.1
+Host: front.test
+Connection: keep-alive, X-Hop
+X-Hop: 1
+TE: trailers, gzip
+X-Forwarded-For: 10.0.0.1
+Forwarded: for=192.0.2.43;proto=https
+Via: 1.0 fred
+

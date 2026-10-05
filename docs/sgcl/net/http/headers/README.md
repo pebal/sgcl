@@ -10,6 +10,8 @@ namespace sgcl::net::http {
 }
 ```
 
+**Requires [rooted](../../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::net::http::headers` is the fields of a head, Go's `http.Header`: a list of names and values in the order of the
 wire, a name as often as it comes (`Set-Cookie`). Names are compared without regard to ASCII case and kept as they were
 written: there is no canonical form (Go turns `content-type` into `Content-Type`, which costs a string a field;
@@ -32,9 +34,6 @@ read and written in the format of HTTP, the `time` module's `time::http`, the on
   `std::errc::invalid_argument` before a byte is sent ([client](../client/README.md#rules)) and a handler's response a 500
   ([response_writer](../response_writer/README.md)). Values often come from users, and neither a split message nor an exception
   in the path of a request will do.
-- A `headers` holds slices of strings, so it lives where a `tracked_ptr` may: on a stack, in a task, in a managed
-  object; in a global or a `std` container, a [rooted](../../../core/rooted/README.md) of it.
-
 ## Member types
 
 | Type | Definition |

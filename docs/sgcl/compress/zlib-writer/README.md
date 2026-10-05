@@ -13,6 +13,8 @@ namespace sgcl::compress {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::compress::zlib::writer` is an [io writer](../../io/writer/README.md) that compresses what is written to it into another
 writer, `out`: zlib (RFC 1950): DEFLATE between a two-byte header and the Adler-32 of the data. It is Go's
 `zlib.NewWriter`. What is written is compressed in pieces of 64 KB of input, and what the pieces make is written to
@@ -27,8 +29,7 @@ of the stream.
 
 ## Rules
 
-- The writer holds `out`, a handle of a tracked word, so it lives where a `tracked_ptr` may: a stack, a task's
-  frame, a managed object. It is move-only, and written by one thread or task at a time.
+- The writer is move-only, and written by one thread or task at a time.
 - A writer moved from is closed, its stream gone with the move: its [close](close.md) does nothing, a
   write gives `io::errc::closed` (kept as its first error), and a [reset](reset.md) gives it a new stream
   with the settings it was made with. A writer moved onto itself is unchanged.

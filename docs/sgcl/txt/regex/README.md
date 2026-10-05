@@ -10,6 +10,8 @@ namespace sgcl::txt {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::txt::regex` is a compiled pattern in the style of RE2: everything a pattern can ask for here can be answered
 in one pass over the text, and nothing else is offered. The time a match takes is the length of the text times the
 length of the pattern, whatever the two are; there is no pattern and no text that costs more, and that is what the
@@ -33,8 +35,7 @@ it: every byte of an ill-formed sequence is one U+FFFD, which `.` takes and a `U
 
 ## Rules
 
-- A `regex` holds a `tracked_ptr` to its compiled program, so it lives where one may: on a stack or inside a
-  managed object. A copy is one word and shares the program.
+- A `regex` holds a `tracked_ptr` to its compiled program. A copy is one word and shares the program.
 - Nothing in a `regex` changes after it is built, and each search keeps its own scratch: one `regex` may be used by
   any number of threads at once.
 - A pattern written into the program is read where the program is compiled ([(constructor)](regex.md)), as

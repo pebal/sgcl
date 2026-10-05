@@ -159,6 +159,70 @@ namespace sgcl::net::tls::detail {
         return unexpected<Alert>(Alert{AlertDescription::unsupported_certificate, 0, "a certificate key of a kind v1 does not verify"});
     }
 
+    // A signature of TLS 1.2 (RFC 5246 §4.7, RFC 8422 §5.4, RFC 8446 §4.2.3:
+    // the PSS schemes apply to 1.2 too): ServerKeyExchange's under the
+    // server's leaf. Unlike 1.3, the hash of an ECDSA scheme does not bind
+    // the curve (ecdsa_secp256r1_sha256 is "ECDSA with SHA-256" on any
+    // curve), and PKCS #1 v1.5 is allowed; SHA-1 is not taken
+    inline expected<void, Alert> verify12(uint16_t scheme, const crypto::x509::public_key& key, const Bytes& content, const Bytes& signature) noexcept {
+        using crypto::x509::key_kind;
+        const SignatureScheme s = SignatureScheme(scheme);
+        switch (key.kind()) {
+            case key_kind::ed25519:
+                return verify(scheme, key.ed25519(), content, signature);
+            case key_kind::p256:
+            case key_kind::p384: {
+                bool ok = false;
+                auto check = [&](const auto& d) noexcept {
+                    const auto digest = bytes_of(d.data(), d.size());
+                    ok = key.kind() == key_kind::p256 ? key.p256().verify_digest(digest, signature) : key.p384().verify_digest(digest, signature);
+                };
+                if (s == SignatureScheme::ecdsa_secp256r1_sha256) {
+                    check(crypto::sha256::of(content));
+                } else if (s == SignatureScheme::ecdsa_secp384r1_sha384) {
+                    check(crypto::sha384::of(content));
+                } else if (scheme == 0x0603) {   // ecdsa_secp521r1_sha512: SHA-512 on the key's curve
+                    check(crypto::sha512::of(content));
+                } else {
+                    return unexpected<Alert>(sig::illegal("a signature scheme of another kind of key than ECDSA"));
+                }
+                if (!ok) {
+                    return unexpected<Alert>(sig::bad());
+                }
+                return {};
+            }
+            case key_kind::rsa: {
+                bool ok = false;
+                switch (s) {
+                    case SignatureScheme::rsa_pkcs1_sha256: {
+                        auto d = crypto::sha256::of(content);
+                        ok = key.rsa().verify_digest(crypto::hash_id::sha256, bytes_of(d.data(), d.size()), signature);
+                        break;
+                    }
+                    case SignatureScheme::rsa_pkcs1_sha384: {
+                        auto d = crypto::sha384::of(content);
+                        ok = key.rsa().verify_digest(crypto::hash_id::sha384, bytes_of(d.data(), d.size()), signature);
+                        break;
+                    }
+                    case SignatureScheme::rsa_pkcs1_sha512: {
+                        auto d = crypto::sha512::of(content);
+                        ok = key.rsa().verify_digest(crypto::hash_id::sha512, bytes_of(d.data(), d.size()), signature);
+                        break;
+                    }
+                    default:
+                        return verify(scheme, key.rsa(), content, signature);   // PSS, or illegal_parameter
+                }
+                if (!ok) {
+                    return unexpected<Alert>(sig::bad());
+                }
+                return {};
+            }
+            case key_kind::none:
+                break;
+        }
+        return unexpected<Alert>(Alert{AlertDescription::unsupported_certificate, 0, "a certificate key of a kind TLS 1.2 here does not verify"});
+    }
+
     // The signature made with a key of the server's identity, written as
     // CertificateVerify's signature field wants it (DER for ECDSA). The
     // scheme must fit the key (the machine chooses it so): a mismatch is a
@@ -209,6 +273,25 @@ namespace sgcl::net::tls::detail {
             case SignatureScheme::rsa_pss_rsae_sha384: {
                 auto d = crypto::sha384::of(content);
                 auto s = key.sign_digest_pss(crypto::hash_id::sha384, bytes_of(d.data(), d.size()));
+                w.bytes(s.data(), s.size());
+                return;
+            }
+            // PKCS #1 v1.5: a TLS 1.2 client's CertificateVerify alone
+            case SignatureScheme::rsa_pkcs1_sha256: {
+                auto d = crypto::sha256::of(content);
+                auto s = key.sign_digest(crypto::hash_id::sha256, bytes_of(d.data(), d.size()));
+                w.bytes(s.data(), s.size());
+                return;
+            }
+            case SignatureScheme::rsa_pkcs1_sha384: {
+                auto d = crypto::sha384::of(content);
+                auto s = key.sign_digest(crypto::hash_id::sha384, bytes_of(d.data(), d.size()));
+                w.bytes(s.data(), s.size());
+                return;
+            }
+            case SignatureScheme::rsa_pkcs1_sha512: {
+                auto d = crypto::sha512::of(content);
+                auto s = key.sign_digest(crypto::hash_id::sha512, bytes_of(d.data(), d.size()));
                 w.bytes(s.data(), s.size());
                 return;
             }

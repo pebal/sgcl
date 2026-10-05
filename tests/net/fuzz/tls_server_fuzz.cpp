@@ -5,8 +5,14 @@
 //------------------------------------------------------------------------------
 // The server's handshake machine (sgcl/net/tls/detail/server_handshake.h)
 // fed any sequence of messages, without an oracle. The first byte picks
-// the server: even, the defaults (every group, an Ed25519 identity); odd,
-// P-256 alone (a HelloRetryRequest for most clients), a cookie and ALPN.
+// the server (tls_fuzz_settings.h): bit 0 clear, the defaults (every group,
+// an Ed25519 identity), set, P-256 alone (a HelloRetryRequest for most
+// clients), a cookie and ALPN; bit 1, tickets issued and taken under a
+// fixed key (the PSK paths: the identities opened, the binder, the resumed
+// flight, the NewSessionTicket after the client's Finished); bit 2, a
+// client certificate required (the CertificateRequest, the client's
+// Certificate verified against the test CA, its CertificateVerify). The
+// clock stands still.
 // The rest is messages, each a type, a length of two bytes and that many
 // bytes (cut at the end of the input). What must hold:
 //   - no read past a message, nothing crashes (ASan, UBSan);
@@ -16,11 +22,11 @@
 //     handshake messages that read (the server writes what it can read);
 //   - established comes once, and only after a Finished.
 // The entropy is fixed, so a seed made by our client against this server
-// (seeds/tls_server) reaches the end of the handshake and KeyUpdate.
+// (seeds/tls_server, tests/net/tls_fuzz_seeds.cpp) reaches the end of the
+// handshake and KeyUpdate, a resumed one and one with a client certificate.
 // Built with libFuzzer (tests/fuzz/run.sh tests/net/fuzz/tls_server_fuzz.cpp)
 // or replayed by the library's own driver (tests/fuzz/driver.cpp).
-#include "sgcl/net/tls/detail/server_handshake.h"
-#include "tests/net/tls_server_identities.h"
+#include "tests/net/fuzz/tls_fuzz_settings.h"
 
 #include <cstring>
 #include <string>
@@ -33,45 +39,6 @@ namespace {
         if (!ok) {
             __builtin_trap();
         }
-    }
-
-    struct Fixed {
-        size_t at = 0;
-
-        static void fill(void* self, uint8_t* out, size_t n) {
-            auto& f = *static_cast<Fixed*>(self);
-            for (size_t i = 0; i < n; ++i) {
-                out[i] = uint8_t(f.at++ * 131 + 17);
-            }
-        }
-    };
-
-    std::vector<sgcl::byte> unhex(const char* s) {
-        std::vector<sgcl::byte> v;
-        for (size_t i = 0; s[i] && s[i + 1]; i += 2) {
-            char b[3] = {s[i], s[i + 1], 0};
-            v.push_back(sgcl::byte(std::strtoul(b, nullptr, 16)));
-        }
-        return v;
-    }
-
-    const sgcl::crypto::ed25519::private_key& key() {
-        static const auto k = [] {
-            auto der = unhex(tls_identities::all[0].key);   // "ed25519"
-            return sgcl::crypto::ed25519::private_key::from_pkcs8_der(tls::bytes_of(der.data(), der.size())).value();
-        }();
-        return k;
-    }
-
-    tls::ServerSettings settings(bool retry) {
-        tls::ServerSettings s;
-        s.identities.push_back(tls::identity_of({unhex(tls_identities::all[0].certificate)}, key()));
-        if (retry) {
-            s.groups = {0x0017};
-            s.retry_cookie = unhex("0102030405");
-            s.alpn = {sgcl::string("h2")};
-        }
-        return s;
     }
 
     bool check_step(tls::ServerHandshake& s, const tls::Step& step, int& established) {
@@ -110,11 +77,11 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     if (size < 1) {
         return 0;
     }
-    const bool retry = data[0] & 1;
+    const uint8_t mode = data[0] & 7;
     ++data;
     --size;
-    Fixed f;
-    tls::ServerHandshake server(settings(retry), tls::Entropy{&Fixed::fill, &f});
+    tls_fuzz::ServerEntropy f;
+    tls::ServerHandshake server(tls_fuzz::server_settings(mode), f.entropy(), tls_fuzz::clock());
     int established = 0;
     std::vector<uint8_t> m;
     size_t at = 0;

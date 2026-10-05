@@ -11,6 +11,8 @@ namespace sgcl {
 }
 ```
 
+**Requires [rooted](../rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::weak_ptr<T>` is a pointer that keeps nothing alive: the object lives as long as something else reaches it
 through [tracked_ptr](../tracked_ptr/README.md)s or a [unique_ptr](../unique_ptr/README.md), and [lock](lock.md) says whether
 it still does. `lock()` is the object as a `tracked_ptr` while it is reachable, and null once a cycle has found it
@@ -32,9 +34,6 @@ garbage collector.
 
 ## Rules
 
-- A `weak_ptr<T>` is a `tracked_ptr` (to a cell), so it lives where one may: on a stack or inside a managed object,
-  never in `new`/`malloc` memory, a `std` container, a global or a plain coroutine frame
-  ([The rules](../README.md#the-rules), 1 and 4).
 - It addresses an object no `unique_ptr` owns: a `tracked_ptr` cannot address one either, and the owner's delete
   would leave the cell dangling. Debug builds assert it.
 - Threads share a `weak_ptr` the way they share a `tracked_ptr`: one written by one thread and read by another needs

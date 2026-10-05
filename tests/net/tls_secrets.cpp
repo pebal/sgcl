@@ -9,8 +9,11 @@
 // loopback; the managed pages in use searched (tests/managed_scan.h) for
 // the private key's scalar and its DER, and for every traffic secret, key
 // and IV the connections took (the install hook of the zeroing probe,
-// record.h). A control first: a secret put in managed memory on purpose is
-// found.
+// record.h). Then the same with a client certificate and a session resumed
+// (a cache on the client, tickets on the server): the client's key too,
+// and every secret of resumption (the derived hook: the resumption master
+// secrets, the tickets' PSKs, the ticket key). A control first: a secret
+// put in managed memory on purpose is found.
 #include "tests/managed_scan.h"
 #include "tests/source_root.h"
 
@@ -30,6 +33,11 @@ using managed_scan::bytes_t;
 namespace {
     std::mutex installed_lock;
     std::vector<bytes_t> installed;   // the traffic secrets, their keys and IVs
+
+    void on_derived(const void* p, size_t n) {
+        std::lock_guard<std::mutex> g(installed_lock);
+        installed.emplace_back(static_cast<const uint8_t*>(p), static_cast<const uint8_t*>(p) + n);
+    }
 
     void on_install(tls::detail::Cipher c, const tls::detail::Secret& s) {
         std::lock_guard<std::mutex> g(installed_lock);
@@ -56,15 +64,38 @@ namespace {
         return sgcl::slice<const std::byte>(std::string_view(text));
     }
 
-    SGCL_NOINLINE void exchange(const std::string& key) {
+    void one(const net::listener& l, const tls::config& scfg, const tls::config& ccfg, bool resumed);
+
+    // `client_key`: a client certificate (mTLS required) and a second
+    // connection that resumes the first's session
+    SGCL_NOINLINE void exchange(const std::string& key, const std::string& client_key = "") {
         auto l = net::tcp::listen("127.0.0.1:0");
         ASSERT_TRUE(l.has_value());
         tls::config scfg;
         auto id = tls::identity::from_pem(sgcl::string(slurp(testdata("ecdsa.pem"))), key_pem(key));
         ASSERT_TRUE(id.has_value());
         scfg.identities = {*id};
+        tls::config ccfg;
+        ccfg.roots = crypto::x509::certificate_pool::from_pem(sgcl::string(slurp(testdata("ca.pem"))));
+        ccfg.server_name = sgcl::string("localhost");
+        const int rounds = client_key.empty() ? 1 : 2;
+        if (!client_key.empty()) {
+            scfg.client_auth = tls::client_auth::require;
+            scfg.client_roots = ccfg.roots;
+            auto cid = tls::identity::from_pem(sgcl::string(slurp(testdata("client_ecdsa.pem"))), key_pem(client_key));
+            ASSERT_TRUE(cid.has_value());
+            ccfg.identities = {*cid};
+            ccfg.session_cache = tls::session_cache();
+        }
+        for (int round = 0; round < rounds; ++round) {
+            one(*l, scfg, ccfg, round == 1);
+        }
+        (void)l->close();
+    }
+
+    SGCL_NOINLINE void one(const net::listener& l, const tls::config& scfg, const tls::config& ccfg, bool resumed) {
         std::thread server([&] {
-            auto a = l->accept();
+            auto a = l.accept();
             if (!a) {
                 return;
             }
@@ -87,20 +118,17 @@ namespace {
             (void)s->read(buf);
             (void)s->close();
         });
-        tls::config ccfg;
-        ccfg.roots = crypto::x509::certificate_pool::from_pem(sgcl::string(slurp(testdata("ca.pem"))));
-        ccfg.server_name = sgcl::string("localhost");
-        auto t = net::tcp::connect(l->local_endpoint());
+        auto t = net::tcp::connect(l.local_endpoint());
         ASSERT_TRUE(t.has_value());
         auto c = tls::client(*t, ccfg);
         ASSERT_TRUE(c.has_value());
+        EXPECT_EQ(tls::state_of(*c)->resumed, resumed);
         ASSERT_TRUE(c->write(sgcl::string("hello\n")).has_value());
         auto reply = c->read_line();
         ASSERT_TRUE(reply && *reply);
         ASSERT_TRUE(c->write(sgcl::string(std::string(200000, 'k'))).has_value());
         (void)c->close();
         server.join();
-        (void)l->close();
     }
 }
 
@@ -144,6 +172,48 @@ TEST(TlsSecrets, NoKeyAndNoTrafficSecretInManagedMemory) {
     std::string names;
     for (size_t i : which) {
         names += i == 0 ? " the key's scalar" : i == 1 ? " the key's DER" : " traffic secret/key/IV " + std::to_string(i - 2);
+    }
+    EXPECT_EQ(found, 0u) << "in managed memory:" << names;
+}
+
+TEST(TlsSecrets, NoResumptionSecretAndNoClientKeyInManagedMemory) {
+    const std::string key = slurp(testdata("ecdsa.key"));
+    const std::string client_key = slurp(testdata("client_ecdsa.key"));
+    std::vector<bytes_t> patterns;
+    for (const std::string* k : {&key, &client_key}) {
+        auto p = crypto::p256::private_key::from_pem(key_pem(*k));
+        ASSERT_TRUE(p.has_value());
+        auto scalar = p->bytes();
+        patterns.emplace_back(reinterpret_cast<const uint8_t*>(scalar.bytes().data()), reinterpret_cast<const uint8_t*>(scalar.bytes().data()) + 32);
+        auto der = p->to_pkcs8_der();
+        auto d = der.as_slice();
+        patterns.emplace_back(reinterpret_cast<const uint8_t*>(d.data()), reinterpret_cast<const uint8_t*>(d.data()) + d.size());
+    }
+    {
+        std::lock_guard<std::mutex> g(installed_lock);
+        installed.clear();
+    }
+    tls::detail::ZeroingProbe::installed.store(&on_install);
+    tls::detail::ZeroingProbe::derived.store(&on_derived);
+    std::vector<size_t> which;
+    size_t derived = 0;
+    const size_t found = managed_scan::found_after(
+        patterns,
+        [&] {
+            std::thread([&] { exchange(key, client_key); }).join();
+            std::lock_guard<std::mutex> g(installed_lock);
+            derived = installed.size();
+            patterns.insert(patterns.end(), installed.begin(), installed.end());
+        },
+        &which);
+    tls::detail::ZeroingProbe::installed.store(nullptr);
+    tls::detail::ZeroingProbe::derived.store(nullptr);
+    // two connections of both sides' traffic secrets, the resumption master
+    // secrets of both sides, the PSKs of two tickets each side, the ticket key
+    EXPECT_GE(derived, 2u * 8 * 3 + 4 + 4 + 1);
+    std::string names;
+    for (size_t i : which) {
+        names += i < 4 ? " a private key (" + std::to_string(i) + ")" : " a secret " + std::to_string(i - 4);
     }
     EXPECT_EQ(found, 0u) << "in managed memory:" << names;
 }

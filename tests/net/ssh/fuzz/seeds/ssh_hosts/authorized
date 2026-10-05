@@ -1,0 +1,3 @@
+command="x",no-pty ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIO7ky0DPyKt2to+tNXhrGYihNJR5UIxJ5QQifpYnXOMl test-ed25519
+cert-authority,principals="a,b" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPozSZPrtPE7WYBsizqa6s18RHiJNr5WIMZ7lJnCxdYW test-ca
+expiry-time="20991231" ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBM+eckEpfCOeJZMcX1FmptBgIfy2B/rWV4LgnFmSc9kibUF9HN7kPDVjolnArYhYABe/AgxoIE51x6SlDpIayds= test-p256

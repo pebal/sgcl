@@ -42,3 +42,4 @@
 #include "sha512.h"
 #include "x25519.h"
 #include "x509.h"
+#include "x509_revocation.h"

@@ -11,6 +11,8 @@ namespace sgcl {
 }
 ```
 
+**Requires [rooted](../rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::atomic<H>` is the atomic of a handle: a public type that is one tracked word to the object inside it, whose
 copies share that object ([req::handle](../req/handle.md)): a [string](../string/README.md), `io::file`, `io::buffer`,
 `io::buffered_reader`, `io::process`, `net::connection`, `async::channel<T>`, `async::mutex`. The atomic of a handle
@@ -29,9 +31,8 @@ A type of the program takes part the way the library's handles do, by satisfying
 
 ## Rules
 
-- `atomic<H>` lives where the handle does: on a stack or inside a managed object
-  ([The rules](../README.md#the-rules), 1). A global handle replaced at run time is a [rooted](../rooted/README.md) handle under
-  an [atomic_ref](../atomic_ref-handle/README.md).
+- A global handle replaced at run time is a [rooted](../rooted/README.md) handle under an
+  [atomic_ref](../atomic_ref-handle/README.md).
 - It is neither copyable nor movable, like `std::atomic`.
 - Every operation is lock-free (`is_always_lock_free`) and may be called from any thread.
 - The object is never written through the atomic: it loads, stores and compares the word that holds the object.

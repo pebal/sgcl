@@ -10,6 +10,8 @@ namespace sgcl::crypto::x509 {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::crypto::x509::name` is a distinguished name (RFC 5280 §4.1.2.4, X.501): the issuer or the subject of a
 [certificate](../x509-certificate/README.md). It is its attributes in the order of the encoding, each a type (an OID) and a
 value, with the common ones by name, as Go's `pkix.Name` has them: [common_name](common_name.md) the last
@@ -22,8 +24,7 @@ and its hex, as RFC 4514 §2.4 has it.
 
 ## Rules
 
-- **A value**, read from a certificate and never changed. It holds a [vector](../../core/vector/README.md) of
-  [attributes](../x509-name-attribute.md), so it lives where a `tracked_ptr` may.
+- **A value**, read from a certificate and never changed.
 - **Text is for reading, bytes are for chains.** A chain is built on the bytes of the names
   ([raw_issuer](../x509-certificate/raw_issuer.md), [raw_subject](../x509-certificate/raw_subject.md)); a name compares its
   attributes as text.

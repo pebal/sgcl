@@ -178,10 +178,14 @@ namespace sgcl::net::http {
                 req->body->set_before_first_read([conn]() { return send_continue(conn); });
             }
             req->remote = c.remote_endpoint();
+            req->conn = c;
             req->stop = node->stop.token();
 
             auto r = RequestAccess::make(req);
             auto writer = WriterAccess::make(w);
+            if (cfg->observe) [[unlikely]] {
+                cfg->observe(r);
+            }
             try {
                 if (auto t = dispatch(*s, req, r, writer, method, host_text, path)) {
                     co_await *t;
@@ -371,6 +375,10 @@ namespace sgcl::net::http {
     // come pipelined are served in turn. A handler that throws gets a 500
     // (when nothing was sent yet), on_error hears of it, and the connection
     // ends; the server goes on.
+    namespace detail {
+        struct ServerAccess;
+    }
+
     class server {
     public:
         SGCL_INLINE_HOT server() noexcept
@@ -505,6 +513,8 @@ namespace sgcl::net::http {
         }
 
     private:
+        friend struct detail::ServerAccess;
+
         template<class H>
         static detail::Handler _handler(H h) noexcept(std::is_nothrow_move_constructible_v<H>) {
             detail::Handler out;
@@ -555,7 +565,9 @@ namespace sgcl::net::http {
                     if (impl->shutting_down.load()) {
                         co_return io::detail::fail(net::detail::net_error(net::errc::server_closed, "serve", l.local_endpoint().to_string()));
                     }
-                    cfg->report(string("accept: ") + c.error().message());
+                    if (!async::detail::runtime_exiting()) {   // the end of the program (async/scheduler.h: runtime_exit) is no failure to report
+                        cfg->report(string("accept: ") + c.error().message());
+                    }
                     co_return io::detail::fail(c);
                 }
                 impl->running.add();
@@ -592,4 +604,27 @@ namespace sgcl::net::http {
             co_await impl->running;
         }
     };
+
+    namespace detail {
+        // What the library's own users of a server reach (test.h: a test
+        // server's record of the requests, a recorder's routing)
+        struct ServerAccess {
+            SGCL_INLINE_HOT static const tracked_ptr<ServerImpl>& impl(const server& s) noexcept {
+                return s._impl;
+            }
+
+            template<class H>
+            SGCL_INLINE_HOT static Handler handler(H h) {
+                return server::_handler(std::move(h));
+            }
+
+            // serve(listener) with every request handed to `observe` before
+            // its route (a test server's record of the requests)
+            static async::task<expected<void, io::error>> serve_observed(const server& s, const net::listener& l, function<void(const request&)> observe) {
+                auto cfg = s._settings();
+                cfg->observe = std::move(observe);
+                return server::_co_serve(s._impl, cfg, l);
+            }
+        };
+    }
 }

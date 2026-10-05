@@ -11,6 +11,8 @@ namespace sgcl {
 }
 ```
 
+**Requires [rooted](../rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::sorted_map<Key, T, Compare>` is `std::map` on a red-black tree whose nodes are managed objects. The
 interface is the one of `std::map`: constructors, `insert`, `emplace`, `try_emplace`, `insert_or_assign`,
 `operator[]`, `at`, `erase`, `extract`, `merge`, node handles, the lookups with transparent comparators,
@@ -36,10 +38,6 @@ cannot throw.
 
 ## Rules
 
-- A map holds a `tracked_ptr`, so it lives on a stack or inside a managed object: never in `new`/`malloc` memory,
-  a `std` container, a global, a `thread_local` or a plain coroutine frame ([The rules](../README.md#the-rules), 1).
-  The same holds for a node handle ([node_type](../sorted_map-node_type/README.md)), which holds the node through a
-  `tracked_ptr`.
 - The elements may hold tracked pointers (`sgcl::sorted_map<int, sgcl::tracked_ptr<T>>`, a key that is a
   `tracked_ptr`): the nodes are managed objects, so those pointers are traced.
 - An element is destroyed the moment it is erased, cleared, assigned over, or the map is destroyed, exactly as in

@@ -13,6 +13,8 @@ namespace sgcl::encoding {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::encoding::csv::row` is a record a [reader](../csv-reader/README.md) read: its fields as text, the line and the column
 where each starts, and the header's names when the reader read one, so that a field is asked by its column's name as
 well as by its index. Where Go's `Read` returns a `[]string` and keeps the places in the reader (`FieldPos`), a row
@@ -26,8 +28,6 @@ held; [get](get.md) gives one as a [string](../../core/string/README.md) of its 
 - **A row is a string of its fields and their places**: one managed string holds the fields one after another and,
   after them, the end, the line and the column of each; the header is shared by the rows of a reader. One
   allocation a record, whatever the count of fields.
-- A row holds a `tracked_ptr` (its string and its header), so it lives where one may: on a stack, in a managed
-  object, in a container of the library.
 - A row never changes, and its copies share its text.
 - A default-constructed row is empty, with no header.
 

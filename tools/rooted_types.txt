@@ -1,0 +1,375 @@
+# The types that hold a tracked word, one per line: the page that documents the type, then its fully
+# qualified name as the page's title gives it. A page here carries, directly under its names block, the line
+#
+#   **Requires [rooted](../../../core/rooted/README.md) outside a stack or a managed object.**
+#
+# and a page of a class not here carries none (tools/lint_docs.py, the `rooted` check; docs/STYLE.md, the page
+# of a class). A page that documents two types (fold_matches, normalized_matches) has a line for each.
+#
+# Decided from the code, never from what a page says: a type is here when its layout holds a tracked word,
+# directly or through a member, a base or an alternative, recursively: a tracked_ptr (a detail::Pointer), the
+# word of an any or a function (detail::ValueStorage), a variant or an expected with an alternative that holds
+# one. A container of T holds one whatever T is. A root_ptr, a rooted, a unique_ptr and the coroutine types
+# that hold their frame by a root_ptr (async::task, generator, async::blocking_task) hold none. Checked with
+# clang's record layouts of every documented type (-Xclang -fdump-record-layouts) and, where a type has a
+# default constructor, a Debug build constructing it in malloc memory (the tracked_ptr placement assertion).
+#
+# Not here, as templates whose instances differ (the type holds a tracked word only when its arguments do):
+# expected<T, E>, unexpected<E>, variant<Ts...>, array<T, N>, the std aliases (optional, pair, tuple),
+# async::operation<F> (the closure of the waiting call) and txt::formatter<T>.
+
+docs/sgcl/async/broadcast-subscription/README.md   sgcl::async::broadcast<T>::subscription
+docs/sgcl/async/broadcast/README.md                sgcl::async::broadcast<T>
+docs/sgcl/async/channel/README.md                  sgcl::async::channel<T>
+docs/sgcl/async/condition_variable/README.md       sgcl::async::condition_variable
+docs/sgcl/async/event/README.md                    sgcl::async::event
+docs/sgcl/async/mutex/README.md                    sgcl::async::mutex
+docs/sgcl/async/once/README.md                     sgcl::async::once
+docs/sgcl/async/promise/README.md                  sgcl::async::promise<T>
+docs/sgcl/async/receive_channel/README.md          sgcl::async::receive_channel<T>
+docs/sgcl/async/semaphore/README.md                sgcl::async::semaphore
+docs/sgcl/async/shared_mutex/README.md             sgcl::async::shared_mutex
+docs/sgcl/async/stop_source/README.md              sgcl::async::stop_source
+docs/sgcl/async/stop_token/README.md               sgcl::async::stop_token
+docs/sgcl/async/task_group/README.md               sgcl::async::task_group
+docs/sgcl/async/wait_group/README.md               sgcl::async::wait_group
+docs/sgcl/codec/error/README.md                    sgcl::codec::error
+docs/sgcl/codec/frame.md                           sgcl::codec::frame
+docs/sgcl/codec/frames/README.md                   sgcl::codec::frames
+docs/sgcl/codec/image/README.md                    sgcl::codec::image
+docs/sgcl/compress/bzip2-reader/README.md          sgcl::compress::bzip2::reader
+docs/sgcl/compress/error/README.md                 sgcl::compress::error
+docs/sgcl/compress/flate-options.md                sgcl::compress::flate::options
+docs/sgcl/compress/flate-reader/README.md          sgcl::compress::flate::reader
+docs/sgcl/compress/flate-writer/README.md          sgcl::compress::flate::writer
+docs/sgcl/compress/gzip-options.md                 sgcl::compress::gzip::options
+docs/sgcl/compress/gzip-reader/README.md           sgcl::compress::gzip::reader
+docs/sgcl/compress/gzip-writer/README.md           sgcl::compress::gzip::writer
+docs/sgcl/compress/gzip_header.md                  sgcl::compress::gzip_header
+docs/sgcl/compress/lzma-reader/README.md           sgcl::compress::lzma::reader
+docs/sgcl/compress/lzma-writer/README.md           sgcl::compress::lzma::writer
+docs/sgcl/compress/lzw-reader/README.md            sgcl::compress::lzw::reader
+docs/sgcl/compress/lzw-writer/README.md            sgcl::compress::lzw::writer
+docs/sgcl/compress/sevenzip-archive/README.md      sgcl::compress::sevenzip::archive
+docs/sgcl/compress/sevenzip-entry/README.md        sgcl::compress::sevenzip::entry
+docs/sgcl/compress/sevenzip-entry_info.md          sgcl::compress::sevenzip::entry_info
+docs/sgcl/compress/sevenzip-options.md             sgcl::compress::sevenzip::options
+docs/sgcl/compress/sevenzip-writer/README.md       sgcl::compress::sevenzip::writer
+docs/sgcl/compress/tar-entry/README.md             sgcl::compress::tar::entry
+docs/sgcl/compress/tar-reader/README.md            sgcl::compress::tar::reader
+docs/sgcl/compress/tar-writer/README.md            sgcl::compress::tar::writer
+docs/sgcl/compress/xz-reader/README.md             sgcl::compress::xz::reader
+docs/sgcl/compress/xz-writer/README.md             sgcl::compress::xz::writer
+docs/sgcl/compress/zip-archive/README.md           sgcl::compress::zip::archive
+docs/sgcl/compress/zip-entry/README.md             sgcl::compress::zip::entry
+docs/sgcl/compress/zip-writer/README.md            sgcl::compress::zip::writer
+docs/sgcl/compress/zlib-options.md                 sgcl::compress::zlib::options
+docs/sgcl/compress/zlib-reader/README.md           sgcl::compress::zlib::reader
+docs/sgcl/compress/zlib-writer/README.md           sgcl::compress::zlib::writer
+docs/sgcl/concurrent/bounded_queue/README.md       sgcl::concurrent::bounded_queue<T>
+docs/sgcl/concurrent/cache/README.md               sgcl::concurrent::cache<Key, T, Hash, KeyEqual>
+docs/sgcl/concurrent/copy_on_write/README.md       sgcl::concurrent::copy_on_write<T>
+docs/sgcl/concurrent/intern/README.md              sgcl::concurrent::intern<T, Hash, KeyEqual>
+docs/sgcl/concurrent/map/README.md                 sgcl::concurrent::map<Key, T, Hash, KeyEqual>
+docs/sgcl/concurrent/priority_queue/README.md      sgcl::concurrent::priority_queue<T, Compare>
+docs/sgcl/concurrent/queue/README.md               sgcl::concurrent::queue<T>
+docs/sgcl/concurrent/set/README.md                 sgcl::concurrent::set<Key, Hash, KeyEqual>
+docs/sgcl/concurrent/sorted_map/README.md          sgcl::concurrent::sorted_map<Key, T, Compare>
+docs/sgcl/concurrent/sorted_set/README.md          sgcl::concurrent::sorted_set<Key, Compare>
+docs/sgcl/concurrent/spsc_queue/README.md          sgcl::concurrent::spsc_queue<T>
+docs/sgcl/concurrent/stack/README.md               sgcl::concurrent::stack<T>
+docs/sgcl/concurrent/weak_map/README.md            sgcl::concurrent::weak_map<Key, T>
+docs/sgcl/concurrent/weak_set/README.md            sgcl::concurrent::weak_set<Key>
+docs/sgcl/core/any/README.md                       sgcl::any
+docs/sgcl/core/atomic-handle/README.md             sgcl::atomic<H>
+docs/sgcl/core/atomic-tracked_ptr/README.md        sgcl::atomic<tracked_ptr<T>>
+docs/sgcl/core/deque/README.md                     sgcl::deque<T>
+docs/sgcl/core/dynamic_array/README.md             sgcl::dynamic_array<T>
+docs/sgcl/core/expiry_queue-entry/README.md        sgcl::expiry_queue<T>::entry
+docs/sgcl/core/expiry_queue/README.md              sgcl::expiry_queue<T>
+docs/sgcl/core/forward_list/README.md              sgcl::forward_list<T>
+docs/sgcl/core/function/README.md                  sgcl::function<R(Args...)>
+docs/sgcl/core/generator-promise_type.md           sgcl::generator<T>::promise_type
+docs/sgcl/core/list/README.md                      sgcl::list<T>
+docs/sgcl/core/managed_frame.md                    sgcl::managed_frame
+docs/sgcl/core/map-node_type/README.md             sgcl::map<Key, T, Hash, KeyEqual>::node_type
+docs/sgcl/core/map/README.md                       sgcl::map<Key, T, Hash, KeyEqual>
+docs/sgcl/core/move_only_function/README.md        sgcl::move_only_function<R(Args...)>
+docs/sgcl/core/multimap/README.md                  sgcl::multimap<Key, T, Hash, KeyEqual>
+docs/sgcl/core/multiset/README.md                  sgcl::multiset<Key, Hash, KeyEqual>
+docs/sgcl/core/ordered_map-node_type/README.md     sgcl::ordered_map<Key, T, Hash, KeyEqual>::node_type
+docs/sgcl/core/ordered_map/README.md               sgcl::ordered_map<Key, T, Hash, KeyEqual>
+docs/sgcl/core/ordered_set-node_type/README.md     sgcl::ordered_set<Key, Hash, KeyEqual>::node_type
+docs/sgcl/core/ordered_set/README.md               sgcl::ordered_set<Key, Hash, KeyEqual>
+docs/sgcl/core/priority_queue/README.md            sgcl::priority_queue<T, Container, Compare>
+docs/sgcl/core/queue/README.md                     sgcl::queue<T, Container>
+docs/sgcl/core/runes/README.md                     sgcl::runes
+docs/sgcl/core/set-node_type/README.md             sgcl::set<Key, Hash, KeyEqual>::node_type
+docs/sgcl/core/set/README.md                       sgcl::set<Key, Hash, KeyEqual>
+docs/sgcl/core/slice/README.md                     sgcl::slice<T>
+docs/sgcl/core/sorted_map-node_type/README.md      sgcl::sorted_map<Key, T, Compare>::node_type
+docs/sgcl/core/sorted_map/README.md                sgcl::sorted_map<Key, T, Compare>
+docs/sgcl/core/sorted_multimap/README.md           sgcl::sorted_multimap<Key, T, Compare>
+docs/sgcl/core/sorted_multiset/README.md           sgcl::sorted_multiset<Key, Compare>
+docs/sgcl/core/sorted_set-node_type/README.md      sgcl::sorted_set<Key, Compare>::node_type
+docs/sgcl/core/sorted_set/README.md                sgcl::sorted_set<Key, Compare>
+docs/sgcl/core/stack/README.md                     sgcl::stack<T, Container>
+docs/sgcl/core/string-pieces/README.md             sgcl::string::pieces
+docs/sgcl/core/string/README.md                    sgcl::string
+docs/sgcl/core/tracked_ptr/README.md               sgcl::tracked_ptr<T>
+docs/sgcl/core/vector/README.md                    sgcl::vector<T>
+docs/sgcl/core/weak_map/README.md                  sgcl::weak_map<Key, T>
+docs/sgcl/core/weak_multimap/README.md             sgcl::weak_multimap<Key, T>
+docs/sgcl/core/weak_ptr/README.md                  sgcl::weak_ptr<T>
+docs/sgcl/core/weak_set/README.md                  sgcl::weak_set<Key>
+docs/sgcl/crypto/error/README.md                   sgcl::crypto::error
+docs/sgcl/crypto/mlkem768-encapsulation.md         sgcl::crypto::mlkem768::encapsulation
+docs/sgcl/crypto/x509-certificate/README.md        sgcl::crypto::x509::certificate
+docs/sgcl/crypto/x509-certificate_pool/README.md   sgcl::crypto::x509::certificate_pool
+docs/sgcl/crypto/x509-certificate_request/README.md sgcl::crypto::x509::certificate_request
+docs/sgcl/crypto/x509-certificate_request_template.md sgcl::crypto::x509::certificate_request_template
+docs/sgcl/crypto/x509-certificate_template.md      sgcl::crypto::x509::certificate_template
+docs/sgcl/crypto/x509-extension.md                 sgcl::crypto::x509::extension
+docs/sgcl/crypto/x509-name-attribute.md            sgcl::crypto::x509::name::attribute
+docs/sgcl/crypto/x509-name/README.md               sgcl::crypto::x509::name
+docs/sgcl/crypto/x509-ocsp_request/README.md       sgcl::crypto::x509::ocsp_request
+docs/sgcl/crypto/x509-ocsp_response/README.md      sgcl::crypto::x509::ocsp_response
+docs/sgcl/crypto/x509-ocsp_single_response.md      sgcl::crypto::x509::ocsp_single_response
+docs/sgcl/crypto/x509-ocsp_verify_options.md       sgcl::crypto::x509::ocsp_verify_options
+docs/sgcl/crypto/x509-public_key/README.md         sgcl::crypto::x509::public_key
+docs/sgcl/crypto/x509-revocation_list/README.md    sgcl::crypto::x509::revocation_list
+docs/sgcl/crypto/x509-revoked_certificate.md       sgcl::crypto::x509::revoked_certificate
+docs/sgcl/crypto/x509-verify_options.md            sgcl::crypto::x509::verify_options
+docs/sgcl/encoding/ascii85-decoder/README.md       sgcl::encoding::ascii85::decoder
+docs/sgcl/encoding/ascii85-encoder/README.md       sgcl::encoding::ascii85::encoder
+docs/sgcl/encoding/base32-decoder/README.md        sgcl::encoding::base32::decoder
+docs/sgcl/encoding/base32-encoder/README.md        sgcl::encoding::base32::encoder
+docs/sgcl/encoding/base64-decoder/README.md        sgcl::encoding::base64::decoder
+docs/sgcl/encoding/base64-encoder/README.md        sgcl::encoding::base64::encoder
+docs/sgcl/encoding/csv-reader/README.md            sgcl::encoding::csv::reader
+docs/sgcl/encoding/csv-row/README.md               sgcl::encoding::csv::row
+docs/sgcl/encoding/csv-writer/README.md            sgcl::encoding::csv::writer
+docs/sgcl/encoding/email-address/README.md         sgcl::encoding::email::address
+docs/sgcl/encoding/email-part/README.md            sgcl::encoding::email::part
+docs/sgcl/encoding/email/README.md                 sgcl::encoding::email
+docs/sgcl/encoding/error/README.md                 sgcl::encoding::error
+docs/sgcl/encoding/hex-decoder/README.md           sgcl::encoding::hex::decoder
+docs/sgcl/encoding/hex-dumper/README.md            sgcl::encoding::hex::dumper
+docs/sgcl/encoding/hex-encoder/README.md           sgcl::encoding::hex::encoder
+docs/sgcl/encoding/json-builder/README.md          sgcl::encoding::json::builder
+docs/sgcl/encoding/json-member.md                  sgcl::encoding::json::member
+docs/sgcl/encoding/json-reader/README.md           sgcl::encoding::json::reader
+docs/sgcl/encoding/json-token/README.md            sgcl::encoding::json::token
+docs/sgcl/encoding/json-writer/README.md           sgcl::encoding::json::writer
+docs/sgcl/encoding/json/README.md                  sgcl::encoding::json
+docs/sgcl/encoding/pem/README.md                   sgcl::encoding::pem
+docs/sgcl/encoding/quoted_printable-decoder/README.md sgcl::encoding::quoted_printable::decoder
+docs/sgcl/encoding/quoted_printable-encoder/README.md sgcl::encoding::quoted_printable::encoder
+docs/sgcl/encoding/xml-attr.md                     sgcl::encoding::xml::attr
+docs/sgcl/encoding/xml-builder/README.md           sgcl::encoding::xml::builder
+docs/sgcl/encoding/xml-reader/README.md            sgcl::encoding::xml::reader
+docs/sgcl/encoding/xml-token/README.md             sgcl::encoding::xml::token
+docs/sgcl/encoding/xml-writer/README.md            sgcl::encoding::xml::writer
+docs/sgcl/encoding/xml/README.md                   sgcl::encoding::xml
+docs/sgcl/immutable/list/README.md                 sgcl::immutable::list<T>
+docs/sgcl/immutable/map-builder/README.md          sgcl::immutable::map<Key, T, Hash, KeyEqual>::builder
+docs/sgcl/immutable/map/README.md                  sgcl::immutable::map<Key, T, Hash, KeyEqual>
+docs/sgcl/immutable/set-builder/README.md          sgcl::immutable::set<Key, Hash, KeyEqual>::builder
+docs/sgcl/immutable/set/README.md                  sgcl::immutable::set<Key, Hash, KeyEqual>
+docs/sgcl/immutable/vector/README.md               sgcl::immutable::vector<T>
+docs/sgcl/io/buffer/README.md                      sgcl::io::buffer
+docs/sgcl/io/buffered_reader/README.md             sgcl::io::buffered_reader
+docs/sgcl/io/buffered_writer/README.md             sgcl::io::buffered_writer
+docs/sgcl/io/command/README.md                     sgcl::io::command
+docs/sgcl/io/directory_entry/README.md             sgcl::io::directory_entry
+docs/sgcl/io/error/README.md                       sgcl::io::error
+docs/sgcl/io/file/README.md                        sgcl::io::file
+docs/sgcl/io/file_info/README.md                   sgcl::io::file_info
+docs/sgcl/io/flags/README.md                       sgcl::io::flags
+docs/sgcl/io/limit_reader/README.md                sgcl::io::limit_reader
+docs/sgcl/io/mapping/README.md                     sgcl::io::mapping
+docs/sgcl/io/multi_reader/README.md                sgcl::io::multi_reader
+docs/sgcl/io/multi_writer/README.md                sgcl::io::multi_writer
+docs/sgcl/io/pipe_ends.md                          sgcl::io::pipe_ends
+docs/sgcl/io/process/README.md                     sgcl::io::process
+docs/sgcl/io/reader/README.md                      sgcl::io::reader
+docs/sgcl/io/shared_memory/README.md               sgcl::io::shared_memory
+docs/sgcl/io/tee_reader/README.md                  sgcl::io::tee_reader
+docs/sgcl/io/transform_reader/README.md            sgcl::io::transform_reader<F>
+docs/sgcl/io/writer/README.md                      sgcl::io::writer
+docs/sgcl/math/big_integer/README.md               sgcl::math::big_integer
+docs/sgcl/math/rational/README.md                  sgcl::math::rational
+docs/sgcl/net/acme/account.md                      sgcl::net::acme::account
+docs/sgcl/net/acme/account_key/README.md           sgcl::net::acme::account_key
+docs/sgcl/net/acme/account_options.md              sgcl::net::acme::account_options
+docs/sgcl/net/acme/authorization.md                sgcl::net::acme::authorization
+docs/sgcl/net/acme/certificate_chain.md            sgcl::net::acme::certificate_chain
+docs/sgcl/net/acme/challenge.md                    sgcl::net::acme::challenge
+docs/sgcl/net/acme/client-options.md               sgcl::net::acme::client::options
+docs/sgcl/net/acme/client/README.md                sgcl::net::acme::client
+docs/sgcl/net/acme/directory.md                    sgcl::net::acme::directory
+docs/sgcl/net/acme/external_account.md             sgcl::net::acme::external_account
+docs/sgcl/net/acme/identifier.md                   sgcl::net::acme::identifier
+docs/sgcl/net/acme/manager-options.md              sgcl::net::acme::manager::options
+docs/sgcl/net/acme/manager/README.md               sgcl::net::acme::manager
+docs/sgcl/net/acme/order.md                        sgcl::net::acme::order
+docs/sgcl/net/acme/order_options.md                sgcl::net::acme::order_options
+docs/sgcl/net/acme/problem/README.md               sgcl::net::acme::problem
+docs/sgcl/net/acme/renewal_info.md                 sgcl::net::acme::renewal_info
+docs/sgcl/net/acme/subproblem.md                   sgcl::net::acme::subproblem
+docs/sgcl/net/acme/test_server-options.md          sgcl::net::acme::test_server::options
+docs/sgcl/net/acme/test_server/README.md           sgcl::net::acme::test_server
+docs/sgcl/net/connection/README.md                 sgcl::net::connection
+docs/sgcl/net/dns-mx.md                            sgcl::net::dns::mx
+docs/sgcl/net/dns-options.md                       sgcl::net::dns::options
+docs/sgcl/net/dns-server.md                        sgcl::net::dns::server
+docs/sgcl/net/dns-srv.md                           sgcl::net::dns::srv
+docs/sgcl/net/dns_sd/browser/README.md             sgcl::net::dns_sd::browser
+docs/sgcl/net/dns_sd/event.md                      sgcl::net::dns_sd::event
+docs/sgcl/net/dns_sd/service.md                    sgcl::net::dns_sd::service
+docs/sgcl/net/dns_sd/txt_record/README.md          sgcl::net::dns_sd::txt_record
+docs/sgcl/net/http/client/README.md                sgcl::net::http::client
+docs/sgcl/net/http/cookie/README.md                sgcl::net::http::cookie
+docs/sgcl/net/http/cookie_jar/README.md            sgcl::net::http::cookie_jar
+docs/sgcl/net/http/event.md                        sgcl::net::http::event
+docs/sgcl/net/http/event_reader/README.md          sgcl::net::http::event_reader
+docs/sgcl/net/http/event_source-options.md         sgcl::net::http::event_source::options
+docs/sgcl/net/http/event_source/README.md          sgcl::net::http::event_source
+docs/sgcl/net/http/event_stream/README.md          sgcl::net::http::event_stream
+docs/sgcl/net/http/form-part.md                    sgcl::net::http::form::part
+docs/sgcl/net/http/form/README.md                  sgcl::net::http::form
+docs/sgcl/net/http/headers/README.md               sgcl::net::http::headers
+docs/sgcl/net/http/multipart_reader-part.md        sgcl::net::http::multipart_reader::part
+docs/sgcl/net/http/multipart_reader/README.md      sgcl::net::http::multipart_reader
+docs/sgcl/net/http/proxy/README.md                 sgcl::net::http::proxy
+docs/sgcl/net/http/request/README.md               sgcl::net::http::request
+docs/sgcl/net/http/response/README.md              sgcl::net::http::response
+docs/sgcl/net/http/response_recorder/README.md     sgcl::net::http::response_recorder
+docs/sgcl/net/http/response_writer/README.md       sgcl::net::http::response_writer
+docs/sgcl/net/http/reverse_proxy-backend.md        sgcl::net::http::reverse_proxy::backend
+docs/sgcl/net/http/reverse_proxy-options.md        sgcl::net::http::reverse_proxy::options
+docs/sgcl/net/http/reverse_proxy/README.md         sgcl::net::http::reverse_proxy
+docs/sgcl/net/http/server/README.md                sgcl::net::http::server
+docs/sgcl/net/http/test_server/README.md           sgcl::net::http::test_server
+docs/sgcl/net/http/websocket-message.md            sgcl::net::http::websocket::message
+docs/sgcl/net/http/websocket-options.md            sgcl::net::http::websocket::options
+docs/sgcl/net/http/websocket/README.md             sgcl::net::http::websocket
+docs/sgcl/net/imap/address/README.md               sgcl::net::imap::address
+docs/sgcl/net/imap/backend/README.md               sgcl::net::imap::backend
+docs/sgcl/net/imap/body_structure/README.md        sgcl::net::imap::body_structure
+docs/sgcl/net/imap/client-options.md               sgcl::net::imap::client::options
+docs/sgcl/net/imap/client/README.md                sgcl::net::imap::client
+docs/sgcl/net/imap/copy_result.md                  sgcl::net::imap::copy_result
+docs/sgcl/net/imap/criteria/README.md              sgcl::net::imap::criteria
+docs/sgcl/net/imap/envelope.md                     sgcl::net::imap::envelope
+docs/sgcl/net/imap/fetch_options.md                sgcl::net::imap::fetch_options
+docs/sgcl/net/imap/flag_update.md                  sgcl::net::imap::flag_update
+docs/sgcl/net/imap/list_entry/README.md            sgcl::net::imap::list_entry
+docs/sgcl/net/imap/list_options.md                 sgcl::net::imap::list_options
+docs/sgcl/net/imap/mailbox_contents.md             sgcl::net::imap::mailbox_contents
+docs/sgcl/net/imap/maildir_backend/README.md       sgcl::net::imap::maildir_backend
+docs/sgcl/net/imap/memory_backend/README.md        sgcl::net::imap::memory_backend
+docs/sgcl/net/imap/message/README.md               sgcl::net::imap::message
+docs/sgcl/net/imap/namespace_entry.md              sgcl::net::imap::namespace_entry
+docs/sgcl/net/imap/namespaces.md                   sgcl::net::imap::namespaces
+docs/sgcl/net/imap/quota.md                        sgcl::net::imap::quota
+docs/sgcl/net/imap/select_options.md               sgcl::net::imap::select_options
+docs/sgcl/net/imap/selected.md                     sgcl::net::imap::selected
+docs/sgcl/net/imap/sequence_set/README.md          sgcl::net::imap::sequence_set
+docs/sgcl/net/imap/server/README.md                sgcl::net::imap::server
+docs/sgcl/net/imap/stored_message.md               sgcl::net::imap::stored_message
+docs/sgcl/net/imap/thread.md                       sgcl::net::imap::thread
+docs/sgcl/net/imap/update.md                       sgcl::net::imap::update
+docs/sgcl/net/listener/README.md                   sgcl::net::listener
+docs/sgcl/net/mdns-options.md                      sgcl::net::mdns::options
+docs/sgcl/net/mdns-responder/README.md             sgcl::net::mdns::responder
+docs/sgcl/net/network_interface.md                 sgcl::net::network_interface
+docs/sgcl/net/query_params/README.md               sgcl::net::query_params
+docs/sgcl/net/sftp/client/README.md                sgcl::net::sftp::client
+docs/sgcl/net/sftp/file/README.md                  sgcl::net::sftp::file
+docs/sgcl/net/sftp/file_info/README.md             sgcl::net::sftp::file_info
+docs/sgcl/net/sftp/server_options.md               sgcl::net::sftp::server_options
+docs/sgcl/net/smtp/client/README.md                sgcl::net::smtp::client
+docs/sgcl/net/smtp/envelope.md                     sgcl::net::smtp::envelope
+docs/sgcl/net/smtp/message/README.md               sgcl::net::smtp::message
+docs/sgcl/net/smtp/options.md                      sgcl::net::smtp::options
+docs/sgcl/net/smtp/receipt.md                      sgcl::net::smtp::receipt
+docs/sgcl/net/smtp/rejection.md                    sgcl::net::smtp::rejection
+docs/sgcl/net/smtp/reply/README.md                 sgcl::net::smtp::reply
+docs/sgcl/net/smtp/server/README.md                sgcl::net::smtp::server
+docs/sgcl/net/socks5-options.md                    sgcl::net::socks5::options
+docs/sgcl/net/ssh/agent/README.md                  sgcl::net::ssh::agent
+docs/sgcl/net/ssh/authorized_keys-entry/README.md  sgcl::net::ssh::authorized_keys::entry
+docs/sgcl/net/ssh/authorized_keys/README.md        sgcl::net::ssh::authorized_keys
+docs/sgcl/net/ssh/certificate.md                   sgcl::net::ssh::certificate
+docs/sgcl/net/ssh/client-options.md                sgcl::net::ssh::client::options
+docs/sgcl/net/ssh/client/README.md                 sgcl::net::ssh::client
+docs/sgcl/net/ssh/exit_status.md                   sgcl::net::ssh::exit_status
+docs/sgcl/net/ssh/known_hosts/README.md            sgcl::net::ssh::known_hosts
+docs/sgcl/net/ssh/private_key/README.md            sgcl::net::ssh::private_key
+docs/sgcl/net/ssh/prompt.md                        sgcl::net::ssh::prompt
+docs/sgcl/net/ssh/pty.md                           sgcl::net::ssh::pty
+docs/sgcl/net/ssh/public_key/README.md             sgcl::net::ssh::public_key
+docs/sgcl/net/ssh/run_result.md                    sgcl::net::ssh::run_result
+docs/sgcl/net/ssh/server/README.md                 sgcl::net::ssh::server
+docs/sgcl/net/ssh/server_session/README.md         sgcl::net::ssh::server_session
+docs/sgcl/net/ssh/session/README.md                sgcl::net::ssh::session
+docs/sgcl/net/tls/client_hello.md                  sgcl::net::tls::client_hello
+docs/sgcl/net/tls/config.md                        sgcl::net::tls::config
+docs/sgcl/net/tls/identity/README.md               sgcl::net::tls::identity
+docs/sgcl/net/tls/revocation_cache/README.md       sgcl::net::tls::revocation_cache
+docs/sgcl/net/tls/session_cache/README.md          sgcl::net::tls::session_cache
+docs/sgcl/net/tls/state.md                         sgcl::net::tls::state
+docs/sgcl/net/tls/ticket_keys/README.md            sgcl::net::tls::ticket_keys
+docs/sgcl/net/udp-socket/README.md                 sgcl::net::udp::socket
+docs/sgcl/net/url/README.md                        sgcl::net::url
+docs/sgcl/slog/attr/README.md                      sgcl::slog::attr
+docs/sgcl/slog/attrs-iterator.md                   sgcl::slog::attrs::iterator
+docs/sgcl/slog/attrs/README.md                     sgcl::slog::attrs
+docs/sgcl/slog/handler/README.md                   sgcl::slog::handler
+docs/sgcl/slog/level_var/README.md                 sgcl::slog::level_var
+docs/sgcl/slog/logger/README.md                    sgcl::slog::logger
+docs/sgcl/slog/memory/README.md                    sgcl::slog::memory
+docs/sgcl/slog/options.md                          sgcl::slog::options
+docs/sgcl/slog/record/README.md                    sgcl::slog::record
+docs/sgcl/slog/value/README.md                     sgcl::slog::value
+docs/sgcl/time/datetime/README.md                  sgcl::time::datetime
+docs/sgcl/time/error/README.md                     sgcl::time::error
+docs/sgcl/time/zone/README.md                      sgcl::time::zone
+docs/sgcl/txt/bidi_runs-run/README.md              sgcl::txt::bidi_runs::run
+docs/sgcl/txt/bidi_runs/README.md                  sgcl::txt::bidi_runs
+docs/sgcl/txt/collated_matches-iterator/README.md  sgcl::txt::collated_matches::iterator
+docs/sgcl/txt/collated_matches/README.md           sgcl::txt::collated_matches
+docs/sgcl/txt/collated_searcher/README.md          sgcl::txt::collated_searcher
+docs/sgcl/txt/collated_text/README.md              sgcl::txt::collated_text
+docs/sgcl/txt/fold_matches-iterator/README.md      sgcl::txt::fold_matches::iterator
+docs/sgcl/txt/fold_matches/README.md               sgcl::txt::fold_matches
+docs/sgcl/txt/fold_matches/README.md               sgcl::txt::normalized_matches
+docs/sgcl/txt/fold_searcher/README.md              sgcl::txt::fold_searcher
+docs/sgcl/txt/fold_searcher/README.md              sgcl::txt::normalized_searcher
+docs/sgcl/txt/folded_text/README.md                sgcl::txt::folded_text
+docs/sgcl/txt/folded_text/README.md                sgcl::txt::normalized_text
+docs/sgcl/txt/graphemes-iterator/README.md         sgcl::txt::graphemes::iterator
+docs/sgcl/txt/graphemes/README.md                  sgcl::txt::graphemes
+docs/sgcl/txt/idna-outcome/README.md               sgcl::txt::idna::outcome
+docs/sgcl/txt/line_breaks-iterator/README.md       sgcl::txt::line_breaks::iterator
+docs/sgcl/txt/line_breaks/README.md                sgcl::txt::line_breaks
+docs/sgcl/txt/list/README.md                       sgcl::txt::list
+docs/sgcl/txt/mapped_text.md                       sgcl::txt::mapped_text
+docs/sgcl/txt/match/README.md                      sgcl::txt::match
+docs/sgcl/txt/object/README.md                     sgcl::txt::object
+docs/sgcl/txt/regex/README.md                      sgcl::txt::regex
+docs/sgcl/txt/regex_error/README.md                sgcl::txt::regex_error
+docs/sgcl/txt/regex_matches/README.md              sgcl::txt::regex_matches
+docs/sgcl/txt/runtime_pattern/README.md            sgcl::txt::runtime_pattern
+docs/sgcl/txt/searcher/README.md                   sgcl::txt::searcher
+docs/sgcl/txt/sentences-iterator/README.md         sgcl::txt::sentences::iterator
+docs/sgcl/txt/sentences/README.md                  sgcl::txt::sentences
+docs/sgcl/txt/stencil/README.md                    sgcl::txt::stencil
+docs/sgcl/txt/stencil_function.md                  sgcl::txt::stencil_function
+docs/sgcl/txt/stencil_functions/README.md          sgcl::txt::stencil_functions
+docs/sgcl/txt/value/README.md                      sgcl::txt::value
+docs/sgcl/txt/word_breaks-iterator/README.md       sgcl::txt::word_breaks::iterator
+docs/sgcl/txt/word_breaks/README.md                sgcl::txt::word_breaks
+docs/sgcl/txt/words-iterator/README.md             sgcl::txt::words::iterator
+docs/sgcl/txt/words/README.md                      sgcl::txt::words

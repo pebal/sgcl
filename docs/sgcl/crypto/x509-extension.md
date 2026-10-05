@@ -14,13 +14,11 @@ namespace sgcl::crypto::x509 {
 }
 ```
 
+**Requires [rooted](../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::crypto::x509::extension` is an extension as it is in the certificate: its OID, whether it is critical, and the
 bytes of its extnValue, Go's `pkix.Extension`. The extensions the module reads are also in fields of the
 [certificate](x509-certificate/README.md); one it does not read is here for the program to read.
-
-## Rules
-
-- A struct of a [string](../core/string/README.md) and a [vector](../core/vector/README.md): it lives where a `tracked_ptr` may.
 
 ## Member objects
 

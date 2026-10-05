@@ -194,7 +194,7 @@ TEST(TlsRecord, Rfc8448EveryRecord) {
                 auto r = reader[side].open(copy.data(), copy.size());
                 ASSERT_TRUE(r.has_value()) << section << " " << s.who << " " << s.title;
                 if (type == ContentType::change_cipher_spec) {
-                    EXPECT_EQ(r->type, ContentType::invalid);   // dropped
+                    EXPECT_EQ(r->type, ContentType::change_cipher_spec);   // taken, no content
                 } else {
                     EXPECT_EQ(r->type, type);
                     EXPECT_EQ(of(r->fragment), payload);
@@ -271,7 +271,7 @@ namespace {
             auto r = record[0] == 0x17 && epoch == Epoch::application ? reader.open(record, size, plain.data()) : reader.open(record, size);
             ASSERT_TRUE(r.has_value()) << "record " << records << ": " << (r ? "" : r.error().what);
             bytes_t fragment = of(r->fragment);
-            if (r->type == ContentType::invalid) {
+            if (r->type == ContentType::change_cipher_spec) {
                 EXPECT_EQ(wire, (bytes_t{0x14, 0x03, 0x03, 0x00, 0x01, 0x01}));
                 EXPECT_EQ(seal(writer, ContentType::change_cipher_spec, {1}), wire);
                 ++resealed;
@@ -588,7 +588,8 @@ TEST(TlsRecord, ChangeCipherSpec) {
     r.accept_ccs(true);
     auto o = r.open(bytes_t(ccs).data(), ccs.size());
     ASSERT_TRUE(o.has_value());
-    EXPECT_EQ(o->type, ContentType::invalid);
+    EXPECT_EQ(o->type, ContentType::change_cipher_spec);
+    EXPECT_TRUE(o->fragment.empty());
     EXPECT_EQ(error_of_open(r, {20, 3, 3, 0, 1, 2}), AlertDescription::unexpected_message);
     EXPECT_EQ(error_of_open(r, {20, 3, 3, 0, 2, 1, 1}), AlertDescription::unexpected_message);
     EXPECT_EQ(error_of_open(r, {20, 3, 3, 0, 0}), AlertDescription::unexpected_message);

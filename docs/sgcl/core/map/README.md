@@ -11,6 +11,8 @@ namespace sgcl {
 }
 ```
 
+**Requires [rooted](../rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::map<Key, T, Hash, KeyEqual>` is `std::unordered_map` over managed nodes. The interface is the one of
 `std::unordered_map` — the constructors, `insert`, `emplace`, `try_emplace`, `insert_or_assign`, `operator[]`,
 `at`, `erase`, `extract`, `merge`, node handles, the lookups with a transparent hash and equality, forward
@@ -38,10 +40,6 @@ element has an address: a reference or an iterator to it stays valid until it is
 
 ## Rules
 
-- A map holds tracked pointers, so it lives on a stack or inside a managed object: never in `new`/`malloc`
-  memory, a `std` container, a global, a `thread_local` or a plain coroutine frame
-  ([The rules](../README.md#the-rules), 1). The same holds for a node handle ([node_type](../map-node_type/README.md)), which
-  holds its node through a `tracked_ptr`.
 - The elements may hold tracked pointers (`sgcl::map<int, sgcl::tracked_ptr<T>>`, or a `tracked_ptr` key:
   `std::hash<sgcl::tracked_ptr<T>>` hashes the address): the nodes are managed objects, so those pointers are
   traced.

@@ -8,19 +8,22 @@
 //
 //	go_peer server          listens on 127.0.0.1:0, prints "port N", serves until GET /quit
 //	go_peer server CRT KEY  the same over TLS (https), with the certificate and key given
+//	                        (TLS 1.2 alone when GO_PEER_TLS12 is set: HTTP/2 over 1.2 by ALPN still)
 //	go_peer client BASE     runs the scenarios below against BASE, one line each, then exits
 //
 // The server's endpoints: /hello; /stream (three flushes: chunked); /echo
 // (the body back, and X-Length); /trailer (a chunked body with a trailer);
 // /redirect/N (N redirects, then /hello); /close (Connection: close);
 // /conns (how many connections the server has seen); /head (a length for
-// HEAD); /cookie (a Set-Cookie).
+// HEAD); /cookie (a Set-Cookie); /tls ("resumed=<bool> version=<hex>" of
+// the connection's TLS, "plain" without).
 package main
 
 import (
 	"bufio"
 	"bytes"
 	"crypto/sha256"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
@@ -77,6 +80,13 @@ func serve(cert, key string) {
 		w.Header().Set("Connection", "close")
 		io.WriteString(w, "bye")
 	})
+	mux.HandleFunc("/tls", func(w http.ResponseWriter, r *http.Request) {
+		if r.TLS == nil {
+			io.WriteString(w, "plain")
+			return
+		}
+		fmt.Fprintf(w, "resumed=%t version=%x", r.TLS.DidResume, r.TLS.Version)
+	})
 	mux.HandleFunc("/conns", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, conns.Load())
 	})
@@ -101,6 +111,9 @@ func serve(cert, key string) {
 	fmt.Printf("port %d\n", l.Addr().(*net.TCPAddr).Port)
 	os.Stdout.Sync()
 	if cert != "" {
+		if os.Getenv("GO_PEER_TLS12") != "" {
+			s.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12, MaxVersion: tls.VersionTLS12, NextProtos: []string{"h2", "http/1.1"}}
+		}
 		go s.ServeTLS(l, cert, key) // https: HTTP/1.1 for a client that offers only it (ALPN)
 	} else {
 		go s.Serve(l)

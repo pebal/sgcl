@@ -13,6 +13,8 @@ namespace sgcl::encoding {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::encoding::xml::reader` reads XML a token at a time — Go's `xml.Decoder` — over a document in memory or a
 stream that brings it a piece at a time. [next](next.md) gives the next [token](../xml-token/README.md),
 [peek](peek.md) the one `next()` will give, [read](read.md) the next node whole (an element
@@ -50,8 +52,7 @@ place.
   document of any length is read a value at a time in the memory of one element.
 - [offset](offset.md) is the byte of the input where the next token starts;
   [depth](depth.md) the elements open around it.
-- A reader holds tracked pointers (its buffer, its strings, the stream): it lives where a `tracked_ptr` may. It
-  is moved, not copied.
+- A reader is moved, not copied.
 
 ### From code written for Go
 

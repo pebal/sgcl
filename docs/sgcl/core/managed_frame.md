@@ -17,6 +17,8 @@ namespace sgcl {
 }
 ```
 
+**Requires [rooted](rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::managed_frame` is the base of a promise type whose coroutines get their frames from the managed heap. The
 compiler looks the allocation function of a coroutine up in the scope of its promise type, so a promise that derives
 from `managed_frame` inherits its `operator new` and `operator delete`, and every frame of such a coroutine is a

@@ -114,7 +114,10 @@ namespace sgcl::async {
 
             void add(root_ptr<Timer> t) {
                 if (!_started.load(std::memory_order_acquire)) [[unlikely]] {
-                    _start();
+                    if (!_start()) {
+                        _refused(t);
+                        return;
+                    }
                 }
                 unsigned s = std::min(Scheduler::worker_index(), ShardCount - 1);
                 t->shard = uint8_t(s);
@@ -255,7 +258,13 @@ namespace sgcl::async {
                 }
             }
 
-            void _start() {
+            // The thread started, unless the program is ending (false:
+            // scheduler.h, runtime_exit)
+            bool _start() {
+                RuntimeStart starting;
+                if (!starting) {
+                    return false;
+                }
                 std::lock_guard lock(_m);
                 if (!_running) {
                     _stop = false;
@@ -264,6 +273,18 @@ namespace sgcl::async {
                     scheduler_stop_hook.store([] { timers_instance().stop(); }, std::memory_order_release);   // scheduler::stop() stops the timers too
                 }
                 _started.store(true, std::memory_order_release);
+                return true;
+            }
+
+            // A timer added once the program is ending, with no thread to
+            // fire it: never armed. A task waiting on it stays parked, as a
+            // task parked at exit does; a thread's wait on a channel (a
+            // sleep, an after, a timeout) ends at once, the channel closed,
+            // rather than never
+            static void _refused(const root_ptr<Timer>& t) {
+                if (!t->frame && !t->fire && t->ch && !Scheduler::on_worker()) {
+                    t->ch->close();
+                }
             }
 
             void _run() {
@@ -386,8 +407,15 @@ namespace sgcl::async {
             uint64_t _settled = 0;   // the epoch the thread last found nothing due at
         };
 
+        // The singleton: its destruction at exit ends the runtime first
+        // (scheduler.h: runtime_exit)
         inline Timers& timers_instance() {
-            static Timers timers;
+            struct Instance : Timers {
+                ~Instance() {
+                    runtime_exit();
+                }
+            };
+            static Instance timers;
             return timers;
         }
 

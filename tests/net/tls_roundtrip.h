@@ -106,9 +106,37 @@ namespace tls_roundtrip {
                 return tls::read_empty(e.body) ? "" : "early_data not empty";
             case tls::ExtensionType::pre_shared_key:
                 if (client) {
-                    return tls::read_pre_shared_keys(e.body) ? "" : "pre_shared_key";
+                    // the identities and the binders walked and written back
+                    auto k = tls::read_pre_shared_keys(e.body);
+                    if (!k) {
+                        return "pre_shared_key refused";
+                    }
+                    {
+                        auto ids = w.block16();
+                        for (size_t i = 0; i < k->count; ++i) {
+                            auto id = k->identity(i);
+                            {
+                                auto b = w.block16();
+                                w.bytes(id.identity);
+                            }
+                            w.u32(id.obfuscated_age);
+                        }
+                    }
+                    auto binders = w.block16();
+                    for (size_t i = 0; i < k->count; ++i) {
+                        auto b = w.block8();
+                        w.bytes(k->binder(i));
+                    }
+                    break;
                 }
-                take(tls::read_pre_shared_key_selected(e.body), [&](auto v) { w.u16(v); });
+                take(tls::read_pre_shared_key_selected(e.body), [&](auto v) { tls::write_pre_shared_key_selected(w, v); });
+                break;
+            case tls::ExtensionType::certificate_authorities:
+                take(tls::read_certificate_authorities(e.body), [&](auto& n) {
+                    std::vector<tls::Bytes> names;   // lint-handles: ok slices over unmanaged bytes, no owner
+                    n.each([&](const tls::Bytes& b) { names.push_back(b); });
+                    tls::write_certificate_authorities(w, names);
+                });
                 break;
             case tls::ExtensionType::record_size_limit:
                 take(tls::read_record_size_limit(e.body), [&](auto v) { w.u16(v); });
@@ -158,6 +186,19 @@ namespace tls_roundtrip {
                 auto m = tls::read_server_hello(h->body);
                 if (!m) {
                     return std::string("ServerHello refused: ") + m.error().what;
+                }
+                if (h->body.size() == 2 + 32 + 1 + m->session_id.size() + 2 + 1) {
+                    // TLS 1.2's form without extensions (RFC 5246 §7.4.1.3)
+                    auto msg = w.message(tls::HandshakeType::server_hello);
+                    w.u16(m->legacy_version);
+                    w.bytes(m->random);
+                    {
+                        auto sid = w.block8(32);
+                        w.bytes(m->session_id);
+                    }
+                    w.u16(m->cipher_suite);
+                    w.u8(0);
+                    break;
                 }
                 tls::write_server_hello(w, m->random, m->session_id, m->cipher_suite, raw(m->extensions));
                 each(tls::HandshakeType::server_hello, m->is_retry(), m->extensions);
@@ -215,6 +256,25 @@ namespace tls_roundtrip {
                 each(tls::HandshakeType::new_session_ticket, false, m->extensions);
                 break;
             }
+            case tls::HandshakeType::server_key_exchange: {
+                auto m = tls::read_server_key_exchange12(h->body);
+                if (!m) {
+                    return std::string("ServerKeyExchange refused: ") + m.error().what;
+                }
+                auto msg = w.message(tls::HandshakeType::server_key_exchange);
+                w.bytes(m->params);
+                w.u16(m->scheme);
+                auto sig = w.block16();
+                w.bytes(m->signature);
+                break;
+            }
+            case tls::HandshakeType::server_hello_done: {
+                if (!tls::read_server_hello_done(h->body)) {
+                    return "ServerHelloDone refused";
+                }
+                auto msg = w.message(tls::HandshakeType::server_hello_done);
+                break;
+            }
             case tls::HandshakeType::key_update: {
                 auto m = tls::read_key_update(h->body);
                 if (!m) {
@@ -237,5 +297,66 @@ namespace tls_roundtrip {
             return why;
         }
         return of(out) == message ? "" : "the message came back otherwise";
+    }
+
+    // The TLS 1.2 forms of the messages both versions have (Certificate,
+    // CertificateRequest) read and written back; an empty string when they
+    // came back the same or do not read as 1.2's
+    inline std::string message_back12(const bytes_t& message) {
+        auto h = tls::read_handshake(view(message));
+        if (!h) {
+            return "";
+        }
+        std::vector<sgcl::byte> out;
+        tls::Builder w(out);
+        switch (tls::HandshakeType(h->type)) {
+            case tls::HandshakeType::certificate: {
+                auto m = tls::read_certificate12(h->body);
+                if (!m) {
+                    return "";
+                }
+                std::vector<tls::Bytes> ders;   // lint-handles: ok slices over unmanaged bytes, no owner
+                m->each([&](const tls::Bytes& d) { ders.push_back(d); });
+                if (ders.size() != m->count) {
+                    return "Certificate (1.2): the entries walked are not the entries counted";
+                }
+                tls::write_certificate12(w, ders);
+                break;
+            }
+            case tls::HandshakeType::certificate_request: {
+                auto m = tls::read_certificate_request12(h->body);
+                if (!m) {
+                    return "";
+                }
+                auto msg = w.message(tls::HandshakeType::certificate_request);
+                {
+                    auto t = w.block8();
+                    w.bytes(m->types);
+                }
+                tls::write_signature_schemes(w, m->schemes);
+                auto a = w.block16();
+                size_t n = 0;
+                m->authorities.each([&](const tls::Bytes& d) {
+                    auto one = w.block16();
+                    w.bytes(d);
+                    ++n;
+                });
+                if (n != m->authorities.count) {
+                    return "CertificateRequest (1.2): the authorities walked are not those counted";
+                }
+                break;
+            }
+            case tls::HandshakeType::new_session_ticket: {
+                auto m = tls::read_new_session_ticket12(h->body);
+                if (!m) {
+                    return "";
+                }
+                tls::write_new_session_ticket12(w, m->lifetime_hint, m->ticket);
+                break;
+            }
+            default:
+                return "";
+        }
+        return of(out) == message ? "" : "the message (1.2) came back otherwise";
     }
 }

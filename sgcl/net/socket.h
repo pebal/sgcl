@@ -8,8 +8,9 @@
 #include "connection.h"
 #include "detail/fd.h"
 #include "detail/sockaddr.h"
-#include "dns.h"
+#include "detail/system_resolver.h"
 #include "error.h"
+#include "interface.h"
 #include "ip.h"
 #include "../async/channel.h"
 #include "../async/coroutine.h"
@@ -28,6 +29,7 @@
 #include <mutex>
 #include <string_view>
 #include <sys/socket.h>
+#include <netinet/in.h>
 #include <unistd.h>
 
 namespace sgcl::net {
@@ -440,14 +442,14 @@ namespace sgcl::net {
             if (t.host.empty()) {
                 return vector<ip_address>();
             }
-            return dns::lookup(t.host);
+            return lookup_now(t.host);
         }
 
         inline async::task<expected<vector<ip_address>, io::error>> _co_local_addresses(Target t) noexcept {
             if (t.host.empty()) {
                 co_return vector<ip_address>();
             }
-            co_return co_await dns::async_lookup(t.host);
+            co_return co_await lookup_until(t.host, async::stop_token(), time_point());
         }
 
         // A unix socket at the path: dialed, or bound and listening
@@ -717,6 +719,24 @@ namespace sgcl::net {
             time_point read_deadline() const noexcept;
             time_point write_deadline() const noexcept;
 
+            // Multicast (RFC 1112, RFC 3376, RFC 3810; RFC 3678's calls):
+            // the group joined and left on an interface (the system's
+            // choice for none, or the zone of an IPv6 group), the group
+            // from one source alone (source-specific, RFC 4607); and for
+            // what the socket sends to a group, the interface it leaves
+            // by, its TTL (hop limit) and whether this machine's own
+            // members get it too. An IPv4 socket's options are IPv4's, an
+            // IPv6 socket's (one of both families included) IPv6's
+            expected<void, io::error> join_group(const ip_address& group, const network_interface& ifi = {}) const noexcept;
+            expected<void, io::error> leave_group(const ip_address& group, const network_interface& ifi = {}) const noexcept;
+            expected<void, io::error> join_source_group(const ip_address& group, const ip_address& source, const network_interface& ifi = {}) const noexcept;
+            expected<void, io::error> leave_source_group(const ip_address& group, const ip_address& source, const network_interface& ifi = {}) const noexcept;
+            expected<void, io::error> set_multicast_interface(const network_interface& ifi) const noexcept;
+            expected<void, io::error> set_multicast_ttl(int ttl) const noexcept;
+            expected<int, io::error> multicast_ttl() const noexcept;
+            expected<void, io::error> set_multicast_loopback(bool on) const noexcept;
+            expected<bool, io::error> multicast_loopback() const noexcept;
+
             SGCL_INLINE_HOT explicit operator bool() const noexcept {
                 return (bool)_impl;
             }
@@ -760,6 +780,15 @@ namespace sgcl::net {
         // `udp::connect(...)` on this thread, `co_await udp::async_connect(...)` in a task
         static expected<udp::socket, io::error> connect(const string& address) noexcept;
         static async::task<expected<udp::socket, io::error>> async_connect(const string& address) noexcept;
+
+        // A socket that receives a multicast group's datagrams: "group:port"
+        // ("239.1.2.3:5000", "[ff02::1%lo0]:5000"), the group's family's
+        // wildcard bound at the port with SO_REUSEADDR and SO_REUSEPORT,
+        // so that other sockets and processes may listen on it too, and
+        // the group joined on the interface (none: the system's choice, or
+        // the IPv6 group's zone), which is also the one it sends by: Go's
+        // net.ListenMulticastUDP. It never waits, so it has no task form
+        static expected<udp::socket, io::error> listen_multicast(const string& group, const network_interface& ifi = {}) noexcept;
 
     private:
         static async::task<expected<udp::socket, io::error>> _async_bind(string address) noexcept;
@@ -937,6 +966,142 @@ namespace sgcl::net {
                 return _remote.is_valid() ? string("udp ") + _local.to_string() + "->" + _remote.to_string() : string("udp ") + _local.to_string();
             }
 
+            // A membership of RFC 3678's protocol-independent calls
+            // (MCAST_JOIN_GROUP and the rest): the group, the source of a
+            // source-specific one, the interface by its index
+            expected<void, io::error> membership(int name, const ip_address& group, const ip_address* source, uint32_t index, const char* op) noexcept {
+                ip_address g = group.unmap();
+                std::string path(g.to_string().view());
+                if (source) {
+                    path += " from ";
+                    path += source->to_string().view();
+                }
+                if (!g.is_valid() || !g.is_multicast()) {
+                    return fail(net_error(errc::invalid_address, op, string(path)));
+                }
+                ip_address src = source ? source->unmap() : ip_address();
+                if (source && (!src.is_valid() || src.is_multicast() || src.is_unspecified() || src.is_v4() != g.is_v4())) {
+                    return fail(net_error(errc::invalid_address, op, string(path)));
+                }
+                if (g.is_v6() != (_family == AF_INET6)) {   // a group of the socket's own family: a dual-stack socket takes no IPv4 group on every system
+                    return fail(system_error(EAFNOSUPPORT, op, string(path)));
+                }
+                if (index == 0 && g.has_zone()) {
+                    index = scope_of(g);
+                    if (index == 0) {
+                        return fail(net_error(errc::invalid_address, op, string(path)));   // a zone that names no interface
+                    }
+                }
+                int family = g.is_v4() ? AF_INET : AF_INET6;
+                int level = g.is_v4() ? IPPROTO_IP : IPPROTO_IPV6;
+                Operation guard(_d);
+                if (!guard) {
+                    return fail(closed_error(op, describe()));
+                }
+                int rc;
+                if (source) {
+                    group_source_req r = {};
+                    r.gsr_interface = index;
+                    SockAddr gs, ss;
+                    to_sockaddr(endpoint(g.with_zone(string()), 0), family, gs);
+                    to_sockaddr(endpoint(src, 0), family, ss);
+                    copy_bytes(&r.gsr_group, &gs.storage, gs.size);
+                    copy_bytes(&r.gsr_source, &ss.storage, ss.size);
+                    rc = ::setsockopt(_d.fd(), level, name, &r, sizeof(r));
+                } else {
+                    group_req r = {};
+                    r.gr_interface = index;
+                    SockAddr gs;
+                    to_sockaddr(endpoint(g.with_zone(string()), 0), family, gs);
+                    copy_bytes(&r.gr_group, &gs.storage, gs.size);
+                    rc = ::setsockopt(_d.fd(), level, name, &r, sizeof(r));
+                }
+                if (rc != 0) {
+                    return fail(system_error(errno, op, string(path)));
+                }
+                return {};
+            }
+
+            // An option of the socket's family: IPv4's on an IPv4 socket,
+            // IPv6's on the others
+            expected<void, io::error> set_multicast_int(int v4_name, int v6_name, int value, const char* op) noexcept {
+                Operation guard(_d);
+                if (!guard) {
+                    return fail(closed_error(op, describe()));
+                }
+                int rc;
+                if (_family == AF_INET) {
+                    unsigned char b = (unsigned char)value;   // a byte, as the BSDs and Linux all take it
+                    rc = ::setsockopt(_d.fd(), IPPROTO_IP, v4_name, &b, sizeof(b));
+                } else {
+                    rc = ::setsockopt(_d.fd(), IPPROTO_IPV6, v6_name, &value, sizeof(value));
+                }
+                if (rc != 0) {
+                    return fail(system_error(errno, op, describe()));
+                }
+                return {};
+            }
+
+            expected<int, io::error> multicast_int(int v4_name, int v6_name, const char* op) noexcept {
+                Operation guard(_d);
+                if (!guard) {
+                    return fail(closed_error(op, describe()));
+                }
+                int value = 0;
+                socklen_t size = sizeof(value);
+                int rc = _family == AF_INET ? ::getsockopt(_d.fd(), IPPROTO_IP, v4_name, &value, &size) : ::getsockopt(_d.fd(), IPPROTO_IPV6, v6_name, &value, &size);
+                if (rc != 0) {
+                    return fail(system_error(errno, op, describe()));
+                }
+                if (size == 1) {
+                    unsigned char b;
+                    copy_bytes(&b, &value, 1);
+                    value = b;
+                }
+                return value;
+            }
+
+            // The interface multicast leaves by: IPv4 names it by an
+            // address of its (in_addr, which every system takes), IPv6 by
+            // its index; an interface of index 0 is the system's choice
+            expected<void, io::error> set_multicast_interface(const network_interface& ifi) noexcept {
+                const char* op = "multicast interface";
+                Operation guard(_d);
+                if (!guard) {
+                    return fail(closed_error(op, describe()));
+                }
+                int rc;
+                if (_family == AF_INET) {
+                    in_addr a = {};
+                    if (ifi.index != 0) {
+                        bool found = false;
+                        for (auto& n : ifi.addresses) {
+                            if (n.address().is_v4()) {
+                                auto b = n.address().bytes();
+                                copy_bytes(&a, b.data() + 12, 4);
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (!found) {
+                            return fail(system_error(EADDRNOTAVAIL, op, ifi.name));
+                        }
+                    }
+                    rc = ::setsockopt(_d.fd(), IPPROTO_IP, IP_MULTICAST_IF, &a, sizeof(a));
+                } else {
+                    unsigned int index = ifi.index;
+                    rc = ::setsockopt(_d.fd(), IPPROTO_IPV6, IPV6_MULTICAST_IF, &index, sizeof(index));
+                }
+                if (rc != 0) {
+                    return fail(system_error(errno, op, ifi.name));
+                }
+                return {};
+            }
+
+            SGCL_INLINE_HOT int family() const noexcept {
+                return _family;
+            }
+
         private:
             // recvmsg, for the flag that says the datagram was cut: 0 or
             // errno. An empty buffer reads into a byte of its own: macOS
@@ -1011,8 +1176,9 @@ namespace sgcl::net {
             return UdpAccess::make(make_tracked<UdpImpl>(*s, self.family(), from_sockaddr(self.get()), endpoint()));
         }
 
-        inline expected<udp::socket, io::error> connect_udp(const string& address, const vector<ip_address>& found, uint16_t port) noexcept {
-            endpoint to(found.front(), port);
+        // A UDP socket connected to `to` (the system picks the local
+        // port); `address` names it in an error
+        inline expected<udp::socket, io::error> connect_udp_to(const endpoint& to, const string& address) noexcept {
             int family = family_of(to);
             SockAddr sa;
             if (!to_sockaddr(to, family, sa)) {
@@ -1028,6 +1194,10 @@ namespace sgcl::net {
                 return fail(system_error(e, "dial udp", address));
             }
             return UdpAccess::make(make_tracked<UdpImpl>(s, family, local_of(s), to));
+        }
+
+        SGCL_INLINE_HOT expected<udp::socket, io::error> connect_udp(const string& address, const vector<ip_address>& found, uint16_t port) noexcept {
+            return connect_udp_to(endpoint(found.front(), port), address);
         }
     }
 
@@ -1119,6 +1289,50 @@ namespace sgcl::net {
         return _get().deadline(detail::Descriptor::Write);
     }
 
+    SGCL_INLINE_HOT expected<void, io::error> udp::socket::join_group(const ip_address& group, const network_interface& ifi) const noexcept {
+        return _get().membership(MCAST_JOIN_GROUP, group, nullptr, ifi.index, "join");
+    }
+
+    SGCL_INLINE_HOT expected<void, io::error> udp::socket::leave_group(const ip_address& group, const network_interface& ifi) const noexcept {
+        return _get().membership(MCAST_LEAVE_GROUP, group, nullptr, ifi.index, "leave");
+    }
+
+    SGCL_INLINE_HOT expected<void, io::error> udp::socket::join_source_group(const ip_address& group, const ip_address& source, const network_interface& ifi) const noexcept {
+        return _get().membership(MCAST_JOIN_SOURCE_GROUP, group, &source, ifi.index, "join");
+    }
+
+    SGCL_INLINE_HOT expected<void, io::error> udp::socket::leave_source_group(const ip_address& group, const ip_address& source, const network_interface& ifi) const noexcept {
+        return _get().membership(MCAST_LEAVE_SOURCE_GROUP, group, &source, ifi.index, "leave");
+    }
+
+    SGCL_INLINE_HOT expected<void, io::error> udp::socket::set_multicast_interface(const network_interface& ifi) const noexcept {
+        return _get().set_multicast_interface(ifi);
+    }
+
+    // 0 to 255 (RFC 1112's TTL, RFC 3493's hop limit), else EINVAL
+    SGCL_INLINE_HOT expected<void, io::error> udp::socket::set_multicast_ttl(int ttl) const noexcept {
+        if (ttl < 0 || ttl > 255) {
+            return net::detail::fail(net::detail::system_error(EINVAL, "multicast ttl", _get().describe()));
+        }
+        return _get().set_multicast_int(IP_MULTICAST_TTL, IPV6_MULTICAST_HOPS, ttl, "multicast ttl");
+    }
+
+    SGCL_INLINE_HOT expected<int, io::error> udp::socket::multicast_ttl() const noexcept {
+        return _get().multicast_int(IP_MULTICAST_TTL, IPV6_MULTICAST_HOPS, "multicast ttl");
+    }
+
+    SGCL_INLINE_HOT expected<void, io::error> udp::socket::set_multicast_loopback(bool on) const noexcept {
+        return _get().set_multicast_int(IP_MULTICAST_LOOP, IPV6_MULTICAST_LOOP, on ? 1 : 0, "multicast loopback");
+    }
+
+    SGCL_INLINE_HOT expected<bool, io::error> udp::socket::multicast_loopback() const noexcept {
+        auto v = _get().multicast_int(IP_MULTICAST_LOOP, IPV6_MULTICAST_LOOP, "multicast loopback");
+        if (!v) {
+            return net::detail::fail(v);
+        }
+        return *v != 0;
+    }
+
     // --- udp's functions ------------------------------------------------------
 
     SGCL_INLINE_HOT expected<udp::socket, io::error> udp::bind(const string& address) noexcept {
@@ -1142,7 +1356,7 @@ namespace sgcl::net {
         if (!t) {
             return net::detail::fail(t);
         }
-        auto found = t->host.empty() ? expected<vector<ip_address>, io::error>(vector<ip_address>{ip_address::loopback_v4()}) : dns::lookup(t->host);
+        auto found = t->host.empty() ? expected<vector<ip_address>, io::error>(vector<ip_address>{ip_address::loopback_v4()}) : net::detail::lookup_now(t->host);
         if (!found) {
             return net::detail::fail(found);
         }
@@ -1151,6 +1365,63 @@ namespace sgcl::net {
 
     SGCL_INLINE_HOT async::task<expected<udp::socket, io::error>> udp::async_connect(const string& address) noexcept {
         return _async_connect(address);
+    }
+
+    inline expected<udp::socket, io::error> udp::listen_multicast(const string& group, const network_interface& ifi) noexcept {
+        const char* op = "listen udp";
+        auto at = net::detail::parse_endpoint(group);
+        if (!at || !at->address().unmap().is_multicast()) {
+            return net::detail::fail(net::detail::net_error(errc::invalid_address, op, group));
+        }
+        ip_address g = at->address().unmap();
+        int family = g.is_v4() ? AF_INET : AF_INET6;
+        int s = net::detail::open_socket(family, SOCK_DGRAM);
+        if (s < 0) {
+            return net::detail::fail(net::detail::system_error(errno, op, group));
+        }
+        int one = 1;
+        ::setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+        ::setsockopt(s, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one));
+        if (family == AF_INET6) {
+            ::setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY, &one, sizeof(one));   // the group's family alone
+        }
+        // Linux: the groups this socket joined alone, as the BSDs deliver;
+        // by default a socket bound to the wildcard gets every group any
+        // socket of the machine joined at its port
+#ifdef IP_MULTICAST_ALL
+        if (family == AF_INET) {
+            int zero = 0;
+            ::setsockopt(s, IPPROTO_IP, IP_MULTICAST_ALL, &zero, sizeof(zero));
+        }
+#endif
+#ifdef IPV6_MULTICAST_ALL
+        if (family == AF_INET6) {
+            int zero = 0;
+            ::setsockopt(s, IPPROTO_IPV6, IPV6_MULTICAST_ALL, &zero, sizeof(zero));
+        }
+#endif
+        net::detail::SockAddr sa;
+        net::detail::to_sockaddr(endpoint(g.is_v4() ? ip_address::any_v4() : ip_address::any_v6(), at->port()), family, sa);
+        if (::bind(s, sa.get(), sa.size) != 0) {
+            int e = errno;
+            ::close(s);
+            return net::detail::fail(net::detail::system_error(e, op, group));
+        }
+        net::detail::SockAddr self;
+        ::getsockname(s, self.get(), &self.size);
+        tracked_ptr<net::detail::UdpImpl> impl = make_tracked<net::detail::UdpImpl>(s, family, net::detail::from_sockaddr(self.get()), endpoint());
+        udp::socket sock = net::detail::UdpAccess::make(impl);
+        if (ifi.index != 0) {
+            if (auto r = impl->set_multicast_interface(ifi); !r) {
+                (void)sock.close();
+                return net::detail::fail(io::error(r.error().code(), op, group));
+            }
+        }
+        if (auto r = impl->membership(MCAST_JOIN_GROUP, g, nullptr, ifi.index, op); !r) {
+            (void)sock.close();
+            return net::detail::fail(io::error(r.error().code(), op, group));
+        }
+        return sock;
     }
 
     inline async::task<expected<udp::socket, io::error>> udp::_async_bind(string address) noexcept {
@@ -1172,7 +1443,7 @@ namespace sgcl::net {
         }
         expected<vector<ip_address>, io::error> found = vector<ip_address>{ip_address::loopback_v4()};
         if (!t->host.empty()) {
-            found = co_await dns::async_lookup(t->host);
+            found = co_await net::detail::lookup_until(t->host, async::stop_token(), time_point());
         }
         if (!found) {
             co_return net::detail::fail(found);

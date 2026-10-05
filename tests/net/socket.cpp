@@ -510,6 +510,21 @@ TEST(NetSocket_Tests, WriteToAClosedPeerIsAnErrorNotASignal) {
     client.close();
 }
 
+// A refused connect whose RST lands between the reads of SO_ERROR and of
+// the peer: macOS answers getpeername with EINVAL then, which was given out
+// as the connect's error (about a third of refused loopback connects)
+TEST(NetSocket_Tests, ARefusedConnectIsRefusedEveryTime) {
+    auto l = tcp::listen("127.0.0.1:0");
+    ASSERT_TRUE(l);
+    auto port = l->local_endpoint().port();
+    l->close();
+    for (int i = 0; i < 2000; ++i) {
+        auto c = tcp::connect(net::endpoint(ip_address::loopback_v4(), port));
+        ASSERT_FALSE(c);
+        ASSERT_EQ(c.error().code(), std::errc::connection_refused) << "attempt " << i << ": " << c.error().message();
+    }
+}
+
 TEST(NetSocket_Tests, ErrorsOfConnectAndListen) {
     auto l = tcp::listen("127.0.0.1:0");
     ASSERT_TRUE(l);

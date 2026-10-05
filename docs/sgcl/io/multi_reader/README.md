@@ -10,6 +10,8 @@ namespace sgcl::io {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::io::multi_reader` is several readers one after another, as one stream: what Go's `io.MultiReader` is. A read
 goes to the current reader; when that one ends, the next one is read, and the stream ends with the last. A header
 in memory before a file, the parts of a message, the files of a list read as one. The standard library has no
@@ -17,8 +19,6 @@ counterpart.
 
 ## Rules
 
-- It holds a [vector](../../core/vector/README.md) of [io::reader](../reader/README.md)s, so it lives where a `tracked_ptr` may: on a
-  stack, in a task, in a managed object ([The rules](../../core/README.md#the-rules), 1).
 - An object, not a handle: given by reference to an `io::reader` or to `io::copy`, it is referenced, and the caller
   keeps it alive; given as a temporary, it is copied into a managed object of its own.
 - [async_read](read.md) is over each reader's own `async_read`; a reader that has only `read` has it

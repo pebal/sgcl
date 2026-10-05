@@ -1,0 +1,7 @@
+mac.local
+#
+# macOS Notice
+#
+search home
+nameserver 192.168.0.1
+nameserver fe80::1%en0

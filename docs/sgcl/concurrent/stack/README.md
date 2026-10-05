@@ -11,6 +11,8 @@ namespace sgcl::concurrent {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::concurrent::stack<T>` is a lock-free LIFO stack shared by any number of threads: the Treiber stack, one
 atomic word for the head and a compare-exchange to push or pop, written as it is written for a runtime with a
 collector. A push makes a node holding the element, links it above the head it loaded and publishes it with a
@@ -30,8 +32,7 @@ shared. Go's library has no stack. The element type is any movable `T`, a `track
 
 ## Rules
 
-- The container is the atomic head and a count of the threads waiting in `pop`. The stack lives where a
-  `tracked_ptr` may: on a thread's stack or inside a managed object ([The rules](../../core/README.md#the-rules), 1).
+- The container is the atomic head and a count of the threads waiting in `pop`.
 - Every member function may be called from any thread at any time. `push`, `emplace`, `try_pop`, `empty`, `size`
   and `clear` are lock-free; `push` and `try_pop` are linearizable at their compare-exchange on the head. `pop`
   waits while the stack is empty, on the head's `wait`; a push notifies only when a thread waits.

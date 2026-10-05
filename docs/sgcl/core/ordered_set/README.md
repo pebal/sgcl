@@ -11,6 +11,8 @@ namespace sgcl {
 }
 ```
 
+**Requires [rooted](../rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::ordered_set<Key, Hash, KeyEqual>` is a hash set iterated in the order its elements were inserted: Java's
 `LinkedHashSet`. It is [set](../set/README.md) with every node on a second list in the order of insertion, as
 [ordered_map](../ordered_map/README.md) is to `map`: `begin()` to `end()` walks that list both ways (the iterators are
@@ -37,9 +39,6 @@ back. A lookup and an iteration pay no write barrier; an insertion, an erasure, 
 
 ## Rules
 
-- An `ordered_set` holds tracked pointers, so it lives on a stack or inside a managed object: never in
-  `new`/`malloc` memory, a `std` container, a global, a `thread_local` or a plain coroutine frame
-  ([The rules](../README.md#the-rules), 1). The same holds for a [node handle](../ordered_set-node_type/README.md).
 - The elements may be, or hold, tracked pointers (a `tracked_ptr` is hashed by its address): the nodes are
   managed objects, so those pointers are traced.
 - An element is destroyed the moment it is erased, cleared, assigned over, or the set is destroyed, exactly as in

@@ -10,6 +10,8 @@ namespace sgcl::slog {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::slog::attr` is an attribute of a [record](../record/README.md) as a handler reads it, slog's `Attr`: its key and its
 [value](../value/README.md). The range of a record and of a group's value ([value::as_group](../value/as_group.md)) gives them
 by value. It is made only by the module.

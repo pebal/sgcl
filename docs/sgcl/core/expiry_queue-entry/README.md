@@ -14,6 +14,8 @@ namespace sgcl {
 }
 ```
 
+**Requires [rooted](../rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::expiry_queue<T>::entry` is the handle of one entry of an [expiry_queue](../expiry_queue/README.md), what
 [watch()](../expiry_queue/watch.md) returns. It shares the entry's cell, the weak cell `watch()` made for the object;
 copies share the entry. The caller may keep it or discard it: dropping it cancels nothing.
@@ -27,8 +29,6 @@ tells whether a cycle has found the object unreachable, and [weak()](weak.md) is
 
 ## Rules
 
-- The handle holds its cell by a `tracked_ptr`, so it lives where the queue's pointers live: on a stack or inside a
-  managed object.
 - `cancel()` alone is one atomic flag and may come from any thread, against a `drain()` running on another: the
   answer is exact. The rest is shared between threads with the program's own synchronization, as the queue is.
 

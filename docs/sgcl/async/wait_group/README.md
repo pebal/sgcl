@@ -13,6 +13,8 @@ namespace sgcl::async {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::async::wait_group` counts work down to zero: [add](add.md) counts the work, [done](done.md)
 counts it off, and the wait waits for the count to reach zero; Go's `sync.WaitGroup`, Java's `CountDownLatch` that
 may count up again. A group whose count came back from zero, an `add` after the work was done, is waited for again,

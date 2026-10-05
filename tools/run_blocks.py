@@ -55,7 +55,13 @@ certificate (tests/net/tls_testdata, a leaf for localhost), which answers
 any request with `HTTP/1.1 200 OK` and closes, "h2" chosen by ALPN when
 offered; `--tls HOST:PORT=TEXT` writes TEXT (with \n) at once instead, for
 a client that sends nothing. The program is run with SSL_CERT_FILE naming
-the test CA, so the system's roots trust it.
+the test CA, so the system's roots trust it. `--socks5 HOST:PORT` (or
+`HOST:PORT=USER:PASSWORD`, which it then requires) replaces HOST:PORT by
+127.0.0.1 and the port of a local SOCKS5 server (RFC 1928, CONNECT to any
+address type, the target dialed from here); `--proxy HOST:PORT` (or
+`HOST:PORT=USER:PASSWORD`, then required as Basic Proxy-Authorization, 407
+without it) the same for an HTTP proxy that forwards absolute-form
+requests and tunnels CONNECT.
 
 What a page's programs need (local servers, a fresh directory) is listed
 in tools/run_blocks.pages, one line per page — its path from the root,
@@ -66,7 +72,8 @@ no network, and the page itself carries nothing:
 
   tools/run_blocks.py docs/sgcl/slog/README.md ...  [--root DIR] [--tmp]
                       [--fill] [--serve URL=FILE ...] [--echo URL ...]
-                      [--tls HOST:PORT ...] [--skip N ...] [--strict]
+                      [--tls HOST:PORT ...] [--socks5 HOST:PORT[=U:P] ...]
+                      [--proxy HOST:PORT[=U:P] ...] [--skip N ...] [--strict]
 
 --root is the tree the programs include from and run in (the repository by
 default: this script's parent); --tmp runs each in a fresh directory
@@ -82,6 +89,7 @@ an `int main` (no includes, names the page leaves out), a server that runs
 until it is stopped with no request block, a program that needs arguments;
 it counts neither as checked nor as unchecked.
 """
+import base64
 import http.server
 import json
 import os
@@ -232,6 +240,194 @@ def serve_tls(root, hello=None):
     return server
 
 
+def relay(a, b):
+    """Bytes both ways between two sockets until both directions end"""
+    def pump(src, dst):
+        try:
+            while True:
+                data = src.recv(65536)
+                if not data:
+                    break
+                dst.sendall(data)
+        except OSError:
+            pass
+        try:
+            dst.shutdown(socket.SHUT_WR)
+        except OSError:
+            pass
+    t = threading.Thread(target=pump, args=(b, a), daemon=True)
+    t.start()
+    pump(a, b)
+    t.join()
+    a.close()
+    b.close()
+
+
+def read_exactly(sock, n):
+    data = b''
+    while len(data) < n:
+        part = sock.recv(n - len(data))
+        if not part:
+            raise OSError('closed')
+        data += part
+    return data
+
+
+def serve_socks5(credentials=None):
+    """A local SOCKS5 server (RFC 1928, RFC 1929 when credentials are
+    given): CONNECT to an IPv4 or IPv6 address or a name, dialed from here"""
+    class Handler(socketserver.BaseRequestHandler):
+        def handle(self):
+            c = self.request
+            try:
+                ver, n = read_exactly(c, 2)
+                methods = read_exactly(c, n)
+                want = 2 if credentials else 0
+                if ver != 5 or want not in methods:
+                    c.sendall(bytes([5, 0xFF]))
+                    return
+                c.sendall(bytes([5, want]))
+                if want == 2:
+                    _, ulen = read_exactly(c, 2)
+                    user = read_exactly(c, ulen).decode('latin-1')
+                    plen = read_exactly(c, 1)[0]
+                    password = read_exactly(c, plen).decode('latin-1')
+                    ok = user + ':' + password == credentials
+                    c.sendall(bytes([1, 0 if ok else 1]))
+                    if not ok:
+                        return
+                _, cmd, _, atyp = read_exactly(c, 4)
+                if atyp == 1:
+                    host = socket.inet_ntop(socket.AF_INET, read_exactly(c, 4))
+                elif atyp == 4:
+                    host = socket.inet_ntop(socket.AF_INET6, read_exactly(c, 16))
+                elif atyp == 3:
+                    host = read_exactly(c, read_exactly(c, 1)[0]).decode('latin-1')
+                else:
+                    c.sendall(bytes([5, 8, 0, 1, 0, 0, 0, 0, 0, 0]))
+                    return
+                port = int.from_bytes(read_exactly(c, 2), 'big')
+                if cmd != 1:
+                    c.sendall(bytes([5, 7, 0, 1, 0, 0, 0, 0, 0, 0]))
+                    return
+                try:
+                    t = socket.create_connection((host, port), timeout=5)
+                    t.settimeout(None)
+                except ConnectionRefusedError:
+                    c.sendall(bytes([5, 5, 0, 1, 0, 0, 0, 0, 0, 0]))
+                    return
+                except OSError:
+                    c.sendall(bytes([5, 4, 0, 1, 0, 0, 0, 0, 0, 0]))
+                    return
+                c.sendall(bytes([5, 0, 0, 1, 127, 0, 0, 1, 0, 0]))
+                relay(c, t)
+            except OSError:
+                pass
+
+    server = socketserver.ThreadingTCPServer(('127.0.0.1', 0), Handler)
+    server.daemon_threads = True
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server
+
+
+def serve_proxy(credentials=None):
+    """A local HTTP proxy: an absolute-form request forwarded to its origin
+    (one request a connection there, the answer relayed), CONNECT tunnelled;
+    with credentials, Basic Proxy-Authorization required (407 without)"""
+    class Handler(socketserver.BaseRequestHandler):
+        def handle(self):
+            c = self.request
+            buf = b''
+            try:
+                while True:
+                    while b'\r\n\r\n' not in buf:
+                        part = c.recv(65536)
+                        if not part:
+                            return
+                        buf += part
+                    head, _, buf = buf.partition(b'\r\n\r\n')
+                    lines = head.decode('latin-1').split('\r\n')
+                    method, target, version = lines[0].split(' ')
+                    fields = []
+                    for line in lines[1:]:
+                        name, _, value = line.partition(':')
+                        fields.append((name.strip(), value.strip()))
+                    lower = {n.lower(): v for n, v in fields}
+                    if credentials:
+                        got = lower.get('proxy-authorization', '')
+                        if got != 'Basic ' + base64.b64encode(credentials.encode()).decode():
+                            c.sendall(b'HTTP/1.1 407 Proxy Authentication Required\r\n'
+                                      b'Proxy-Authenticate: Basic realm="run_blocks"\r\nContent-Length: 0\r\n\r\n')
+                            continue
+                    if method == 'CONNECT':
+                        host, _, port = target.rpartition(':')
+                        try:
+                            t = socket.create_connection((host.strip('[]'), int(port)), timeout=5)
+                            t.settimeout(None)
+                        except OSError:
+                            c.sendall(b'HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n')
+                            continue
+                        c.sendall(b'HTTP/1.1 200 Connection established\r\n\r\n')
+                        if buf:
+                            t.sendall(buf)
+                        relay(c, t)
+                        return
+                    if not target.startswith('http://'):
+                        c.sendall(b'HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n')
+                        continue
+                    rest = target[len('http://'):]
+                    authority, slash, path = rest.partition('/')
+                    host, _, port = authority.rpartition(':') if ':' in authority.split(']')[-1] else (authority, '', '80')
+                    length = int(lower.get('content-length', '0'))
+                    while len(buf) < length:
+                        part = c.recv(65536)
+                        if not part:
+                            return
+                        buf += part
+                    body, buf = buf[:length], buf[length:]
+                    out = '%s /%s HTTP/1.1\r\n' % (method, path)
+                    for n, v in fields:
+                        if n.lower() not in ('proxy-authorization', 'proxy-connection', 'connection'):
+                            out += '%s: %s\r\n' % (n, v)
+                    out += 'Connection: close\r\n\r\n'
+                    try:
+                        t = socket.create_connection((host.strip('[]'), int(port)), timeout=5)
+                    except OSError:
+                        c.sendall(b'HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n')
+                        continue
+                    t.sendall(out.encode('latin-1') + body)
+                    answer = b''
+                    while True:
+                        part = t.recv(65536)
+                        if not part:
+                            break
+                        answer += part
+                    t.close()
+                    # the origin's answer read to its close: written back with
+                    # its length, the connection kept
+                    ahead, _, abody = answer.partition(b'\r\n\r\n')
+                    alines = [l for l in ahead.decode('latin-1').split('\r\n')
+                              if not l.lower().startswith(('content-length:', 'transfer-encoding:', 'connection:'))]
+                    if any(l.lower().startswith('transfer-encoding:') for l in ahead.decode('latin-1').split('\r\n')):
+                        decoded, rest_ = b'', abody
+                        while True:
+                            size_line, _, rest_ = rest_.partition(b'\r\n')
+                            size = int(size_line.split(b';')[0], 16)
+                            if size == 0:
+                                break
+                            decoded += rest_[:size]
+                            rest_ = rest_[size + 2:]
+                        abody = decoded
+                    c.sendall(('\r\n'.join(alines) + '\r\nContent-Length: %d\r\n\r\n' % len(abody)).encode('latin-1') + abody)
+            except (OSError, ValueError):
+                pass
+
+    server = socketserver.ThreadingTCPServer(('127.0.0.1', 0), Handler)
+    server.daemon_threads = True
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server
+
+
 def options(args, into):
     """The options of a command line or of a page's directive, into a dict"""
     i = 0
@@ -257,6 +453,12 @@ def options(args, into):
             i += 1
         elif a == '--tls':
             into['tls'].append(args[i + 1])
+            i += 1
+        elif a == '--socks5':
+            into['socks5'].append(args[i + 1])
+            i += 1
+        elif a == '--proxy':
+            into['proxy'].append(args[i + 1])
             i += 1
         elif a == '--skip':
             into['skip'].add(int(args[i + 1]))
@@ -290,6 +492,14 @@ def local_servers(o, root):
             server = serve_tls(root, hello.replace('\\n', '\n').encode() if hello else None)
             rewrites.append((address, 'localhost:%d' % server.server_address[1]))
         env['SSL_CERT_FILE'] = os.path.join(root, 'tests', 'net', 'tls_testdata', 'ca.pem')
+    for spec in o['socks5']:
+        address, _, credentials = spec.partition('=')
+        server = serve_socks5(credentials or None)
+        rewrites.append((address, '127.0.0.1:%d' % server.server_address[1]))
+    for spec in o['proxy']:
+        address, _, credentials = spec.partition('=')
+        server = serve_proxy(credentials or None)
+        rewrites.append((address, '127.0.0.1:%d' % server.server_address[1]))
     return rewrites, env
 
 
@@ -298,18 +508,18 @@ def main():
     if not args or '--help' in args or '-h' in args:
         print(__doc__.strip())
         return 0
-    base = options(args, {'root': ROOT, 'tmp': False, 'fill': False, 'strict': False, 'changed': False, 'serve': [], 'echo': [], 'tls': [], 'skip': set(), 'pages': []})
+    base = options(args, {'root': ROOT, 'tmp': False, 'fill': False, 'strict': False, 'changed': False, 'serve': [], 'echo': [], 'tls': [], 'socks5': [], 'proxy': [], 'skip': set(), 'pages': []})
     root, fill, pages = base['root'], base['fill'], base['pages']
 
     work = tempfile.mkdtemp(prefix='run_blocks-')
     flags = ['-framework', 'ImageIO', '-framework', 'CoreGraphics', '-framework', 'CoreFoundation',
-             '-framework', 'Accelerate'] if sys.platform == 'darwin' else []
+             '-framework', 'Accelerate', '-framework', 'Security'] if sys.platform == 'darwin' else []
     bad = 0
     unchecked = 0
     for page in pages:
         path = page if os.path.isabs(page) else os.path.join(root, page)
         text = open(path).read()
-        o = {'tmp': base['tmp'], 'serve': list(base['serve']), 'echo': list(base['echo']), 'tls': list(base['tls']), 'skip': set(base['skip']), 'pages': []}
+        o = {'tmp': base['tmp'], 'serve': list(base['serve']), 'echo': list(base['echo']), 'tls': list(base['tls']), 'socks5': list(base['socks5']), 'proxy': list(base['proxy']), 'skip': set(base['skip']), 'pages': []}
         options(page_options(root, path), o)
         tmp = o['tmp']
         rewrites, env = local_servers(o, root)

@@ -1,0 +1,16 @@
+	From: x@example.com
+To: y@example.com
+Subject: =?ISO-8859-1?Q?Caf=E9?=
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="b1"
+
+--b1
+Content-Type: text/plain
+
+body
+--b1
+Content-Type: application/pdf; name="doc.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERiBmYWtl
+--b1--

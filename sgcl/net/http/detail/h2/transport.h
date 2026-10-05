@@ -70,6 +70,8 @@ namespace sgcl::net::http::detail::h2 {
         bool sent_all = false;                     // END_STREAM sent
         bool remote_ended = false;                 // END_STREAM received
         std::atomic<bool> expired = {false};       // a deadline passed (the timer's thread)
+        bool wants_informational = false;          // the 1xx kept for the request (a reverse proxy forwards them)
+        vector<pair<int, http::headers>> informational;   // the 1xx that came, not yet taken (under the connection's lock)
         tracked_ptr<async::detail::Timer> deadline;
         tracked_ptr<async::detail::Timer> head_deadline;
 
@@ -175,6 +177,14 @@ namespace sgcl::net::http::detail::h2 {
             return st->fate;
         }
 
+        // The informational responses that came for the stream, taken
+        SGCL_INLINE_HOT vector<pair<int, http::headers>> take_informational(const tracked_ptr<ClientStream>& st) noexcept {
+            std::lock_guard<std::mutex> g(_lock);
+            vector<pair<int, http::headers>> out = std::move(st->informational);
+            st->informational = vector<pair<int, http::headers>>();
+            return out;
+        }
+
         // A request's deadlines as timers on its stream: past one the stream
         // is reset and its reader and the request's task learn ETIMEDOUT.
         // The timers hold the stream weakly (as a descriptor's deadline
@@ -195,7 +205,28 @@ namespace sgcl::net::http::detail::h2 {
 
         ErrorCode on_response(uint32_t id, Block&& b, bool end_stream, bool informational) {
             if (informational) {
-                return ErrorCode::no_error;   // 100 Continue, 103 Early Hints: the final one follows
+                // 100 Continue, 103 Early Hints: the final one follows; kept
+                // for a request that asks (:status checked by the machine)
+                if (auto st = _find(id); st && st->wants_informational && !b.truncated) {
+                    int status = 0;
+                    http::headers fields;
+                    for (auto& f : HeadersAccess::fields(b.fields)) {
+                        auto n = f.first.view();
+                        if (n == ":status") {
+                            auto v = f.second.view();
+                            if (v.size() == 3 && v[0] == '1' && v[1] >= '0' && v[1] <= '9' && v[2] >= '0' && v[2] <= '9') {
+                                status = 100 + (v[1] - '0') * 10 + (v[2] - '0');
+                            }
+                        } else if (!n.empty() && n[0] != ':') {
+                            HeadersAccess::fields(fields).push_back(f);
+                        }
+                    }
+                    if (status && st->informational.size() < 16) {
+                        st->informational.push_back(pair<int, http::headers>(status, std::move(fields)));
+                        st->headed.try_send();
+                    }
+                }
+                return ErrorCode::no_error;
             }
             auto st = _find(id);
             if (!st) {

@@ -29,6 +29,8 @@ namespace sgcl::compress::tar {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::compress::tar::entry` is one entry of a tar archive, Go's `tar.Header`: what the headers before its data say,
 merged into one — the ustar header, the archive's global pax records and the entry's own, GNU's long name and link.
 The [reader](../tar-reader/README.md)'s [next](../tar-reader/next.md) gives one; the [writer](../tar-writer/README.md)'s

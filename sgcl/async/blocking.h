@@ -166,8 +166,18 @@ namespace sgcl::async {
             // push is outside the lock (the queue is lock-free), the
             // decision under it, so that a thread about to park sees the
             // push (its look at the queue is under the lock too) or is
-            // seen here as idle and woken
+            // seen here as idle and woken. Once the program is ending
+            // (scheduler.h: runtime_exit) no thread of the pool runs: a
+            // job submitted from a task is never run, and the task waiting
+            // for it stays parked, as a task parked at exit does; one from
+            // any other thread runs on that thread, rather than never
             void submit(const tracked_ptr<BlockingJobBase>& job) {
+                if (runtime_exiting()) [[unlikely]] {
+                    if (!Scheduler::on_worker()) {
+                        job->run();
+                    }
+                    return;
+                }
                 std::unique_lock lock(_m);
                 if (!_queue) {
                     _queue = make_tracked<Queue>();
@@ -273,8 +283,22 @@ namespace sgcl::async {
             // With none the job could only wait for the next submit: it is
             // dropped instead, owed to nobody (_pending), and the throw is
             // its submitter's, so a spawn_blocking that throws never runs
-            // its function
+            // its function. Once the program is ending (scheduler.h:
+            // runtime_exit) no thread is started: the job is dropped as
+            // that one, and run on its submitter when that is no worker
             void _start(std::unique_lock<std::mutex>& lock, const tracked_ptr<BlockingJobBase>& job) {
+                RuntimeStart starting;
+                if (!starting) [[unlikely]] {
+                    job->dropped.store(true, std::memory_order_relaxed);
+                    if (--_pending == 0) {
+                        _idle_cv.notify_all();
+                    }
+                    lock.unlock();
+                    if (!Scheduler::on_worker()) {
+                        job->run();
+                    }
+                    return;
+                }
                 auto finished = std::move(_finished);
                 _finished.clear();
                 auto it = _threads.emplace(_threads.end());
@@ -402,8 +426,15 @@ namespace sgcl::async {
             bool _cap_env_read = false;
         };
 
+        // The singleton: its destruction at exit ends the runtime first
+        // (scheduler.h: runtime_exit)
         inline BlockingPool& blocking_pool_instance() {
-            static BlockingPool pool;
+            struct Instance : BlockingPool {
+                ~Instance() {
+                    runtime_exit();
+                }
+            };
+            static Instance pool;
             return pool;
         }
     }
@@ -535,6 +566,9 @@ namespace sgcl::async {
 
         // The threads, the idle ones among them, the jobs waiting
         SGCL_INLINE_HOT static statistics get_statistics() {
+            if (detail::runtime_exiting()) {
+                return {};   // the end of the program: the pool joined, perhaps destroyed (scheduler.h: runtime_exit)
+            }
             return detail::blocking_pool_instance().statistics();
         }
 
@@ -543,6 +577,9 @@ namespace sgcl::async {
         // config::blocking_threads; 0 in any of them the larger of 64 and
         // four times the hardware concurrency
         SGCL_INLINE_HOT static unsigned max_threads() {
+            if (detail::runtime_exiting()) {
+                return 0;
+            }
             return detail::blocking_pool_instance().cap();
         }
 
@@ -550,22 +587,34 @@ namespace sgcl::async {
         // number stops the growth at once; threads over it exit as they
         // run out of work, after the idle time
         SGCL_INLINE_HOT static void set_threads(unsigned n) {
+            if (detail::runtime_exiting()) {
+                return;
+            }
             detail::blocking_pool_instance().set_cap(n);
         }
 
         // How long an idle thread waits for a job before it exits
         // (config::blocking_idle_milliseconds by default)
         SGCL_INLINE_HOT static void set_idle_time(duration d) {
+            if (detail::runtime_exiting()) {
+                return;
+            }
             detail::blocking_pool_instance().set_idle_time(d);
         }
 
         SGCL_INLINE_HOT static duration idle_time() {
+            if (detail::runtime_exiting()) {
+                return duration::zero();
+            }
             return detail::blocking_pool_instance().idle_time();
         }
 
         // Blocks until every job queued so far has run
         SGCL_INLINE_HOT static void wait_idle() {
             assert(!detail::on_worker() && "wait_idle() blocks the worker");
+            if (detail::runtime_exiting()) {
+                return;   // nothing queued runs any more, and a job submitted now runs on its submitter
+            }
             detail::blocking_pool_instance().wait_idle();
         }
 
@@ -575,6 +624,9 @@ namespace sgcl::async {
         // spawn_blocking starts the pool again
         SGCL_INLINE_HOT static void stop() {
             assert(!detail::on_worker() && "stop() blocks the worker");
+            if (detail::runtime_exiting()) {
+                return;   // stopped by the end of the program already
+            }
             detail::blocking_pool_instance().stop();
         }
     };

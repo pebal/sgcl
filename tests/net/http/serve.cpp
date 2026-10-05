@@ -189,6 +189,10 @@ TEST(HttpServe_Tests, TlsFromFiles) {
                                         [](net::http::request, net::http::response_writer w) { w.write("x"); });
     ASSERT_FALSE(refused);
     EXPECT_TRUE(refused.error().is_not_found());
+    // serve_tls of a config: one the server cannot take is the error before anything listens
+    auto no_identity = net::http::serve_tls("127.0.0.1:0", net::tls::config(), [](net::http::request, net::http::response_writer w) { w.write("x"); });
+    ASSERT_FALSE(no_identity);
+    EXPECT_EQ(no_identity.error().code(), std::errc::invalid_argument);
     // the config over TLS: a request answered
     net::http::server srv;
     srv.route("/", [](net::http::request req, net::http::response_writer w) { w.write("hello over " + req.proto() + "\n"); });

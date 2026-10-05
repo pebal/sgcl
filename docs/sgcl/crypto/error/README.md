@@ -10,6 +10,8 @@ namespace sgcl::crypto {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::crypto::error` is the error of the whole module: what went wrong in data it was given, in the
 [expected](../../core/expected/README.md) that a function taking such data returns — `open` of an AEAD, a key or a signature
 read from bytes, DER or PEM, a certificate chain verified. It holds a code of [errc](../errc.md), the byte of the input
@@ -27,8 +29,7 @@ system is neither: [random](../random/README.md) ends the program.
 
 ## Rules
 
-- A value: copied, compared, held in an `expected`. It holds a [string](../../core/string/README.md), so it lives where a
-  string does: on a stack, in a managed object, in a container of the library.
+- A value: copied, compared, held in an `expected`.
 - What an error says is not secret: a failed `open` of an AEAD is `errc::authentication` and nothing more, so that
   it tells nothing of which byte was wrong.
 

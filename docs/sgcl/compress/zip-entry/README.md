@@ -26,6 +26,8 @@ namespace sgcl::compress::zip {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::compress::zip::entry` is one entry of a zip archive, Go's `zip.FileHeader`: what its central directory record
 says. The [archive](../zip-archive/README.md) lists them ([entries](../zip-archive/entries.md)); the [writer](../zip-writer/README.md)'s
 [create](../zip-writer/create.md) takes one for the method, the time, the mode and the comment of a new entry.

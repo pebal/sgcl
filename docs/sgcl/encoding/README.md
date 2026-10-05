@@ -8,12 +8,13 @@
 
 What Go has in `encoding/...`: the formats data is written in when it leaves a program and read in when it comes
 back. The byte codecs — [base64](base64/README.md), [base32](base32/README.md), [hex](hex/README.md), [ascii85](ascii85/README.md),
-[pem](pem/README.md) and the binary numbers ([big_endian](big_endian/README.md), [little_endian](little_endian/README.md),
+[pem](pem/README.md), [quoted_printable](quoted_printable/README.md) and the binary numbers ([big_endian](big_endian/README.md), [little_endian](little_endian/README.md),
 [varint](varint/README.md)) — [json](json/README.md) (an immutable value, a reader of tokens and values, a writer),
 [csv](csv/README.md) (a reader, its rows, a writer), [xml](xml/README.md) (a tree that never changes, a reader of tokens, a
 writer), and the description of a program's own types by their fields, [field_list](field_list/README.md), which JSON,
-CSV and XML read and write alike. The module depends on [core](../core/README.md), [txt](../txt/README.md) (the
-character encodings an XML declaration names), [async](../async/README.md) and [io](../io/README.md) (a codec is a
+CSV and XML read and write alike; and a mail message with its MIME structure, [email](email/README.md), built,
+written and parsed. The module depends on [core](../core/README.md), [txt](../txt/README.md) (the
+character encodings an XML declaration and a mail's charset name, IDNA for a mail's domain), [time](../time/README.md) (a mail's date), [async](../async/README.md) and [io](../io/README.md) (a codec is a
 stream as well as a function); the index of the whole interface is [the modules](../README.md).
 
 The module is the namespace `sgcl::encoding`, as every module but core is a namespace of its own. Inside it every
@@ -118,6 +119,11 @@ and the path inside the structure where it has one.
 | [csv::reader](csv-reader/README.md) | `csv.h` | the records of a text or a stream one at a time, the header, a program's types by their fields |
 | [csv::row](csv-row/README.md) | `csv.h` | one record: its fields by index and by the header's name, the line and the place of each field |
 | [csv::writer](csv-writer/README.md) | `csv.h` | records into a stream, quoted where they need it, `\n` or `\r\n` |
+| [email](email/README.md) | `email.h` | a mail message (RFC 5322) with its MIME structure (RFC 2045–2049): built in one line, text, HTML, attachments, inline parts, encoded words and RFC 2231 names, written and parsed, the text, the HTML and the attachments taken out |
+| [email::address](email-address/README.md) | `email.h` | an address of mail: a display name and an addr-spec, parsed with the obsolete forms, written quoted or as encoded words |
+| [email::limits](email-limits.md) | `email.h` | what a parse takes: the bytes of a head, the nesting, the parts |
+| [email::part](email-part/README.md) | `email.h` | a part of a message's MIME tree: its head, its content, its parts, the message it holds |
+| [email::write_options](email-write_options.md) | `email.h` | how a message is written: 8bit, UTF-8 in the head, the Bcc |
 | [error](error/README.md) | `error.h` | why an input is not what its format says, the same type for every format: the code, the offset, the line and the column, the path, the error of a stream, `message()` |
 | [field](field/README.md) | `fields.h` | one field of a description: `required`, `omit_empty`, `quoted`, `names`, `tagged`, `attribute`, `text` |
 | [field_list](field_list/README.md) | `fields.h` | the description of a program's type by its fields, `describe(field_list&)`, read and written by JSON, CSV and XML alike |
@@ -135,6 +141,9 @@ and the path inside the structure where it has one.
 | [json::writer](json-writer/README.md) | `json.h` | JSON into a stream, a token or a value at a time, its structure checked |
 | [little_endian](little_endian/README.md) | `binary.h` | numbers of 16, 32 and 64 bits read, written and appended least significant byte first, Go's `binary.LittleEndian` |
 | [pem](pem/README.md) | `pem.h` | a block of RFC 7468, its type, headers and bytes: `parse`, `parse_all`, `to_string` |
+| [quoted_printable](quoted_printable/README.md) | `quoted_printable.h` | quoted-printable of RFC 2045 §6.7: text and binary forms, strict or `lenient()`, `encode`, `decode`, the streams |
+| [quoted_printable::decoder](quoted_printable-decoder/README.md) | `quoted_printable.h` | a reader of the bytes another reader's quoted-printable decodes to |
+| [quoted_printable::encoder](quoted_printable-encoder/README.md) | `quoted_printable.h` | a writer that writes the quoted-printable of what it is given to another writer |
 | [varint](varint/README.md) | `binary.h` | the variable-length integers of Go and protobuf, unsigned and zigzag-signed, from bytes and from a buffered reader |
 | [xml](xml/README.md) | `xml.h` | a node of an XML tree that never changes: `parse`, the names, attributes, children and text, `set`, `erase`, `push_back`, `to_string`; a program's types; XML 1.0 fifth edition with namespaces, no DTD, UTF-16 and 27 single-byte encodings |
 | [xml::attr](xml-attr.md) | `xml.h` | an attribute as the document writes it: its name, its value, its namespace |

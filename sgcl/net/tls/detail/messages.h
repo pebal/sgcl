@@ -1002,11 +1002,43 @@ namespace sgcl::net::tls::detail {
     }
 
     // pre_shared_key in a ClientHello (§4.2.11): its syntax, as many binders
-    // as identities; v1 offers no PSK and takes none, so nothing more
+    // as identities; the entries walked with identity() and binder()
+    struct PskIdentity {
+        Bytes identity;
+        uint32_t obfuscated_age = 0;
+    };
+
     struct PreSharedKeys {
         Bytes identities;   // the entries, each identity<1..2^16-1> and a 32-bit age
         Bytes binders;      // the entries, each binder<32..255>
         size_t count = 0;
+
+        // The i-th entry of each list (i < count; read once already: cannot fail)
+        PskIdentity identity(size_t i) const noexcept {
+            Reader r(identities);
+            PskIdentity id;
+            for (size_t k = 0; k <= i; ++k) {
+                (void)r.vec16(id.identity, 1, 0xFFFF);
+                (void)r.u32(id.obfuscated_age);
+            }
+            return id;
+        }
+
+        Bytes binder(size_t i) const noexcept {
+            Reader r(binders);
+            Bytes b;
+            for (size_t k = 0; k <= i; ++k) {
+                (void)r.vec8(b, 32, 255);
+            }
+            return b;
+        }
+
+        // The ClientHello's bytes the binders are computed over (§4.2.11.2):
+        // the message from its header up to the binders' list, its length
+        // included (`message` the whole ClientHello the extension is of)
+        SGCL_INLINE_HOT size_t truncated_size(const Bytes& message) const noexcept {
+            return size_t(binders.data() - message.data()) - 2;
+        }
     };
 
     inline expected<PreSharedKeys, Alert> read_pre_shared_keys(const Bytes& body) noexcept {
@@ -1042,6 +1074,55 @@ namespace sgcl::net::tls::detail {
     // pre_shared_key in a ServerHello: the identity chosen
     SGCL_INLINE_HOT expected<uint16_t, Alert> read_pre_shared_key_selected(const Bytes& body) noexcept {
         return read_version_selected(body);
+    }
+
+    SGCL_INLINE_HOT void write_pre_shared_key_selected(Builder& w, uint16_t identity) noexcept {
+        w.u16(identity);
+    }
+
+    // certificate_authorities (§4.2.4): the distinguished names (each the
+    // DER of an X.501 Name) of the authorities whose certificates the
+    // sender takes, walked in their order
+    struct NameDers {
+        Bytes raw;   // the entries, each DistinguishedName<1..2^16-1>
+        size_t count = 0;
+
+        template<class F>
+        void each(F&& f) const noexcept(std::is_nothrow_invocable_v<F&, const Bytes&>) {
+            Reader r(raw);
+            Bytes n;
+            while (r.vec16(n, 1, 0xFFFF)) {
+                f(n);
+            }
+        }
+    };
+
+    inline expected<NameDers, Alert> read_certificate_authorities(const Bytes& body) noexcept {
+        Reader r(body);
+        NameDers names;
+        if (!r.vec16(names.raw, 3, 0xFFFF) || !r.end()) {
+            return failed(r);
+        }
+        Reader list(names.raw, 2);
+        while (!list.empty()) {
+            Bytes n;
+            if (!list.vec16(n, 1, 0xFFFF)) {
+                return failed(list);
+            }
+            ++names.count;
+        }
+        return names;
+    }
+
+    // The names given (a range of Bytes, each 1 to 2^16 - 1 bytes, the
+    // whole at most 2^16 - 1: the caller's to keep it so)
+    template<class R>
+    void write_certificate_authorities(Builder& w, const R& names) noexcept {
+        auto list = w.block16();
+        for (const Bytes& n : names) {
+            auto one = w.block16();
+            w.bytes(n);
+        }
     }
 
     // record_size_limit (RFC 8449 §4): read for its syntax, not acted on
@@ -1157,13 +1238,19 @@ namespace sgcl::net::tls::detail {
         if (!r.u8(compression)) {
             return failed(r);
         }
+        if (m.legacy_version < Tls12) {
+            return failed(AlertDescription::protocol_version, 4, "a ServerHello of a version before TLS 1.2");
+        }
         if (m.legacy_version != Tls12) {
             return failed(AlertDescription::illegal_parameter, 4, "ServerHello.legacy_version is not 0x0303");
         }
         if (compression != 0) {
             return failed(AlertDescription::illegal_parameter, at, "a compression method other than null");
         }
-        auto x = read_extensions(r, 6, 0xFFFF);
+        if (r.empty()) {
+            return m;   // TLS 1.2: no extensions at all (RFC 5246 §7.4.1.3); 1.3's lack supported_versions then
+        }
+        auto x = read_extensions(r, 0, 0xFFFF);
         if (!x) {
             return unexpected<Alert>(x.error());
         }
@@ -1323,16 +1410,70 @@ namespace sgcl::net::tls::detail {
         return m;
     }
 
+    // CertificateStatus (RFC 6066 §8): status_type ocsp (1) and the
+    // OCSPResponse's DER, the body of TLS 1.2's message and of TLS 1.3's
+    // status_request in a CertificateEntry (RFC 8446 §4.4.2.1)
+    SGCL_INLINE_HOT void write_certificate_status(Builder& w, const Bytes& ocsp) noexcept {
+        w.u8(1);
+        auto r = w.block24();
+        w.bytes(ocsp);
+    }
+
+    // The OCSPResponse of a CertificateStatus; a status_type other than
+    // ocsp, or an empty response, decode_error
+    inline expected<Bytes, Alert> read_certificate_status(const Bytes& body) noexcept {
+        Reader r(body);
+        uint8_t type;
+        Bytes response;
+        if (!r.u8(type) || !r.vec24(response, 1, 0xFFFFFF) || !r.end()) {
+            return failed(r);
+        }
+        if (type != 1) {
+            return failed(AlertDescription::decode_error, 0, "a CertificateStatus of a status_type other than ocsp");
+        }
+        return response;
+    }
+
+    // A ClientHello's status_request (RFC 6066 §8): CertificateStatusRequest
+    // of status_type ocsp, no responder ids, no extensions
+    SGCL_INLINE_HOT void write_status_request(Builder& w) noexcept {
+        w.u8(1);
+        w.u16(0);
+        w.u16(0);
+    }
+
+    // Whether a ClientHello's status_request asks for an OCSP response
+    // (status_type ocsp; its lists read for their syntax); another
+    // status_type is passed over (false), a broken one decode_error
+    inline expected<bool, Alert> read_status_request(const Bytes& body) noexcept {
+        Reader r(body);
+        uint8_t type;
+        if (!r.u8(type)) {
+            return failed(r);
+        }
+        if (type != 1) {
+            return false;
+        }
+        Bytes ids, extensions;
+        if (!r.vec16(ids, 0, 0xFFFF) || !r.vec16(extensions, 0, 0xFFFF) || !r.end()) {
+            return failed(r);
+        }
+        return true;
+    }
+
     // The entries: a range of the DER of each certificate (no extensions),
-    // or of CertificateEntry (their extensions copied as they are)
+    // or of CertificateEntry (their extensions copied as they are). A
+    // leaf_ocsp given goes into the first entry's status_request (TLS 1.3's
+    // stapling, RFC 8446 §4.4.2.1)
     template<class R>
-    void write_certificate(Builder& w, const Bytes& context, const R& entries) noexcept {
+    void write_certificate(Builder& w, const Bytes& context, const R& entries, const Bytes& leaf_ocsp = Bytes()) noexcept {
         auto m = w.message(HandshakeType::certificate);
         {
             auto c = w.block8();
             w.bytes(context);
         }
         auto list = w.block24();
+        bool first = true;
         for (const auto& e : entries) {
             if constexpr (std::is_same_v<std::decay_t<decltype(e)>, CertificateEntry>) {
                 {
@@ -1346,8 +1487,15 @@ namespace sgcl::net::tls::detail {
                     auto d = w.block24();
                     w.bytes(e);
                 }
-                w.u16(0);
+                if (first && !leaf_ocsp.empty()) {
+                    auto x = w.block16();
+                    auto ext = w.extension(ExtensionType::status_request);
+                    write_certificate_status(w, leaf_ocsp);
+                } else {
+                    w.u16(0);
+                }
             }
+            first = false;
         }
     }
 
@@ -1404,7 +1552,8 @@ namespace sgcl::net::tls::detail {
         w.u8(request_update ? 1 : 0);
     }
 
-    // NewSessionTicket (§4.6.1): read whole, then passed over by v1
+    // NewSessionTicket (§4.6.1): a lifetime past seven days is
+    // illegal_parameter
     struct NewSessionTicket {
         uint32_t lifetime = 0;
         uint32_t age_add = 0;
@@ -1484,5 +1633,162 @@ namespace sgcl::net::tls::detail {
         Alert a{d};
         w.u8(a.fatal() ? 2 : 1);
         w.u8(uint8_t(d));
+    }
+
+    // --- the messages of the client's TLS 1.2 (RFC 5246 §7.4, RFC 8422 §5) -----
+
+    // Certificate: the certificates' DER, the end-entity first, no context
+    // and no extensions per entry (§7.4.2)
+    struct Certificate12 {
+        Bytes raw;          // the entries, each ASN.1Cert<1..2^24-1>
+        size_t count = 0;
+
+        template<class F>
+        void each(F&& f) const noexcept(std::is_nothrow_invocable_v<F&, const Bytes&>) {
+            Reader r(raw);
+            Bytes der;
+            while (r.vec24(der, 1, 0xFFFFFF)) {
+                f(der);
+            }
+        }
+    };
+
+    inline expected<Certificate12, Alert> read_certificate12(const Bytes& body) noexcept {
+        Reader r(body, 4);
+        Certificate12 m;
+        if (!r.vec24(m.raw, 0, 0xFFFFFF) || !r.end()) {
+            return failed(r);
+        }
+        Reader list(m.raw, 7);
+        while (!list.empty()) {
+            Bytes der;
+            if (!list.vec24(der, 1, 0xFFFFFF)) {
+                return failed(list);
+            }
+            ++m.count;
+        }
+        return m;
+    }
+
+    template<class R>
+    void write_certificate12(Builder& w, const R& ders) noexcept {
+        auto m = w.message(HandshakeType::certificate);
+        auto list = w.block24();
+        for (const Bytes& d : ders) {
+            auto one = w.block24();
+            w.bytes(d);
+        }
+    }
+
+    // ServerKeyExchange of ECDHE (RFC 8422 §5.4): ECParameters of a named
+    // curve, the server's point, the signature over the randoms and them
+    struct ServerKeyExchange12 {
+        Bytes params;       // curve_type, the curve and the point: what is signed after the randoms
+        uint16_t group = 0;
+        Bytes point;
+        uint16_t scheme = 0;
+        Bytes signature;
+    };
+
+    inline expected<ServerKeyExchange12, Alert> read_server_key_exchange12(const Bytes& body) noexcept {
+        Reader r(body, 4);
+        ServerKeyExchange12 m;
+        uint8_t curve_type;
+        if (!r.u8(curve_type)) {
+            return failed(r);
+        }
+        if (curve_type != 3) {
+            return failed(AlertDescription::illegal_parameter, 4, "ServerKeyExchange of a curve that is not named");
+        }
+        if (!r.u16(m.group) || !r.vec8(m.point, 1, 0xFF)) {
+            return failed(r);
+        }
+        m.params = Bytes(body.data(), size_t(m.point.data() + m.point.size() - body.data()));
+        if (!r.u16(m.scheme) || !r.vec16(m.signature, 0, 0xFFFF) || !r.end()) {
+            return failed(r);
+        }
+        return m;
+    }
+
+    // CertificateRequest (§7.4.4): the certificate types, the schemes, the
+    // authorities (DistinguishedName<1..2^16-1> each, the list possibly empty)
+    struct CertificateRequest12 {
+        Bytes types;
+        U16List schemes;
+        NameDers authorities;
+    };
+
+    inline expected<CertificateRequest12, Alert> read_certificate_request12(const Bytes& body) noexcept {
+        Reader r(body, 4);
+        CertificateRequest12 m;
+        if (!r.vec8(m.types, 1, 0xFF)) {
+            return failed(r);
+        }
+        auto schemes = read_u16_list(r, 2, 2, 0xFFFE);
+        if (!schemes) {
+            return unexpected<Alert>(schemes.error());
+        }
+        m.schemes = *schemes;
+        if (!r.vec16(m.authorities.raw, 0, 0xFFFF) || !r.end()) {
+            return failed(r);
+        }
+        Reader list(m.authorities.raw);
+        while (!list.empty()) {
+            Bytes n;
+            if (!list.vec16(n, 1, 0xFFFF)) {
+                return failed(list);
+            }
+            ++m.authorities.count;
+        }
+        return m;
+    }
+
+    // ServerHelloDone (§7.4.5): empty
+    SGCL_INLINE_HOT expected<void, Alert> read_server_hello_done(const Bytes& body) noexcept {
+        if (!body.empty()) {
+            return failed(AlertDescription::decode_error, 4, "ServerHelloDone with a body");
+        }
+        return {};
+    }
+
+    // ClientKeyExchange of ECDHE (RFC 8422 §5.7): the client's point
+    SGCL_INLINE_HOT void write_client_key_exchange12(Builder& w, const Bytes& point) noexcept {
+        auto m = w.message(HandshakeType::client_key_exchange);
+        auto p = w.block8();
+        w.bytes(point);
+    }
+
+    // NewSessionTicket of TLS 1.2 (RFC 5077 §3.3): the lifetime hint in
+    // seconds (0: not given), the ticket (empty: none issued)
+    struct NewSessionTicket12 {
+        uint32_t lifetime_hint = 0;
+        Bytes ticket;
+    };
+
+    inline expected<NewSessionTicket12, Alert> read_new_session_ticket12(const Bytes& body) noexcept {
+        Reader r(body, 4);
+        NewSessionTicket12 m;
+        if (!r.u32(m.lifetime_hint) || !r.vec16(m.ticket, 0, 0xFFFF) || !r.end()) {
+            return failed(r);
+        }
+        return m;
+    }
+
+    SGCL_INLINE_HOT void write_new_session_ticket12(Builder& w, uint32_t lifetime_hint, const Bytes& ticket) noexcept {
+        auto m = w.message(HandshakeType::new_session_ticket);
+        w.u32(lifetime_hint);
+        auto t = w.block16();
+        w.bytes(ticket);
+    }
+
+    // ec_point_formats (RFC 8422 §5.1.2): the formats, uncompressed (0)
+    // among them
+    SGCL_INLINE_HOT expected<Bytes, Alert> read_point_formats(const Bytes& body) noexcept {
+        Reader r(body);
+        Bytes f;
+        if (!r.vec8(f, 1, 0xFF) || !r.end()) {
+            return failed(r);
+        }
+        return f;
     }
 }

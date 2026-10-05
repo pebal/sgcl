@@ -10,6 +10,8 @@ namespace sgcl {
 }
 ```
 
+**Requires [rooted](../rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::runes` is the code points of a UTF-8 text, decoded as they are walked: what `runes()` of a
 [string](../string/README.md) or of a text [slice](../slice/README.md) returns, and what Go's `for i, r := range s` walks. It is a forward
 range of `char32_t` over a slice of the text, which holds the text's object for as long as the range lives, so
@@ -23,8 +25,6 @@ goes back to the bytes. The range is a range of the library ([mixin::enumerable]
 
 ## Rules
 
-- A `runes` holds a slice, so it lives where a `tracked_ptr` may: on a stack or inside a managed object
-  ([The rules](../README.md#the-rules), 1).
 - The text is read as it is when the walk reaches it: a range over a string reads an immutable text; a range over a
   slice of a buffer reads what the buffer holds at that moment, as the slice does.
 - An iterator refers to the text, not to the range: it is valid while the text's object lives, which the range and

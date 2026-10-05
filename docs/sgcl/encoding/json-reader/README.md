@@ -13,6 +13,8 @@ namespace sgcl::encoding {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::encoding::json::reader` reads JSON piece by piece, from a text in memory or from a stream a block at a
 time: the [tokens](../json-token/README.md) one after another ([next](next.md)), whether the array or the object
 open has another element ([more](more.md)), the next value whole as a [json](../json/README.md) or as a type of
@@ -50,9 +52,8 @@ follows it.
 - **A value read whole is gathered in the block first**, its end found by counting its brackets outside its
   strings, and then parsed as [json::parse](../json/parse.md) parses a text: a value read whole needs the memory of
   its text once, as it needs the memory of the tree anyway.
-- **A reader is neither copied nor moved.** It holds the text or the stream (an `io::reader`, which holds what it
-  was made of), the block and the brackets open, and lives where it is used: on a thread's stack or in a task's
-  frame.
+- **A reader is neither copied nor moved.** It holds the text or the stream (an `io::reader`, which holds what it was
+  made of), the block and the brackets open.
 
 ### From code written for Go
 

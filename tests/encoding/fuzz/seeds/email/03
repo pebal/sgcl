@@ -1,0 +1,8 @@
+From: a@example.com
+To: b@example.com
+Subject: Latin-1 body
+Content-Type: text/plain; charset="iso-8859-1"
+Content-Transfer-Encoding: 8bit
+MIME-Version: 1.0
+
+Café crème, naïve façade.

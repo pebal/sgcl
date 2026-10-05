@@ -16,7 +16,14 @@
 //     authority, an IP address);
 //   - Go's crypto/tls (tools/tls_oracle.go, built here with `go build`):
 //     the same matrix, the cipher suite chosen by the client's offer
-//     (Go's TLS 1.3 suites are not configurable), ALPN.
+//     (Go's TLS 1.3 suites are not configurable), ALPN;
+//   - resumption and client certificates both ways with each: Go's tickets
+//     resumed by our client and ours by Go's ClientSessionCache, s_server's
+//     by our client and ours by s_client's -sess_out/-sess_in; a client
+//     certificate of ours verified by Go (RequireAndVerifyClientCert) and by
+//     s_server (-Verify), Go's and s_client's (-cert) by our server, a
+//     missing one refused with certificate_required, and a resumed session
+//     that keeps the client's chain.
 //
 // A test whose program is not on this machine is skipped with the reason.
 // The certificates are tests/net/tls_testdata (tools/tls_testdata.sh).
@@ -536,6 +543,8 @@ namespace {
         tls::cipher cipher;
         tls::group group;
         std::string server_name, alpn;
+        bool resumed = false;
+        std::string peer;   // the client's leaf's common name, empty: none
     };
 
     struct Served {
@@ -556,7 +565,8 @@ namespace {
             return;
         }
         if (auto st = tls::state_of(*c)) {
-            out.state = Seen{st->cipher, st->group, std::string(st->server_name.view()), std::string(st->alpn.view())};
+            out.state = Seen{st->cipher, st->group, std::string(st->server_name.view()), std::string(st->alpn.view()), st->resumed,
+                             st->peer_certificates.empty() ? std::string() : std::string(st->peer_certificates[0].subject().common_name().view())};
         }
         auto line = c->read_line();
         if (!line || !line->has_value()) {
@@ -949,4 +959,687 @@ TEST(TlsInterop, CopyOfAFileOverTls) {
         EXPECT_TRUE(got == content.substr(777));
     }
     std::filesystem::remove(path);
+}
+
+// --- resumption and client certificates ------------------------------------------
+
+namespace {
+    // A Go server of these arguments, its address once it listens
+    std::string go_address(Child& go) {
+        std::string s = go.wait_for("LISTEN ");
+        auto at = s.find("LISTEN ");
+        if (at == std::string::npos) {
+            return "";
+        }
+        return "127.0.0.1:" + s.substr(at + 7, s.find('\n', at) - at - 7);
+    }
+
+    sgcl::vector<sgcl::string> args(std::initializer_list<std::string> a) {
+        sgcl::vector<sgcl::string> v;
+        for (auto& x : a) {
+            v.push_back(sgcl::string(x));
+        }
+        return v;
+    }
+
+    size_t count(const std::string& text, const std::string& what) {
+        size_t n = 0;
+        for (size_t at = text.find(what); at != std::string::npos; at = text.find(what, at + 1)) {
+            ++n;
+        }
+        return n;
+    }
+}
+
+TEST(TlsInterop, GoServerResumesOurClient) {
+    if (go_path().empty()) {
+        GTEST_SKIP() << "no go (Go's crypto/tls is the oracle)";
+    }
+    ASSERT_FALSE(go_oracle().empty());
+    Child go(go_oracle(), args({"-cert", testdata() + "ecdsa.pem", "-key", testdata() + "ecdsa.key", "-n", "2"}));
+    ASSERT_TRUE(go.start());
+    const std::string address = go_address(go);
+    ASSERT_FALSE(address.empty()) << slurp(go.log);
+    tls::config cfg = trusted();
+    cfg.session_cache = tls::session_cache();
+    for (int i = 0; i < 2; ++i) {
+        auto c = tls::connect(sgcl::string(address), cfg);
+        ASSERT_TRUE(c.has_value()) << std::string(c.error().message().view());
+        EXPECT_EQ(tls::state_of(*c)->resumed, i == 1);
+        echo(*c, "hello go");   // the ticket comes before the answer
+        EXPECT_TRUE(c->async_close().wait().has_value());
+        if (i == 0) {
+            EXPECT_EQ(cfg.session_cache->size(), 1u);
+            ASSERT_FALSE(go.wait_for("CLOSE_NOTIFY").empty()) << slurp(go.log);
+        }
+    }
+    std::string out = go.wait_for("resumed=true");
+    EXPECT_NE(out.find("resumed=false"), std::string::npos) << out;
+    EXPECT_NE(out.find("resumed=true"), std::string::npos) << out;
+}
+
+TEST(TlsInterop, GoClientResumesOurServer) {
+    if (go_path().empty()) {
+        GTEST_SKIP() << "no go (Go's crypto/tls is the oracle)";
+    }
+    ASSERT_FALSE(go_oracle().empty());
+    auto l = net::tcp::listen("127.0.0.1:0");
+    ASSERT_TRUE(l.has_value());
+    tls::config scfg = server_config("ecdsa");
+    Served first, second;
+    std::thread server([&] {
+        serve_one(*l, scfg, first);
+        serve_one(*l, scfg, second);
+    });
+    Child go(go_oracle(), args({"-connect", address_of(*l), "-ca", testdata() + "ca.pem", "-n", "2"}));
+    ASSERT_TRUE(go.start());
+    std::string out = go.wait_for("CLOSED");
+    server.join();
+    (void)l->close();
+    EXPECT_EQ(count(out, "GOT og olleh"), 2u) << out;
+    EXPECT_NE(out.find("resumed=false"), std::string::npos) << out;
+    EXPECT_NE(out.find("resumed=true"), std::string::npos) << out;
+    ASSERT_TRUE(first.state && second.state) << first.error << " / " << second.error;
+    EXPECT_FALSE(first.state->resumed);
+    EXPECT_TRUE(second.state->resumed);
+}
+
+TEST(TlsInterop, GoServerAsksOurClientForACertificate) {
+    if (go_path().empty()) {
+        GTEST_SKIP() << "no go (Go's crypto/tls is the oracle)";
+    }
+    ASSERT_FALSE(go_oracle().empty());
+    for (const char* kind : {"client_ecdsa", "client_ed25519", "client_rsa", ""}) {
+        SCOPED_TRACE(kind);
+        Child go(go_oracle(), args({"-cert", testdata() + "ecdsa.pem", "-key", testdata() + "ecdsa.key", "-clientauth", "require", "-clientca", testdata() + "ca.pem"}));
+        ASSERT_TRUE(go.start());
+        const std::string address = go_address(go);
+        ASSERT_FALSE(address.empty()) << slurp(go.log);
+        tls::config cfg = trusted();
+        if (*kind) {
+            cfg.identities = {identity_of(kind)};
+        }
+        auto c = tls::connect(sgcl::string(address), cfg);
+        ASSERT_TRUE(c.has_value()) << std::string(c.error().message().view());
+        if (*kind) {
+            echo(*c, "hello go");
+            std::string out = go.wait_for("STATE ");
+            EXPECT_NE(out.find(std::string("peer=sgcl_test_client_") + (kind + 7)), std::string::npos) << out;
+        } else {
+            // the handshake is ours before Go reads the empty Certificate: the first read has the alert
+            (void)c->write(sgcl::string("hello go\n"));
+            auto r = c->read_line();
+            ASSERT_FALSE(r.has_value());
+            EXPECT_EQ(std::string(r.error().message().view()).find("remote error: tls: certificate required") != std::string::npos, true)
+                << std::string(r.error().message().view());
+            EXPECT_FALSE(go.wait_for("ERROR").empty()) << slurp(go.log);
+        }
+        (void)c->close();
+    }
+}
+
+TEST(TlsInterop, GoClientCertificateToOurServer) {
+    if (go_path().empty()) {
+        GTEST_SKIP() << "no go (Go's crypto/tls is the oracle)";
+    }
+    ASSERT_FALSE(go_oracle().empty());
+    auto l = net::tcp::listen("127.0.0.1:0");
+    ASSERT_TRUE(l.has_value());
+    tls::config scfg = server_config("ecdsa");
+    scfg.client_auth = tls::client_auth::require;
+    scfg.client_roots = crypto::x509::certificate_pool::from_pem(sgcl::string(slurp(testdata() + "ca.pem")));
+    Served first, second;
+    std::thread server([&] {
+        serve_one(*l, scfg, first);
+        serve_one(*l, scfg, second);
+    });
+    Child go(go_oracle(), args({"-connect", address_of(*l), "-ca", testdata() + "ca.pem", "-cert", testdata() + "client_rsa.pem", "-key", testdata() + "client_rsa.key", "-n", "2"}));
+    ASSERT_TRUE(go.start());
+    std::string out = go.wait_for("CLOSED");
+    server.join();
+    (void)l->close();
+    EXPECT_EQ(count(out, "GOT og olleh"), 2u) << out;
+    ASSERT_TRUE(first.state && second.state) << first.error << " / " << second.error;
+    EXPECT_EQ(first.state->peer, "sgcl test client rsa");
+    EXPECT_FALSE(first.state->resumed);
+    // the session resumed keeps the client's chain
+    EXPECT_TRUE(second.state->resumed);
+    EXPECT_EQ(second.state->peer, "sgcl test client rsa");
+}
+
+TEST(TlsInterop, OpenSslServerResumesOurClient) {
+    if (openssl_path().empty()) {
+        GTEST_SKIP() << "no OpenSSL";
+    }
+    const uint16_t port = free_port();
+    Child s(openssl_path(), args({"s_server", "-accept", "127.0.0.1:" + std::to_string(port), "-cert", testdata() + "ecdsa.pem", "-key", testdata() + "ecdsa.key",
+                                  "-tls1_3", "-naccept", "2", "-rev"}));
+    ASSERT_TRUE(s.start());
+    ASSERT_FALSE(s.wait_for("ACCEPT").empty()) << slurp(s.log);
+    tls::config cfg = trusted();
+    cfg.session_cache = tls::session_cache();
+    for (int i = 0; i < 2; ++i) {
+        auto c = tls::connect(sgcl::string("127.0.0.1:" + std::to_string(port)), cfg);
+        ASSERT_TRUE(c.has_value()) << std::string(c.error().message().view());
+        EXPECT_EQ(tls::state_of(*c)->resumed, i == 1);
+        echo(*c, "hello openssl");
+        if (i == 0) {
+            EXPECT_EQ(cfg.session_cache->size(), 2u);   // s_server sends two tickets
+        }
+        EXPECT_TRUE(c->async_close().wait().has_value());
+    }
+}
+
+TEST(TlsInterop, OpenSslClientResumesOurServer) {
+    if (openssl_path().empty()) {
+        GTEST_SKIP() << "no OpenSSL";
+    }
+    auto l = net::tcp::listen("127.0.0.1:0");
+    ASSERT_TRUE(l.has_value());
+    tls::config scfg = server_config("ecdsa");
+    const std::string session = scratch() + "/session.pem";
+    for (int i = 0; i < 2; ++i) {
+        SCOPED_TRACE(i);
+        Served served;
+        std::thread server([&] { serve_one(*l, scfg, served); });
+        Child s(openssl_path(), s_client_args(address_of(*l), {i == 0 ? "-sess_out" : "-sess_in", session}));
+        auto in = s.cmd.stdin_pipe();
+        ASSERT_TRUE(in.has_value());
+        ASSERT_TRUE(s.start());
+        ASSERT_TRUE(in->write(sgcl::string("hello from openssl\n")).has_value());
+        std::string out = s.wait_for("lssnepo morf olleh");
+        (void)in->close();
+        server.join();
+        s.finish();
+        out = slurp(s.log);
+        ASSERT_TRUE(served.state.has_value()) << served.error << out;
+        EXPECT_EQ(served.state->resumed, i == 1);
+        EXPECT_NE(out.find(i == 0 ? "New, TLSv1.3" : "Reused, TLSv1.3"), std::string::npos) << out;
+    }
+    (void)l->close();
+}
+
+TEST(TlsInterop, OpenSslServerVerifiesOurClientCertificate) {
+    if (openssl_path().empty()) {
+        GTEST_SKIP() << "no OpenSSL";
+    }
+    for (const char* kind : {"client_ecdsa", ""}) {
+        SCOPED_TRACE(kind);
+        const uint16_t port = free_port();
+        Child s(openssl_path(), args({"s_server", "-accept", "127.0.0.1:" + std::to_string(port), "-cert", testdata() + "ecdsa.pem", "-key", testdata() + "ecdsa.key",
+                                      "-tls1_3", "-naccept", "1", "-rev", "-Verify", "1", "-CAfile", testdata() + "ca.pem", "-verify_return_error"}));
+        ASSERT_TRUE(s.start());
+        ASSERT_FALSE(s.wait_for("ACCEPT").empty()) << slurp(s.log);
+        tls::config cfg = trusted();
+        if (*kind) {
+            cfg.identities = {identity_of(kind)};
+        }
+        auto c = tls::connect(sgcl::string("127.0.0.1:" + std::to_string(port)), cfg);
+        ASSERT_TRUE(c.has_value()) << std::string(c.error().message().view());
+        if (*kind) {
+            echo(*c, "hello openssl");
+            std::string out = slurp(s.log);
+            EXPECT_NE(out.find("CN=sgcl test client ecdsa"), std::string::npos) << out;
+        } else {
+            (void)c->write(sgcl::string("hello\n"));
+            auto r = c->read_line();
+            ASSERT_FALSE(r.has_value());
+            EXPECT_NE(std::string(r.error().message().view()).find("remote error: tls: certificate required"), std::string::npos) << std::string(r.error().message().view());
+        }
+        (void)c->close();
+    }
+}
+
+TEST(TlsInterop, OpenSslClientCertificateToOurServer) {
+    if (openssl_path().empty()) {
+        GTEST_SKIP() << "no OpenSSL";
+    }
+    for (const char* kind : {"client_ed25519", "client_rsa"}) {
+        SCOPED_TRACE(kind);
+        auto l = net::tcp::listen("127.0.0.1:0");
+        ASSERT_TRUE(l.has_value());
+        tls::config scfg = server_config("ecdsa");
+        scfg.client_auth = tls::client_auth::require;
+        scfg.client_roots = crypto::x509::certificate_pool::from_pem(sgcl::string(slurp(testdata() + "ca.pem")));
+        Served served;
+        std::thread server([&] { serve_one(*l, scfg, served); });
+        Child s(openssl_path(), s_client_args(address_of(*l), {"-cert", testdata() + kind + ".pem", "-key", testdata() + kind + ".key"}));
+        auto in = s.cmd.stdin_pipe();
+        ASSERT_TRUE(in.has_value());
+        ASSERT_TRUE(s.start());
+        ASSERT_TRUE(in->write(sgcl::string("hello from openssl\n")).has_value());
+        std::string out = s.wait_for("lssnepo morf olleh");
+        (void)in->close();
+        server.join();
+        (void)l->close();
+        EXPECT_FALSE(out.empty()) << slurp(s.log);
+        ASSERT_TRUE(served.state.has_value()) << served.error;
+        EXPECT_EQ(served.state->peer, std::string("sgcl test client ") + (kind + 7));
+    }
+}
+
+// --- TLS 1.2: the client against servers without 1.3 ---------------------------------
+//
+// Go's crypto/tls with MaxVersion 1.2 (tools/tls_oracle.go -tls12) and
+// OpenSSL's s_server -tls1_2: every suite of each kind of leaf × every
+// curve, the state's version and suite, lines both ways and close_notify;
+// the signature schemes of 1.2 (PKCS #1 v1.5, ECDSA with SHA-384 on P-256);
+// ALPN h2 over 1.2 (RFC 7540 §9.2: ECDHE and an AEAD, which every suite
+// here is); client certificates; a client that requires 1.3 refused; and
+// our server, 1.3 alone, refusing a 1.2 client.
+
+namespace {
+    // The 1.2 suites of a leaf: ECDHE_ECDSA for ECDSA and Ed25519, ECDHE_RSA for RSA
+    std::vector<tls::cipher> suites12_of(const std::string& leaf) {
+        if (leaf == "rsa") {
+            return {tls::cipher::ecdhe_rsa_aes_128_gcm_sha256, tls::cipher::ecdhe_rsa_aes_256_gcm_sha384, tls::cipher::ecdhe_rsa_chacha20_poly1305_sha256};
+        }
+        return {tls::cipher::ecdhe_ecdsa_aes_128_gcm_sha256, tls::cipher::ecdhe_ecdsa_aes_256_gcm_sha384, tls::cipher::ecdhe_ecdsa_chacha20_poly1305_sha256};
+    }
+
+    const char* openssl_name12(tls::cipher c) {
+        switch (c) {
+            case tls::cipher::ecdhe_ecdsa_aes_128_gcm_sha256: return "ECDHE-ECDSA-AES128-GCM-SHA256";
+            case tls::cipher::ecdhe_ecdsa_aes_256_gcm_sha384: return "ECDHE-ECDSA-AES256-GCM-SHA384";
+            case tls::cipher::ecdhe_ecdsa_chacha20_poly1305_sha256: return "ECDHE-ECDSA-CHACHA20-POLY1305";
+            case tls::cipher::ecdhe_rsa_aes_128_gcm_sha256: return "ECDHE-RSA-AES128-GCM-SHA256";
+            case tls::cipher::ecdhe_rsa_aes_256_gcm_sha384: return "ECDHE-RSA-AES256-GCM-SHA384";
+            case tls::cipher::ecdhe_rsa_chacha20_poly1305_sha256: return "ECDHE-RSA-CHACHA20-POLY1305";
+            default: return "";
+        }
+    }
+
+    constexpr tls::group groups12[] = {tls::group::x25519, tls::group::secp256r1, tls::group::secp384r1};
+
+    // An s_server of TLS 1.2 alone for one connection, the extra arguments given
+    struct SServer12 : Child {
+        uint16_t port;
+
+        SServer12(const std::string& leaf, std::vector<std::string> extra, uint16_t p = free_port())
+        : Child(openssl_path(), [&] {
+            sgcl::vector<sgcl::string> a = {sgcl::string("s_server"), sgcl::string("-accept"), sgcl::string("127.0.0.1:" + std::to_string(p)),
+                                            sgcl::string("-cert"), sgcl::string(testdata() + leaf + ".pem"), sgcl::string("-key"), sgcl::string(testdata() + leaf + ".key"),
+                                            sgcl::string("-tls1_2"), sgcl::string("-naccept"), sgcl::string("1"), sgcl::string("-rev")};
+            for (auto& e : extra) {
+                a.push_back(sgcl::string(e));
+            }
+            return a;
+        }())
+        , port(p) {
+        }
+
+        std::string address() const {
+            return "127.0.0.1:" + std::to_string(port);
+        }
+    };
+}
+
+TEST(TlsInterop, Tls12GoMatrix) {
+    if (go_path().empty()) {
+        GTEST_SKIP() << "no go (Go's crypto/tls is the oracle)";
+    }
+    ASSERT_FALSE(go_oracle().empty());
+    size_t n = 0;
+    for (const char* leaf : leaves) {
+        for (auto c : suites12_of(leaf)) {
+            for (auto g : groups12) {
+                SCOPED_TRACE(std::string(leaf) + " " + std::to_string(int(c)) + " " + group_name(g));
+                Child go(go_oracle(), {sgcl::string("-cert"), sgcl::string(testdata() + leaf + ".pem"), sgcl::string("-key"), sgcl::string(testdata() + leaf + ".key"),
+                                       sgcl::string("-tls12"), sgcl::string("-ciphers"), sgcl::string(std::to_string(int(c))), sgcl::string("-curves"), sgcl::string(std::to_string(int(g)))});
+                ASSERT_TRUE(go.start());
+                std::string address = go_address(go);
+                ASSERT_FALSE(address.empty()) << slurp(go.log);
+                auto conn = tls::connect(sgcl::string(address), trusted());
+                ASSERT_TRUE(conn.has_value()) << std::string(conn.error().message().view());
+                auto st = tls::state_of(*conn);
+                EXPECT_EQ(st->version, tls::version::tls12);
+                EXPECT_EQ(st->cipher, c);
+                EXPECT_EQ(st->group, g);
+                echo(*conn, "hello go 1.2");
+                conn->set_max_line(1 << 20);
+                echo(*conn, std::string(200000, 'x') + "y");   // records of 2^14 bytes both ways
+                EXPECT_TRUE(conn->async_close().wait().has_value());
+                std::string out = go.wait_for("CLOSE_NOTIFY");
+                EXPECT_NE(out.find("STATE " + std::to_string(int(c)) + " " + std::to_string(int(g)) + " "), std::string::npos) << out;
+                EXPECT_NE(out.find("version=303"), std::string::npos) << out;
+                ++n;
+            }
+        }
+    }
+    EXPECT_EQ(n, 27u);
+}
+
+TEST(TlsInterop, Tls12OpenSslMatrix) {
+    if (openssl_path().empty()) {
+        GTEST_SKIP() << "no OpenSSL";
+    }
+    size_t n = 0;
+    for (const char* leaf : leaves) {
+        for (auto c : suites12_of(leaf)) {
+            for (auto g : groups12) {
+                SCOPED_TRACE(std::string(leaf) + " " + openssl_name12(c) + " " + group_name(g));
+                SServer12 s(leaf, {"-cipher", openssl_name12(c), "-groups", group_name(g)});
+                ASSERT_TRUE(s.start());
+                ASSERT_FALSE(s.wait_for("ACCEPT").empty()) << slurp(s.log);
+                auto conn = tls::connect(sgcl::string(s.address()), trusted());
+                ASSERT_TRUE(conn.has_value()) << std::string(conn.error().message().view());
+                auto st = tls::state_of(*conn);
+                EXPECT_EQ(st->version, tls::version::tls12);
+                EXPECT_EQ(st->cipher, c);
+                EXPECT_EQ(st->group, g);
+                echo(*conn, "hello openssl 1.2");
+                echo(*conn, std::string(16000, 'x') + "y");   // s_server -rev answers 16 KB a line at most
+                (void)conn->close();
+                ++n;
+            }
+        }
+    }
+    EXPECT_EQ(n, 27u);
+}
+
+// The schemes of 1.2 OpenSSL signs its ServerKeyExchange with when told:
+// PKCS #1 v1.5, PSS, and ECDSA with SHA-384 on a P-256 key
+TEST(TlsInterop, Tls12SignatureSchemes) {
+    if (openssl_path().empty()) {
+        GTEST_SKIP() << "no OpenSSL";
+    }
+    struct Case {
+        const char *leaf, *sigalgs;
+    };
+    for (Case c : {Case{"rsa", "RSA+SHA256"}, Case{"rsa", "RSA+SHA512"}, Case{"rsa", "rsa_pss_rsae_sha384"}, Case{"ecdsa", "ECDSA+SHA384"}, Case{"ecdsa", "ECDSA+SHA256"}, Case{"ed25519", "ed25519"}}) {
+        SCOPED_TRACE(std::string(c.leaf) + " " + c.sigalgs);
+        SServer12 s(c.leaf, {"-sigalgs", c.sigalgs});
+        ASSERT_TRUE(s.start());
+        ASSERT_FALSE(s.wait_for("ACCEPT").empty()) << slurp(s.log);
+        auto conn = tls::connect(sgcl::string(s.address()), trusted());
+        ASSERT_TRUE(conn.has_value()) << std::string(conn.error().message().view());
+        EXPECT_EQ(tls::state_of(*conn)->version, tls::version::tls12);
+        echo(*conn, "schemes");
+        (void)conn->close();
+    }
+}
+
+TEST(TlsInterop, Tls12AlpnH2) {
+    if (go_path().empty()) {
+        GTEST_SKIP() << "no go (Go's crypto/tls is the oracle)";
+    }
+    ASSERT_FALSE(go_oracle().empty());
+    Child go(go_oracle(), {sgcl::string("-cert"), sgcl::string(testdata() + "ecdsa.pem"), sgcl::string("-key"), sgcl::string(testdata() + "ecdsa.key"),
+                           sgcl::string("-tls12"), sgcl::string("-alpn"), sgcl::string("h2,http/1.1")});
+    ASSERT_TRUE(go.start());
+    std::string address = go_address(go);
+    ASSERT_FALSE(address.empty()) << slurp(go.log);
+    tls::config cfg = trusted();
+    cfg.alpn = {sgcl::string("h2"), sgcl::string("http/1.1")};
+    auto conn = tls::connect(sgcl::string(address), cfg);
+    ASSERT_TRUE(conn.has_value()) << std::string(conn.error().message().view());
+    EXPECT_EQ(tls::state_of(*conn)->alpn, "h2");
+    EXPECT_EQ(tls::state_of(*conn)->version, tls::version::tls12);
+    echo(*conn, "h2 over 1.2");
+    (void)conn->async_close().wait();
+}
+
+TEST(TlsInterop, Tls12ClientCertificates) {
+    if (go_path().empty() || openssl_path().empty()) {
+        GTEST_SKIP() << "no go or no OpenSSL";
+    }
+    ASSERT_FALSE(go_oracle().empty());
+    for (const char* kind : {"client_ecdsa", "client_ed25519", "client_rsa"}) {
+        SCOPED_TRACE(kind);
+        Child go(go_oracle(), args({"-cert", testdata() + "ecdsa.pem", "-key", testdata() + "ecdsa.key", "-tls12", "-clientauth", "require", "-clientca", testdata() + "ca.pem"}));
+        ASSERT_TRUE(go.start());
+        const std::string address = go_address(go);
+        ASSERT_FALSE(address.empty()) << slurp(go.log);
+        tls::config cfg = trusted();
+        cfg.identities = {identity_of(kind)};
+        auto c = tls::connect(sgcl::string(address), cfg);
+        ASSERT_TRUE(c.has_value()) << std::string(c.error().message().view());
+        echo(*c, "hello go");
+        std::string out = go.wait_for("STATE ");
+        EXPECT_NE(out.find(std::string("peer=sgcl_test_client_") + (kind + 7)), std::string::npos) << out;
+        EXPECT_NE(out.find("version=303"), std::string::npos) << out;
+        (void)c->close();
+    }
+    // OpenSSL asking for PKCS #1 v1.5 alone from an RSA client, and ECDSA
+    for (const char* kind : {"client_rsa", "client_ecdsa"}) {
+        SCOPED_TRACE(kind);
+        SServer12 s("ecdsa", {"-Verify", "1", "-CAfile", testdata() + "ca.pem", "-verify_return_error", "-client_sigalgs", "RSA+SHA256:ECDSA+SHA256"});
+        ASSERT_TRUE(s.start());
+        ASSERT_FALSE(s.wait_for("ACCEPT").empty()) << slurp(s.log);
+        tls::config cfg = trusted();
+        cfg.identities = {identity_of(kind)};
+        auto c = tls::connect(sgcl::string(s.address()), cfg);
+        ASSERT_TRUE(c.has_value()) << std::string(c.error().message().view());
+        echo(*c, "hello openssl");
+        std::string out = slurp(s.log);
+        EXPECT_NE(out.find(std::string("CN=sgcl test client ") + (kind + 7)), std::string::npos) << out;
+        (void)c->close();
+    }
+    // none sent where one is required: the server's alert at the end of the handshake
+    Child go(go_oracle(), args({"-cert", testdata() + "ecdsa.pem", "-key", testdata() + "ecdsa.key", "-tls12", "-clientauth", "require", "-clientca", testdata() + "ca.pem"}));
+    ASSERT_TRUE(go.start());
+    const std::string address = go_address(go);
+    auto c = tls::connect(sgcl::string(address), trusted());
+    EXPECT_FALSE(c.has_value());   // in 1.2 the server's Finished never comes
+    if (!c) {
+        EXPECT_TRUE(tls::is_remote(c.error())) << std::string(c.error().message().view());
+    }
+}
+
+// min_version 1.3 against a server of 1.2: the server's alert before its
+// hello; max_version 1.2 against a server of both: 1.2
+TEST(TlsInterop, Tls12VersionSettings) {
+    if (go_path().empty()) {
+        GTEST_SKIP() << "no go (Go's crypto/tls is the oracle)";
+    }
+    ASSERT_FALSE(go_oracle().empty());
+    {
+        Child go(go_oracle(), args({"-cert", testdata() + "ecdsa.pem", "-key", testdata() + "ecdsa.key", "-tls12"}));
+        ASSERT_TRUE(go.start());
+        const std::string address = go_address(go);
+        tls::config cfg = trusted();
+        cfg.min_version = tls::version::tls13;
+        auto c = tls::connect(sgcl::string(address), cfg);
+        ASSERT_FALSE(c.has_value());
+        EXPECT_NE(std::string(c.error().message().view()).find("protocol version"), std::string::npos) << std::string(c.error().message().view());
+    }
+    {
+        // the oracle's server without -tls12 takes 1.3 alone (MinVersion 1.3)
+        Child go(go_oracle(), args({"-cert", testdata() + "ecdsa.pem", "-key", testdata() + "ecdsa.key"}));
+        ASSERT_TRUE(go.start());
+        const std::string address = go_address(go);
+        tls::config cfg = trusted();
+        cfg.max_version = tls::version::tls12;
+        auto c = tls::connect(sgcl::string(address), cfg);
+        ASSERT_FALSE(c.has_value());
+        EXPECT_NE(std::string(c.error().message().view()).find("protocol version"), std::string::npos) << std::string(c.error().message().view());
+    }
+    // OpenSSL of both versions, the client limited to 1.2: 1.2 (its sentinel, sent, is not checked by a client of 1.2 alone)
+    if (!openssl_path().empty()) {
+        const uint16_t port = free_port();
+        Child s(openssl_path(), args({"s_server", "-accept", "127.0.0.1:" + std::to_string(port), "-cert", testdata() + "ecdsa.pem", "-key", testdata() + "ecdsa.key", "-naccept", "1", "-rev"}));
+        ASSERT_TRUE(s.start());
+        ASSERT_FALSE(s.wait_for("ACCEPT").empty());
+        tls::config cfg = trusted();
+        cfg.max_version = tls::version::tls12;
+        auto c = tls::connect(sgcl::string("127.0.0.1:" + std::to_string(port)), cfg);
+        ASSERT_TRUE(c.has_value()) << std::string(c.error().message().view());
+        EXPECT_EQ(tls::state_of(*c)->version, tls::version::tls12);
+        echo(*c, "both");
+        (void)c->close();
+    }
+}
+
+// Our server speaks 1.3 alone: Go's client of 1.2 is refused with
+// protocol_version. (The downgrade sentinel, which a real server sends only
+// when something between strips 1.3 from the hello, is tested at the level
+// of messages, tls12_client.cpp.)
+TEST(TlsInterop, Tls12ClientToOurServer) {
+    if (go_path().empty()) {
+        GTEST_SKIP() << "no go (Go's crypto/tls is the oracle)";
+    }
+    ASSERT_FALSE(go_oracle().empty());
+    auto l = net::tcp::listen("127.0.0.1:0");
+    ASSERT_TRUE(l.has_value());
+    tls::config scfg = server_config("ecdsa");
+    Served served;
+    std::thread server([&] { serve_one(*l, scfg, served); });
+    Child go(go_oracle(), args({"-connect", address_of(*l), "-ca", testdata() + "ca.pem", "-tls12"}));
+    ASSERT_TRUE(go.start());
+    std::string out = go.wait_for("ERROR");
+    server.join();
+    (void)l->close();
+    EXPECT_NE(out.find("protocol version"), std::string::npos) << out;
+    EXPECT_NE(served.error.find("protocol version"), std::string::npos) << served.error;
+}
+
+// --- TLS 1.2 resumption: the client's session_cache against servers of 1.2 -----------
+//
+// Go's crypto/tls of 1.2 alone resumes by ticket (it has no session-id
+// cache); OpenSSL's s_server -tls1_2 by ticket and, with -no_ticket, by
+// session id. Each: the first connection a full handshake, the next ones
+// resumed (the session kept again after each), the state's version,
+// resumed and the peer's chain (the session's), lines both ways. A server
+// that does not know the session (a new s_server on the same port): a full
+// handshake, the session replaced.
+
+namespace {
+    // The certificates of a state as DER, for comparing two connections'
+    std::vector<std::string> ders(const crypto::x509::chain& chain) {
+        std::vector<std::string> out;
+        for (auto& c : chain) {
+            auto d = c.raw();
+            out.emplace_back(reinterpret_cast<const char*>(d.data()), d.size());
+        }
+        return out;
+    }
+
+    // An s_server of TLS 1.2 alone at a port, for `n` connections one after another
+    struct SServer12At : Child {
+        SServer12At(uint16_t port, int n, const std::vector<std::string>& extra)
+        : Child(openssl_path(), [&] {
+            sgcl::vector<sgcl::string> a = args({"s_server", "-accept", "127.0.0.1:" + std::to_string(port), "-cert", testdata() + "ecdsa.pem", "-key",
+                                                 testdata() + "ecdsa.key", "-tls1_2", "-naccept", std::to_string(n), "-rev"});
+            for (auto& e : extra) {
+                a.push_back(sgcl::string(e));
+            }
+            return a;
+        }()) {
+        }
+    };
+}
+
+TEST(TlsInterop, Tls12GoServerResumesByTicket) {
+    if (go_path().empty()) {
+        GTEST_SKIP() << "no go (Go's crypto/tls is the oracle)";
+    }
+    ASSERT_FALSE(go_oracle().empty());
+    Child go(go_oracle(), args({"-cert", testdata() + "ecdsa.pem", "-key", testdata() + "ecdsa.key", "-tls12", "-n", "3"}));
+    ASSERT_TRUE(go.start());
+    const std::string address = go_address(go);
+    ASSERT_FALSE(address.empty()) << slurp(go.log);
+    tls::config cfg = trusted();
+    cfg.session_cache = tls::session_cache();
+    cfg.groups = {tls::group::secp256r1};   // the resumed state's group is the session's
+    std::vector<std::string> first;
+    for (int i = 0; i < 3; ++i) {
+        SCOPED_TRACE(i);
+        auto c = tls::connect(sgcl::string(address), cfg);
+        ASSERT_TRUE(c.has_value()) << std::string(c.error().message().view());
+        auto st = tls::state_of(*c);
+        EXPECT_EQ(st->version, tls::version::tls12);
+        EXPECT_EQ(st->resumed, i > 0);
+        EXPECT_EQ(st->group, tls::group::secp256r1);
+        if (i == 0) {
+            first = ders(st->peer_certificates);
+            ASSERT_FALSE(first.empty());
+        } else {
+            EXPECT_EQ(ders(st->peer_certificates), first);   // the session's
+        }
+        EXPECT_EQ(cfg.session_cache->size(), 1u);   // the ticket in the handshake, kept again after a resumption
+        echo(*c, "hello go 1.2");
+        EXPECT_TRUE(c->async_close().wait().has_value());
+    }
+    std::string out = go.wait_for("resumed=true", 10000);
+    for (int i = 0; i < 100 && count(out, "CLOSE_NOTIFY") < 3; ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        out = slurp(go.log);
+    }
+    EXPECT_EQ(count(out, "resumed=false"), 1u) << out;
+    EXPECT_EQ(count(out, "resumed=true"), 2u) << out;
+    EXPECT_EQ(count(out, "version=303"), 3u) << out;
+}
+
+TEST(TlsInterop, Tls12OpenSslServerResumes) {
+    if (openssl_path().empty()) {
+        GTEST_SKIP() << "no OpenSSL";
+    }
+    for (bool tickets : {true, false}) {
+        SCOPED_TRACE(tickets ? "by ticket" : "by session id (-no_ticket)");
+        const uint16_t port = free_port();
+        SServer12At s(port, 3, tickets ? std::vector<std::string>{} : std::vector<std::string>{"-no_ticket"});
+        ASSERT_TRUE(s.start());
+        ASSERT_FALSE(s.wait_for("ACCEPT").empty()) << slurp(s.log);
+        tls::config cfg = trusted();
+        cfg.session_cache = tls::session_cache();
+        std::vector<std::string> first;
+        for (int i = 0; i < 3; ++i) {
+            SCOPED_TRACE(i);
+            auto c = tls::connect(sgcl::string("127.0.0.1:" + std::to_string(port)), cfg);
+            ASSERT_TRUE(c.has_value()) << std::string(c.error().message().view());
+            auto st = tls::state_of(*c);
+            EXPECT_EQ(st->version, tls::version::tls12);
+            EXPECT_EQ(st->resumed, i > 0);
+            if (i == 0) {
+                first = ders(st->peer_certificates);
+            } else {
+                EXPECT_EQ(ders(st->peer_certificates), first);
+            }
+            EXPECT_EQ(cfg.session_cache->size(), 1u);
+            echo(*c, "hello openssl 1.2");
+            (void)c->close();
+        }
+        // s_server prints the client's signature algorithms for a full handshake alone
+        std::string log = slurp(s.log);
+        EXPECT_EQ(count(log, "CONNECTION ESTABLISHED"), 3u) << log;
+        EXPECT_EQ(count(log, "Signature Algorithms:"), 1u) << log;
+    }
+}
+
+TEST(TlsInterop, Tls12ResumptionDeclined) {
+    if (openssl_path().empty()) {
+        GTEST_SKIP() << "no OpenSSL";
+    }
+    for (bool tickets : {true, false}) {
+        SCOPED_TRACE(tickets ? "by ticket" : "by session id (-no_ticket)");
+        const uint16_t port = free_port();
+        const std::string address = "127.0.0.1:" + std::to_string(port);
+        const std::vector<std::string> extra = tickets ? std::vector<std::string>{} : std::vector<std::string>{"-no_ticket"};
+        tls::config cfg = trusted();
+        cfg.session_cache = tls::session_cache();
+        {
+            SServer12At s(port, 1, extra);
+            ASSERT_TRUE(s.start());
+            ASSERT_FALSE(s.wait_for("ACCEPT").empty()) << slurp(s.log);
+            auto c = tls::connect(sgcl::string(address), cfg);
+            ASSERT_TRUE(c.has_value()) << std::string(c.error().message().view());
+            EXPECT_FALSE(tls::state_of(*c)->resumed);
+            echo(*c, "first");
+            (void)c->close();
+            s.finish();
+        }
+        EXPECT_EQ(cfg.session_cache->size(), 1u);
+        // another server at the same port: other ticket keys, no session ids of the first's
+        SServer12At s(port, 1, extra);
+        ASSERT_TRUE(s.start());
+        ASSERT_FALSE(s.wait_for("ACCEPT").empty()) << slurp(s.log);
+        auto c = tls::connect(sgcl::string(address), cfg);
+        ASSERT_TRUE(c.has_value()) << std::string(c.error().message().view());
+        auto st = tls::state_of(*c);
+        EXPECT_FALSE(st->resumed);
+        EXPECT_FALSE(st->peer_certificates.empty());
+        echo(*c, "after the server forgot");
+        (void)c->close();
+        EXPECT_EQ(cfg.session_cache->size(), 1u);   // the new session in the old one's place
+    }
 }

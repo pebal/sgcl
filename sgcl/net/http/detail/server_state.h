@@ -61,6 +61,7 @@ namespace sgcl::net::http {
             uint32_t max_concurrent_streams = 250;
             function<void(const string&)> on_error;
             optional<slog::logger> access_log;   // a record per exchange, when set (server::access_log)
+            function<void(const request&)> observe;   // every request before its route (a test server's record, test.h)
 
             SGCL_INLINE_HOT void report(const string& what) const {
                 if (on_error) {

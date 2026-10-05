@@ -129,7 +129,7 @@ The constants, each with the macro that sets it where there is one. A macro is s
 
 | Constant | Value | Description |
 |---|---|---|
-| `long_sleep_time` | `std::chrono::seconds(30)` | How long the collector thread sleeps after a cycle when nothing wakes it. It is woken earlier by allocation, when a thread takes a fresh page and the pages allocated since the last cycle exceed a quarter of the pages live after it (plus 64), and by `force_collect()`. A program that allocates steadily never sees the long sleep. |
+| `long_sleep_time` | `std::chrono::seconds(30)` | How long the collector thread sleeps after a cycle when nothing wakes it. It is woken earlier by allocation, when a thread takes a fresh page and the pages allocated since the last cycle exceed a quarter of the pages live after it (plus 64), and by `force_collect()`. A program that allocates steadily never sees the long sleep. The cycle that runs when the sleep ends is chosen like any cycle not forced ([The generations](#the-generations)): a young one, unless `young_cycles_max` young ones have run since the last full cycle, the live memory grew by `full_cycle_growth_percent` since it or the heap is under memory pressure; with `generational` off, a full one. An idle program therefore sees a young cycle every 30 seconds and a full one every ninth cycle, about every 4.5 minutes. |
 | `short_sleep_time` | `std::chrono::seconds(3)` | The sleep after a cycle whose sweep freed more than a quarter of what the previous cycle allocated: more garbage is likely coming. |
 | `pressure_sleep_time` | `std::chrono::milliseconds(100)` | The sleep while the committed memory is above `heap_pressure_percent` of the ceiling. |
 

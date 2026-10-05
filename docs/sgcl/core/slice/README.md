@@ -13,6 +13,8 @@ namespace sgcl {
 }
 ```
 
+**Requires [rooted](../rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::slice<T>` is the elements `[begin, end)` of some contiguous storage and the managed object they lie in, kept
 alive by the slice for as long as the slice exists: what a slice is in Go (a piece of the array that shares it and
 holds it), and what `std::span` and `std::string_view` are not (a range with no duty to keep its memory). Three
@@ -41,10 +43,8 @@ owned slice, register; the paths without an owner skip it.
 
 ## Rules
 
-- A slice lives where a `tracked_ptr` may: on a stack or inside a managed object, never in `new`/`malloc` memory, a
-  `std` container, a global or a `thread_local` ([The rules](../README.md#the-rules), 1) — even a slice without an
-  owner, since one may be assigned to it. A `std::span` ([operator std::span](operator_conv.md)) is what goes
-  to those places.
+- A slice without an owner is no exception, since one may be assigned to it; what goes into unmanaged memory is a
+  `std::span` ([operator std::span](operator_conv.md)).
 - The owner is explicit: `slice(owner, first, last)` with the object the elements lie in; in a debug build the
   constructor asserts that `[first, last)` lies in it. A slice of a `string` or a `vector` comes from the container
   (`as_slice`), which knows its object.

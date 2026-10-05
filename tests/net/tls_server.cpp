@@ -124,6 +124,9 @@ namespace {
                     skip = a.size;
                     kinds.push_back("skip early data");
                     break;
+                case Action::Kind::new_ticket:   // the client's (tls_resumption.cpp)
+                    kinds.push_back("new ticket");
+                    break;
                 }
             }
         }

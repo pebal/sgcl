@@ -39,7 +39,8 @@ namespace sgcl::encoding {
         mismatched_tag,         // XML: </b> after <a>
         undefined_entity,       // XML: &nbsp; with no DTD to define it
         unsupported_encoding,   // XML: encoding="Shift_JIS"
-        io                      // the source or the sink failed: io_error() says how
+        io,                     // the source or the sink failed: io_error() says how
+        limit_exceeded          // a limit of the reading passed: a mail's head, its parts
     };
 
     namespace detail {
@@ -69,6 +70,7 @@ namespace sgcl::encoding {
                     case errc::undefined_entity: return "undefined entity";
                     case errc::unsupported_encoding: return "unsupported encoding";
                     case errc::io: return "input/output error";
+                    case errc::limit_exceeded: return "limit exceeded";
                 }
                 return "unknown encoding error";
             }

@@ -19,6 +19,8 @@ namespace sgcl::encoding {
 }
 ```
 
+**Requires [rooted](../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::encoding::xml::attr` is an attribute as the document writes it: the name with its prefix, the value
 with its references replaced and its white space normalized (XML 1.0, 3.3.3), and the namespace the prefix stands
 for. [attributes](xml/attributes.md) of a node and [attributes](xml-token/attributes.md) of a token give them in

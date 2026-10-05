@@ -10,6 +10,8 @@ namespace sgcl::txt {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::txt::regex_matches` is every match of a [regex](../regex/README.md) in a text, one after another and never
 overlapping: what [regex::all](../regex/all.md) returns, Python's `re.finditer`. It is a range of the library
 ([mixin::enumerable](../../core/mixin/enumerable/README.md)), like [words](../words/README.md) and [graphemes](../graphemes/README.md): decided
@@ -21,9 +23,8 @@ the search on by one code point, or the range would stand still.
 
 ## Rules
 
-- A range holds the compiled pattern and a slice of the text, so it lives where a `tracked_ptr` may: on a stack or
-  inside a managed object. It needs neither the regex nor the string it came from to stay alive, and a loop over a
-  temporary is safe.
+- A range holds the compiled pattern and a slice of the text. It needs neither the regex nor the string it came from to
+  stay alive, and a loop over a temporary is safe.
 - The iterator carries the pattern and the text itself rather than a pointer back to the range: a copy of it
   outlives the range it came from. One machine serves the whole walk, shared by the copies of an iterator, so a
   range is walked by one iterator at a time. A move of an iterator is a copy: the iterator moved from stands where

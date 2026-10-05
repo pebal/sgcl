@@ -19,7 +19,7 @@ TEST(EncodingError_Tests, CodeAndCategory) {
     EXPECT_EQ(c.message(), "invalid character");
     EXPECT_TRUE(bool(c));   // the codes start at 1: none of them is success
     EXPECT_EQ(make_error_code(encoding::errc::syntax).value(), 1);
-    for (int i = 1; i <= int(encoding::errc::io); ++i) {
+    for (int i = 1; i <= int(encoding::errc::limit_exceeded); ++i) {
         EXPECT_NE(encoding_category().message(i), "unknown encoding error") << i;
     }
     // the same code travels inside an io::error

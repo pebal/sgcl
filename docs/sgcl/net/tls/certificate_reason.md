@@ -31,6 +31,8 @@ to the server follows from the reason. The text of the error is the reason's, wo
 | `incompatible_usage` | `tls: certificate specifies an incompatible key usage` |
 | `unhandled_critical_extension` | `tls: certificate with an unhandled critical extension` |
 | `too_many_constraints` | `tls: certificate chain with too many name constraints` |
+| `revoked` | `tls: certificate is revoked`: a certificate of the chain, by a staple, OCSP or a CRL ([revocation_mode](revocation_mode.md)) |
+| `revocation_unknown` | `tls: certificate revocation status unknown`: a staple that does not verify, a Must-Staple leaf without one, a status `hard_fail` cannot have |
 
 ## Parameters
 

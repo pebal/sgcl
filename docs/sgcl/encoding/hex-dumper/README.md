@@ -13,6 +13,8 @@ namespace sgcl::encoding {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::encoding::hex::dumper` is a writer that writes the dump of what it is given to another writer, the lines
 of [hex::dump](../hex/dump.md) and of `hexdump -C`: Go's `hex.Dumper`, made by [hex::dumper_to](../hex/dumper_to.md). A
 [write](write.md) writes a line as soon as its sixteen bytes are there, the offsets counted across the
@@ -29,9 +31,7 @@ it either.
   `hex::dumper_to` (`encoding::hex::dumper wire = encoding::hex::dumper_to(w);`) and shared by its copies
   ([operator==](operator_cmp.md) says whether two are the same). A default-constructed one holds
   none (`!wire`), and an operation on it is a contract violation, checked by `assert`.
-- It lies on a stack, in a task, in a managed object; in a global or a `std` container, a
-  [rooted](../../core/rooted/README.md) of it. A stream made of one (`io::writer w = wire;`, `io::copy`) binds the
-  state, so the handle may go first.
+- A stream made of one (`io::writer w = wire;`, `io::copy`) binds the state, so the handle may go first.
 - The state is a managed object that holds its block, 8 KB of `array<byte, N>` as io's buffers are, the line
   being filled and the writer under it. Nothing is written when it dies: a dumper dropped without `close()`
   loses its short line.

@@ -4,17 +4,30 @@
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 // The client's handshake machine (sgcl/net/tls/detail/handshake.h) fed any
-// server messages. The first byte picks the client: bit 0 clear, the
-// client of RFC 8448 §3 (its settings and its randomness, so that the
-// trace's server messages, the seeds, take it through the whole handshake
-// and the fuzzer works on every state up to the messages after it); bit 0
-// set, a client of the default settings (X25519MLKEM768 and X25519 shares,
-// compatibility mode, ALPN offered) on fixed randomness. The rest is a
+// server messages. The first byte picks the client: 0, the client of RFC
+// 8448 §3 (its settings and its randomness, so that the trace's server
+// messages, the seeds, take it through the whole handshake and the fuzzer
+// works on every state up to the messages after it); 1, a client of the
+// default settings (X25519MLKEM768 and X25519 shares, compatibility mode,
+// ALPN offered) on fixed randomness; 2 and 3, the client of resumption and
+// mTLS (tls_fuzz_settings.h): a session offered (the pre_shared_key and its
+// binder; a ServerHello that takes it, a resumed handshake), its tickets
+// kept (NewSessionTicket made a session), a client certificate for a
+// CertificateRequest; 4 and 5, the client of TLS 1.2 (1.3 and 1.2
+// offered, or 1.2 alone; tls_fuzz_settings.h): the server's 1.2 flights
+// (ServerHello without supported_versions, Certificate, ServerKeyExchange,
+// CertificateRequest, ServerHelloDone, Finished), a message of type 0xFF
+// standing for the server's change_cipher_spec record; 8 and 9, the client
+// of TLS 1.2's resumption (tls_fuzz_settings.h): a 1.2 session offered by
+// its ticket or by its session id, the abbreviated handshake (a ServerHello
+// echoing the session id, NewSessionTicket, change_cipher_spec, Finished)
+// or a full one with a NewSessionTicket, the sessions kept. The clock stands
+// still. The rest is a
 // list of messages, each a type, a 16-bit length and the body, fed one by
 // one until the machine sends an alert. What must hold: no fault, a step
 // of actions in the order the machine may give them, one alert at most,
 // ending the machine, and nothing after it.
-#include "sgcl/net/tls/detail/handshake.h"
+#include "tests/net/fuzz/tls_fuzz_settings.h"
 
 #include <cstring>
 #include <vector>
@@ -74,6 +87,22 @@ namespace {
                 if (a.kind == tls::Action::Kind::send) {
                     check(a.offset + a.size <= step.out.size());
                 }
+                if ((a.kind == tls::Action::Kind::install_read || a.kind == tls::Action::Kind::install_write) && a.tls12) {
+                    // TLS 1.2's keys: a suite of 1.2, its key and IV
+                    check(tls::known12(a.cipher) && a.secret.size == tls::key_size(a.cipher) + tls::iv_size12(a.cipher));
+                }
+                if (a.kind == tls::Action::Kind::new_ticket && !a.tls12) {
+                    // a session: after the handshake, its ticket in the buffer, a PSK of the suite's hash
+                    check(c.established() && a.offset + a.size <= step.out.size() && a.size >= 1 && a.size <= tls::MaxTicket);
+                    check(a.secret.size == tls::hash_size(tls::hash_of(a.cipher)) && a.lifetime > 0 && a.lifetime <= 604800);
+                }
+                if (a.kind == tls::Action::Kind::new_ticket && a.tls12) {
+                    // a 1.2 session: at the end of the handshake, a suite of 1.2, the master secret, a ticket
+                    // or a session id
+                    check(c.established() && c.result().version == tls::Tls12 && tls::known12(a.cipher) && a.secret.size == 48);
+                    check(a.offset + a.size <= step.out.size() && a.size <= tls::MaxTicket && a.session_id_size <= 32 && (a.size > 0 || a.session_id_size > 0));
+                    check(a.lifetime > 0 && a.lifetime <= 604800);
+                }
             }
             check(alerts <= 1);
             check(alerts == 0 || c.failed());
@@ -92,6 +121,13 @@ namespace {
             m.assign({type, uint8_t(n >> 16), uint8_t(n >> 8), uint8_t(n)});
             m.insert(m.end(), data + at, data + at + n);
             at += n;
+            if (type == tls_fuzz::ChangeCipherSpec) {
+                if (!check_step(c.change_cipher_spec())) {
+                    check(c.change_cipher_spec().actions.empty());
+                    return;
+                }
+                continue;
+            }
             if (!check_step(c.feed(tls::bytes_of(m.data(), m.size())))) {
                 check(c.feed(tls::bytes_of(m.data(), m.size())).actions.empty());   // nothing after an alert
                 return;
@@ -107,7 +143,19 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     const uint8_t mode = data[0];
     ++data;
     --size;
-    if ((mode & 1) == 0) {
+    if (mode & 8) {
+        tls_fuzz::ClientEntropy f;
+        tls::ClientHandshake c(tls_fuzz::tls12_resume_settings((mode & 1) == 0), f.entropy(), tls_fuzz::clock());
+        run(c, data, size);
+    } else if (mode & 4) {
+        tls_fuzz::ClientEntropy f;
+        tls::ClientHandshake c(tls_fuzz::tls12_client_settings((mode & 1) == 0), f.entropy(), tls_fuzz::clock());
+        run(c, data, size);
+    } else if (mode & 2) {
+        tls_fuzz::ClientEntropy f;
+        tls::ClientHandshake c(tls_fuzz::auth_client_settings(), f.entropy(), tls_fuzz::clock());
+        run(c, data, size);
+    } else if ((mode & 1) == 0) {
         Fixed f{rfc_entropy, sizeof rfc_entropy};
         tls::ClientHandshake c(rfc_settings(), tls::Entropy{&Fixed::fill, &f});
         run(c, data, size);

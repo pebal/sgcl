@@ -1,0 +1,1 @@
+{"identifier":{"type":"dns","value":"a.test"},"status":"pending","wildcard":true,"expires":"2026-10-05T10:00:00Z","challenges":[{"type":"dns-01","url":"https://ca/ch/1","status":"pending","token":"abc"},{"type":"x","url":"u","status":"valid","validated":"2026-10-05T10:00:00Z"}]}

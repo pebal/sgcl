@@ -451,3 +451,213 @@ TEST(TlsImpl_Tests, TheServerSeesTheClientsRecordFailure) {
     EXPECT_TRUE(tls::is_remote(served->error()));
     EXPECT_EQ(tls::alert_of(served->error()), tls::alert::bad_record_mac);
 }
+
+// close() from one thread while a read runs on another (http::server::close
+// over a connection its task reads): the close_notify close() writes fails
+// (the peer has gone), and close() must not record that failure where the
+// read side reads its state without the record's lock; the read side keeps
+// reading what it reads (the end of the stream here). A data race of the
+// two was TSan's finding in HttpHttps_Tests.AFileWrittenAsTheBody; under
+// TSan this test shows it, elsewhere it checks that the read ends as it should
+TEST(TlsImpl_Tests, CloseWhileAReadRunsOnAnotherThread) {
+    for (int round = 0; round < 5; ++round) {
+        auto p = tls_pair();
+        ASSERT_TRUE(p.client && p.server);
+        net::connection server = p.server;
+        std::atomic<bool> stop = false;
+        std::atomic<int> ends = 0;
+        std::thread reader([&server, &stop, &ends] {
+            byte buf[256];
+            while (!stop.load()) {
+                auto n = server.read(buf);
+                if (!n || *n == 0) {
+                    ends.fetch_add(1);
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                }
+            }
+        });
+        (void)p.client.close();                                      // close_notify, then the socket closed
+        std::this_thread::sleep_for(std::chrono::milliseconds(30));
+        (void)server.write(sgcl::string("into a closed socket\n"));  // the peer answers with a reset
+        std::this_thread::sleep_for(std::chrono::milliseconds(30));
+        (void)server.close();                                        // its close_notify fails: nothing recorded for the reader
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        stop = true;
+        reader.join();
+        EXPECT_GT(ends.load(), 0);
+    }
+}
+
+// close_write() from one thread while a read runs on another: the peer has
+// sent its close_notify and gone, so the read side is at the end of the
+// stream, and the close_notify close_write writes fails (a reset). That
+// failure is the write side's: the reader keeps reading the end (never the
+// write's error), and the writes after it fail. The write side's record of
+// the failure and the read side's check of its state once shared a field,
+// written under the record's lock and read without it (TSan's finding);
+// under TSan this test shows a race of the two, elsewhere it checks that
+// each direction keeps its own outcome
+TEST(TlsImpl_Tests, CloseWriteFailsWhileAReadRuns) {
+    for (int round = 0; round < 3; ++round) {
+        auto p = tls_pair();
+        ASSERT_TRUE(p.client && p.server);
+        net::connection server = p.server;
+        std::atomic<bool> stop = false;
+        std::atomic<int> ends = 0;
+        std::atomic<int> others = 0;
+        std::thread reader([&server, &stop, &ends, &others] {
+            byte buf[256];
+            while (!stop.load()) {
+                auto n = server.read(buf);
+                if (n && *n == 0) {
+                    ends.fetch_add(1);
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                } else {
+                    others.fetch_add(1);
+                }
+            }
+        });
+        (void)p.client.close();                                      // close_notify, then the socket closed
+        std::this_thread::sleep_for(std::chrono::milliseconds(30));
+        (void)server.write(sgcl::string("into a closed socket\n"));  // the peer answers with a reset
+        std::this_thread::sleep_for(std::chrono::milliseconds(30));
+        auto cw = server.close_write();                              // its close_notify fails: the write side's alone
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        stop = true;
+        reader.join();
+        EXPECT_FALSE(cw.has_value());
+        EXPECT_GT(ends.load(), 0);
+        EXPECT_EQ(others.load(), 0);
+        byte buf[16];
+        auto r = server.read(buf);
+        ASSERT_TRUE(r.has_value()) << std::string(r.error().message().view());
+        EXPECT_EQ(*r, 0u);
+        EXPECT_FALSE(server.write(sgcl::string("after\n")).has_value());
+        (void)server.close();
+    }
+}
+
+// A read that fails on a record (bad_record_mac) while writes run on another
+// thread: the reader gets its own error, the alert goes out, and every write
+// after it fails with the read's error. The read side records its failure
+// first and then hands the alert over through an atomic the write side takes
+// under the record's lock (where it copies the error to its own field); a
+// relay between the two flips the tag of the client's records once told to
+TEST(TlsImpl_Tests, ReadFailsWhileAWriteRuns) {
+    auto front = net::tcp::listen("127.0.0.1:0");
+    auto back = net::tcp::listen("127.0.0.1:0");
+    ASSERT_TRUE(front);
+    ASSERT_TRUE(back);
+    // the server's result made in a managed object, not in this thread's stack
+    auto served = make_tracked<expected<net::connection, io::error>>(unexpected(io::error(io::errc::closed, "accept", "")));
+    std::thread accept_t([&] {
+        auto a = back->accept();
+        if (a) {
+            *served = tls::server(*a, server_config());
+        }
+    });
+    std::atomic<bool> corrupt = false;
+    std::thread relay([&] {
+        auto from_client = front->accept();
+        if (!from_client) {
+            return;
+        }
+        auto to_server = net::tcp::connect(back->local_endpoint());
+        if (!to_server) {
+            (void)from_client->close();
+            return;
+        }
+        net::connection c = *from_client, s = *to_server;
+        std::thread down([&c, &s] {
+            std::byte b[16384];
+            for (;;) {
+                auto n = s.read(b);
+                if (!n || *n == 0 || !c.write(sgcl::slice<const std::byte>(b, *n))) {
+                    break;
+                }
+            }
+            (void)c.close();
+        });
+        std::byte b[16384];
+        for (;;) {
+            auto n = c.read(b);
+            if (!n || *n == 0) {
+                break;
+            }
+            if (corrupt.load()) {
+                b[*n - 1] ^= std::byte{1};   // the tag of the last record
+            }
+            if (!s.write(sgcl::slice<const std::byte>(b, *n))) {
+                break;
+            }
+        }
+        (void)s.close();
+        down.join();
+    });
+    auto c = tls::connect(sgcl::string("127.0.0.1:" + std::to_string(front->local_endpoint().port())), client_config("localhost"));
+    accept_t.join();
+    ASSERT_TRUE(c);
+    ASSERT_TRUE(*served);
+    net::connection client = *c;
+    net::connection server = **served;
+    std::atomic<bool> stop = false;
+    std::thread drain([&client, &stop] {   // the client reads what the server writes
+        byte buf[16384];
+        while (!stop.load()) {
+            auto n = client.read(buf);
+            if (!n || *n == 0) {
+                break;
+            }
+        }
+    });
+    std::atomic<bool> read_failed = false;
+    std::atomic<int> writes_after = 0;
+    std::string after_error;   // the writer's, read after it is joined
+    std::thread writer([&server, &stop, &read_failed, &writes_after, &after_error] {
+        sgcl::string chunk("0123456789abcdef0123456789abcdef");
+        while (!stop.load()) {
+            const bool after = read_failed.load();
+            auto w = server.write(chunk);
+            if (after) {
+                writes_after.fetch_add(1);
+                if (!w && after_error.empty()) {
+                    after_error = std::string(w.error().message().view());
+                } else if (w) {
+                    after_error = "a write succeeded after the read failed";
+                }
+            }
+            if (!w) {
+                std::this_thread::sleep_for(std::chrono::microseconds(50));
+            }
+        }
+    });
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    corrupt = true;
+    (void)client.write(sgcl::string("this record arrives broken"));
+    byte buf[256];
+    auto r = server.read(buf);
+    read_failed = true;
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    stop = true;
+    writer.join();
+    ASSERT_FALSE(r.has_value());
+    const std::string m(r.error().message().view());
+    EXPECT_NE(m.find("bad record MAC"), std::string::npos) << m;
+    EXPECT_EQ(tls::alert_of(r.error()), tls::alert::bad_record_mac);
+    EXPECT_FALSE(tls::is_remote(r.error()));
+    EXPECT_GT(writes_after.load(), 0);
+    EXPECT_EQ(after_error, m);
+    // on this thread too, and the read again: the same error
+    auto w = server.write(sgcl::string("after"));
+    ASSERT_FALSE(w.has_value());
+    EXPECT_EQ(std::string(w.error().message().view()), m);
+    auto again = server.read(buf);
+    ASSERT_FALSE(again.has_value());
+    EXPECT_EQ(std::string(again.error().message().view()), m);
+    (void)server.close();
+    (void)client.close();
+    drain.join();
+    (void)front->close();
+    (void)back->close();
+    relay.join();
+}

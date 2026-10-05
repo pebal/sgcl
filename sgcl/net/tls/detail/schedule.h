@@ -244,17 +244,43 @@ namespace sgcl::net::tls::detail {
         }
     }
 
-    // The chain of §7.1 without a PSK: early secret = HKDF-Extract(0, 0);
-    // handshake secret = HKDF-Extract(Derive-Secret(early, "derived", ""),
-    // (EC)DHE); master secret = HKDF-Extract(Derive-Secret(handshake,
-    // "derived", ""), 0); and what each gives. The steps in their order,
-    // each zeroing what the next no longer needs
+    // resumption_master_secret's PSK of a ticket (§4.6.1): HKDF-Expand-Label(
+    // resumption_master_secret, "resumption", ticket_nonce, Hash.length)
+    SGCL_INLINE_HOT void resumption_psk(Hash h, Secret& out, const Secret& resumption_master, const slice<const byte>& nonce) noexcept {
+        out.size = uint8_t(hash_size(h));
+        expand_label(h, room_of(out.bytes, out.size), resumption_master.view(), "resumption", nonce);
+    }
+
+    // The chain of §7.1: early secret = HKDF-Extract(0, PSK), the PSK all
+    // zeros without one; handshake secret = HKDF-Extract(Derive-Secret(
+    // early, "derived", ""), (EC)DHE); master secret = HKDF-Extract(
+    // Derive-Secret(handshake, "derived", ""), 0); and what each gives. The
+    // steps in their order, each zeroing what the next no longer needs
     class KeySchedule {
     public:
         SGCL_INLINE_HOT explicit KeySchedule(Hash h) noexcept
         : _hash(h) {
             uint8_t zeros[MaxHashSize] = {};
             extract(_hash, _early, slice<const byte>(), bytes_of(zeros, hash_size(_hash)));
+        }
+
+        // With a resumption PSK (§2.2, psk_dhe_ke): its hash's length
+        SGCL_INLINE_HOT KeySchedule(Hash h, const Secret& psk) noexcept
+        : _hash(h) {
+            assert(psk.size == hash_size(h));
+            extract(_hash, _early, slice<const byte>(), psk.view());
+        }
+
+        // A PSK binder (§4.2.11.2): binder_key = Derive-Secret(early, "res
+        // binder", ""); the binder is a Finished made with it over the
+        // transcript hash through the truncated ClientHello (out:
+        // Hash.length bytes). Before handshake()
+        void binder(uint8_t* out, const slice<const byte>& truncated_hash) const noexcept {
+            uint8_t empty[MaxHashSize];
+            empty_hash(_hash, empty);
+            Secret key;
+            derive_secret(_hash, key, _early, "res binder", bytes_of(empty, hash_size(_hash)));
+            verify_data(_hash, out, key, truncated_hash);
         }
 
         SGCL_INLINE_HOT Hash hash() const noexcept {
@@ -293,9 +319,16 @@ namespace sgcl::net::tls::detail {
             _handshake.wipe();
         }
 
+        // resumption_master_secret = Derive-Secret(master, "res master",
+        // ClientHello..client Finished) (§7.1), into out; before
+        // finish_handshake()
+        SGCL_INLINE_HOT void resumption(Secret& out, const slice<const byte>& client_finished_hash) const noexcept {
+            derive_secret(_hash, out, _master, "res master", client_finished_hash);
+        }
+
         // The handshake's traffic secrets and the master secret gone, once
-        // both Finished are through (no resumption in v1: the resumption
-        // master secret is never made)
+        // both Finished are through (the resumption master secret, when one
+        // is wanted, made before: resumption())
         SGCL_INLINE_HOT void finish_handshake() noexcept {
             client_handshake_traffic.wipe();
             server_handshake_traffic.wipe();

@@ -11,6 +11,9 @@
 //     what a writer would change: a legacy_version, compression methods, a
 //     length), and so is every extension of it whose typed reader takes its
 //     body (server_name up to the name types it passes over);
+//   - so is a TLS 1.2 message that reads as one (ServerKeyExchange,
+//     ServerHelloDone, and the 1.2 forms of Certificate, CertificateRequest
+//     and NewSessionTicket), and a ServerHello without extensions;
 //   - validate_extensions takes any message that reads, with any offer;
 //   - an alert record of the first bytes reads or is refused.
 // Seeds: the messages of RFC 8448 (seeds/tls_messages). Built with
@@ -76,6 +79,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         size_t hash = h->body.size() == 48 ? 48 : 32;
         auto why = tls_roundtrip::message_back(input, hash);
         check(!broken(why));
+        auto why12 = tls_roundtrip::message_back12(input);   // TLS 1.2's Certificate, CertificateRequest, NewSessionTicket
+        check(why12.empty());
         uint64_t offered = size > 4 ? uint64_t(data[size - 1]) * 0x0101010101010101ull : ~uint64_t(0);
         validate(h->body, h->type, offered);
     }

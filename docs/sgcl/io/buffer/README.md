@@ -11,6 +11,8 @@ namespace sgcl::io {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::io::buffer` is a growing block of bytes in memory, read from the front and written at the back: a parser's
 input, a response being built, the stream of a test. It is Go's `bytes.Buffer`, a reader and a writer over a
 `vector<byte>` inside a managed object. A read consumes: [data](data.md) is what remains, a view valid until
@@ -32,10 +34,6 @@ for writing and a copy that is a new stream.
 
 ## Rules
 
-- A buffer holds a `tracked_ptr`, so it lives where one may: on a stack, in a task, in a managed object
-  ([The rules](../../core/README.md#the-rules), 1). In a global or a `std` container, a [rooted](../../core/rooted/README.md) of
-  it: `rooted<io::buffer> log(std::in_place);`, then `log->write(...)`; never a root in a managed object or a task's
-  frame, since a root is never part of a cycle.
 - It is a [handle](../../core/req/handle.md): a buffer variable that one thread replaces while others read it is an
   [atomic](../../core/atomic-handle/README.md) of it, one word.
 - One thread or task at a time on one buffer, its copies included.

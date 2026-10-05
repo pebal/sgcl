@@ -8,9 +8,12 @@
 #include "handshake.h"
 #include "server_handshake.h"
 #include "record.h"
+#include "revocation.h"
 #include "../error.h"
 #include "../../connection.h"
+#include "../../../async/coroutine.h"
 #include "../../../async/timer.h"
+#include "../../../core/function.h"
 
 #include <atomic>
 #include <cstring>
@@ -35,6 +38,18 @@
 // sends, and a read that must send something (the answer to a KeyUpdate
 // that asks for one, a fatal alert) takes it for that record, so that the
 // two interleave by whole records.
+//
+// A failure is of its direction, each recorded in a field of its own: a
+// write's (the transport refused, a write deadline) in _write_broken, under
+// the record mutex, which only the writes look at; the read goes on with
+// what the transport gives it (the records the framer holds, its end, its
+// error). A read's (a record it cannot open, a fatal alert of the peer) in
+// _read_broken, written by the read side alone (the reads are one at a
+// time, ConnImpl's read lock) and read by it without a lock; it reaches the
+// writes through an atomic the read side stores after it: the alert this
+// side sends (_want_alert, whose exchange under the record mutex copies the
+// read's error into _write_broken), or for an alert of the peer, which is
+// answered with nothing, _read_fatal.
 //
 // The secrets (the keys of both directions, the handshake machine's) and
 // every plaintext buffer are in unmanaged blocks, zeroed when done with;
@@ -73,6 +88,22 @@ namespace sgcl::net::tls::detail {
 
     using QueueBytes = std::vector<uint8_t, NoZeroAllocator<uint8_t>>;
 
+    // What a server's first ClientHello asked for, given to the program's
+    // choice of an identity (tls::config::identity_for)
+    struct HelloInfo {
+        string server_name;                     // SNI; empty: none
+        vector<string> alpn;                    // offered, in the client's order
+    };
+
+    // The identities chosen for one connection, as the machine signs with
+    // them, and what keeps their keys
+    struct SelectedIdentities {
+        vector<ServerIdentity> identities;
+        vector<tracked_ptr<const void>> keep;
+    };
+
+    using IdentitySelector = function<async::task<expected<SelectedIdentities, io::error>>(HelloInfo)>;
+
     class TlsImpl final : public net::detail::ConnImpl {
     public:
         SGCL_INLINE_HOT TlsImpl(const net::connection& transport, const ClientSettings& settings) noexcept
@@ -81,12 +112,29 @@ namespace sgcl::net::tls::detail {
             _hs.emplace(settings, Entropy(), Clock());
         }
 
-        // The server's side; `keep` holds what the identities' keys live in
-        // (the machine signs through pointers into them)
-        SGCL_INLINE_HOT TlsImpl(const net::connection& transport, const ServerSettings& settings, const vector<tracked_ptr<const void>>& keep) noexcept
+        // A client whose identities' keys live in what `keep` holds, and
+        // whose NewSessionTickets go to the cache under `key` (none: the
+        // tickets passed over)
+        SGCL_INLINE_HOT TlsImpl(const net::connection& transport, const ClientSettings& settings, const vector<tracked_ptr<const void>>& keep,
+                                const tracked_ptr<SessionCacheState>& cache, const string& key) noexcept
         : _transport(transport)
         , _b(new Block())
-        , _keep(keep) {
+        , _keep(keep)
+        , _cache(cache)
+        , _cache_key(key) {
+            _hs.emplace(settings, Entropy(), Clock());
+        }
+
+        // The server's side; `keep` holds what the identities' keys live in
+        // (the machine signs through pointers into them). With `select`, the
+        // identities are its choice for the first ClientHello, made before
+        // that hello is fed to the machine
+        SGCL_INLINE_HOT TlsImpl(const net::connection& transport, const ServerSettings& settings, const vector<tracked_ptr<const void>>& keep,
+                                const tracked_ptr<const IdentitySelector>& select = {}) noexcept
+        : _transport(transport)
+        , _b(new Block())
+        , _keep(keep)
+        , _select(select) {
             _server.emplace(settings, Entropy());
         }
 
@@ -121,6 +169,43 @@ namespace sgcl::net::tls::detail {
             return _server->result();
         }
 
+        // The revocation status of the peer's chain the connection checked
+        // after the handshake (tls.h, by the config), and its source;
+        // nullopt: not checked
+        SGCL_INLINE_HOT void set_revocation(optional<crypto::x509::revocation_status> status, uint8_t source) noexcept {
+            _revocation = status;
+            _revocation_source = source;
+        }
+
+        SGCL_INLINE_HOT optional<crypto::x509::revocation_status> revocation() const noexcept {
+            return _revocation;
+        }
+
+        SGCL_INLINE_HOT uint8_t revocation_source() const noexcept {
+            return _revocation_source;
+        }
+
+        // A fatal alert after the handshake, before the connection is given
+        // out (the peer's chain refused by its revocation check): written
+        // without waiting under the traffic keys, as close() writes
+        // close_notify, then the transport closed
+        void abort(AlertDescription d) noexcept {
+            if (_closing.exchange(true)) {
+                (void)_transport.close();
+                return;
+            }
+            if (_record.try_lock()) {
+                if (_flush_quiet() && !_write_closed && _b->write.installed()) {
+                    const uint8_t bytes[2] = {2, uint8_t(d)};
+                    _append(ContentType::alert, bytes, 2);
+                    _write_closed = true;
+                    (void)_flush_quiet();
+                }
+                _record.unlock();
+            }
+            (void)_transport.close();
+        }
+
         // --- the transport's operations ---------------------------------------
 
         expected<size_t, io::error> raw_read(const slice<byte>& buffer) override {
@@ -133,11 +218,11 @@ namespace sgcl::net::tls::detail {
                     return fail(s.error);
                 }
                 if (s.kind == ReadStep::Kind::reply) {
+                    // a failure of this write is the write side's (recorded
+                    // there): the read goes on to its own end
                     std::lock_guard<sgcl::async::mutex> g(_record);
-                    _queue_wants();
-                    if (auto e = _flush_block(); e) {
-                        return fail(*e);
-                    }
+                    (void)_queue_wants();
+                    (void)_flush_block();
                     continue;
                 }
                 // more bytes from the transport, its raw read: this object is
@@ -163,11 +248,12 @@ namespace sgcl::net::tls::detail {
                 }
                 if (s.kind == ReadStep::Kind::reply) {
                     auto g = co_await _record.scoped_lock();
-                    _queue_wants();
+                    (void)_queue_wants();
                     while (_unsent_size()) {
                         auto w = co_await _t().awaited_raw_write(_unsent());
                         if (!w) {
-                            co_return fail(_break(w.error()));
+                            (void)_break(w.error());   // the write side's: the read goes on
+                            break;
                         }
                         _sent(*w);
                     }
@@ -240,12 +326,15 @@ namespace sgcl::net::tls::detail {
                     done = _skip_sealed(data);
                     first = false;
                 }
-                _queue_wants();
-                if (done < data.size()) {
+                const bool over = _queue_wants();   // the read side's alert: sent, then no data
+                if (!over && done < data.size()) {
                     done += _seal_record(data, done);
                 }
                 if (auto e = _flush_block(); e) {
                     return fail(*e);
+                }
+                if (over) {
+                    return fail(*_write_broken);
                 }
                 if (done == data.size()) {
                     _trim();
@@ -268,8 +357,8 @@ namespace sgcl::net::tls::detail {
                     done = _skip_sealed(data);
                     first = false;
                 }
-                _queue_wants();
-                if (done < data.size()) {
+                const bool over = _queue_wants();
+                if (!over && done < data.size()) {
                     done += _seal_record(data, done);
                 }
                 while (_unsent_size()) {
@@ -278,6 +367,9 @@ namespace sgcl::net::tls::detail {
                         co_return fail(_break(w.error()));
                     }
                     _sent(*w);
+                }
+                if (over) {
+                    co_return fail(*_write_broken);
                 }
                 if (done == data.size()) {
                     _trim();
@@ -301,10 +393,12 @@ namespace sgcl::net::tls::detail {
             size_t taken = 0;
             optional<io::error> error = _writable();
             if (!error) {
-                _queue_wants();
+                const bool over = _queue_wants();
                 auto f = _flush_try();
                 if (!f) {
                     error = f.error();
+                } else if (over) {
+                    error = _write_broken;
                 } else if (*f) {
                     while (taken < data.size()) {
                         size_t n = _seal_record(data, taken);
@@ -348,10 +442,12 @@ namespace sgcl::net::tls::detail {
             size_t taken = 0;
             optional<io::error> error = _writable();
             if (!error) {
-                _queue_wants();
+                const bool over = _queue_wants();
                 auto f = _flush_try();
                 if (!f) {
                     error = f.error();
+                } else if (over) {
+                    error = _write_broken;
                 } else if (*f) {
                     // records sealed up to BatchBytes of them, then given
                     // to the transport in one write (a large response in two
@@ -403,8 +499,8 @@ namespace sgcl::net::tls::detail {
                     done += _skip_sealed_parts(parts.empty() ? nullptr : parts[0].data(), from);
                     first = false;
                 }
-                _queue_wants();
-                if (done < total) {
+                const bool over = _queue_wants();
+                if (!over && done < total) {
                     done += _seal_parts(parts.data(), parts.size(), total, done);
                 }
                 while (_unsent_size()) {
@@ -413,6 +509,9 @@ namespace sgcl::net::tls::detail {
                         co_return fail(_break(w.error()));
                     }
                     _sent(*w);
+                }
+                if (over) {
+                    co_return fail(*_write_broken);
                 }
                 if (done == total) {
                     _trim();
@@ -425,15 +524,22 @@ namespace sgcl::net::tls::detail {
 
         // close_notify without waiting (after the tail of a record in part
         // sent, never inside it; none when another write holds the record or
-        // the socket does not take it at once), then the transport closed
+        // the socket does not take it at once), then the transport closed.
+        // Nothing of the read side's state is read or written here: close()
+        // runs beside a read in progress (a server closing a connection its
+        // task reads); a write that fails here (the peer gone) is not
+        // recorded (the transport's close ends both directions anyway), and
+        // close_notify is not held back by a failure the read side recorded
         expected<void, io::error> close() noexcept override {
             if (_closing.exchange(true)) {
                 return _transport.close();
             }
             if (_record.try_lock()) {
-                auto f = _flush_try();
-                if (f && *f && _queue_close_notify()) {
-                    (void)_flush_try();
+                if (_flush_quiet() && !_write_closed && _b->write.installed()) {
+                    const uint8_t bytes[2] = {1, 0};
+                    _append(ContentType::alert, bytes, 2);
+                    _write_closed = true;
+                    (void)_flush_quiet();
                 }
                 _record.unlock();
             }
@@ -472,7 +578,11 @@ namespace sgcl::net::tls::detail {
             return _transport.is_closed();
         }
 
-        // close_notify, then the transport's writing half ended
+        // close_notify, then the transport's writing half ended. It runs
+        // beside a read in progress (an HTTP/2 connection's writer ending its
+        // half while its reader reads): a write that fails here is the write
+        // side's (_write_broken), and the read goes on with what the
+        // transport gives it
         expected<void, io::error> close_write() override {
             {
                 std::lock_guard<sgcl::async::mutex> g(_record);
@@ -526,6 +636,7 @@ namespace sgcl::net::tls::detail {
             HandshakeAssembler assembler;
             Epoch read_epoch = Epoch::initial;
             std::vector<uint8_t> out;               // the handshake's records to send
+            std::vector<uint8_t> ticket;            // a server's NewSessionTicket, sent before its first data
             QueueBytes queue;                       // records sealed and not yet taken by the transport (under the record mutex)
             size_t queue_sent = 0;
             uint8_t* plain = nullptr;               // a record's plaintext not yet read: a large block of RecordBlocks while held
@@ -560,18 +671,35 @@ namespace sgcl::net::tls::detail {
         std::unique_ptr<Block, BlockRelease> _b;
         optional<ClientHandshake> _hs;          // the client's machine, or
         optional<ServerHandshake> _server;      // the server's
-        vector<tracked_ptr<const void>> _keep;  // a server's identities
+        vector<tracked_ptr<const void>> _keep;  // the identities (a server's, a client's), the ticket keys
+        tracked_ptr<const IdentitySelector> _select;   // a server's choice of identities per hello, when the config has one
+        std::vector<byte> _hello;               // the first ClientHello, held while the identities are chosen
+        HelloInfo _hello_info;
+        bool _choosing = false;                 // a hello held, the choice to make
+        bool _chosen = false;                   // the choice made (or none to make)
+        tracked_ptr<SessionCacheState> _cache;  // a client's sessions, when it keeps them
+        string _cache_key;
         bool _ccs_on = false;
         sgcl::async::mutex _record;
         std::atomic<bool> _closing = false;
         bool _eof = false;                      // close_notify, or the transport's end at a record's boundary
         bool _write_closed = false;
-        optional<io::error> _read_error;        // the read side is over
-        optional<io::error> _broken;            // a fatal alert either way: everything is over
-        // what the read side needs written (under the record mutex)
+        // the read side's failure, written once, by it alone (and the
+        // handshake's, on its one thread before the handle is given out):
+        // the reads after it fail with it
+        optional<io::error> _read_broken;
+        // the write side's (under the record mutex): its own, or the read's
+        // copied when the read's alert is taken or _read_fatal seen; the
+        // writes after it fail with it
+        optional<io::error> _write_broken;
+        std::atomic<bool> _read_fatal = false;  // the peer's fatal alert read: stored after _read_broken
+        // what the read side needs written (under the record mutex); an
+        // alert is stored after _read_broken
         static constexpr uint8_t NoAlert = 0xFF;
         std::atomic<bool> _want_key_update = false;
         std::atomic<uint8_t> _want_alert = NoAlert;
+        optional<crypto::x509::revocation_status> _revocation;   // the peer's chain's, as checked after the handshake
+        uint8_t _revocation_source = 0;         // RevocationSource
         const byte* _sealed_at = nullptr;       // a record of a write that tried: its plaintext, sealed, its tail queued
         size_t _sealed_size = 0;
         size_t _sealed_from = 0;                // of a write of pieces: where in them the sealed record starts
@@ -591,8 +719,8 @@ namespace sgcl::net::tls::detail {
                         return fail(w);
                     }
                 }
-                if (_broken) {
-                    return fail(*_broken);
+                if (_read_broken) {
+                    return fail(*_read_broken);
                 }
                 if (_established()) {
                     _b->read.accept_ccs(false);
@@ -607,6 +735,9 @@ namespace sgcl::net::tls::detail {
                 }
                 _b->framer.commit(*n);
                 _handshake_records();
+                if (_choosing) {
+                    _take_identities((*_select)(std::move(_hello_info)).wait());
+                }
             }
         }
 
@@ -623,8 +754,8 @@ namespace sgcl::net::tls::detail {
                         co_return fail(w);
                     }
                 }
-                if (_broken) {
-                    co_return fail(*_broken);
+                if (_read_broken) {
+                    co_return fail(*_read_broken);
                 }
                 if (_established()) {
                     _b->read.accept_ccs(false);
@@ -639,10 +770,96 @@ namespace sgcl::net::tls::detail {
                 }
                 _b->framer.commit(*n);
                 _handshake_records();
+                if (_choosing) {
+                    _take_identities(co_await (*_select)(std::move(_hello_info)));
+                }
             }
         }
 
         // --- the handshake without I/O ------------------------------------------
+
+        // The first ClientHello held for the choice of identities: its server
+        // name and protocols read (a hello that does not read goes to the
+        // machine as it is, which refuses it with the alert it deserves)
+        bool _hold_hello(const slice<const byte>& m) noexcept {
+            _chosen = true;
+            auto h = read_handshake(m);
+            if (!h || HandshakeType(h->type) != HandshakeType::client_hello) {
+                return false;
+            }
+            auto ch = read_client_hello(h->body);
+            if (!ch) {
+                return false;
+            }
+            HelloInfo info;
+            if (auto sn = ch->extensions.find(ExtensionType::server_name)) {
+                auto host = read_server_name(*sn);
+                if (!host) {
+                    return false;
+                }
+                info.server_name = string(std::string_view(reinterpret_cast<const char*>(host->data()), host->size()));
+            }
+            if (auto p = ch->extensions.find(ExtensionType::application_layer_protocol_negotiation)) {
+                auto offered = read_protocols(*p);
+                if (!offered) {
+                    return false;
+                }
+                for (auto name : *offered) {
+                    info.alpn.push_back(string(std::string_view(reinterpret_cast<const char*>(name.data()), name.size())));
+                }
+            }
+            _hello.assign(m.data(), m.data() + m.size());
+            _hello_info = std::move(info);
+            _choosing = true;
+            return true;
+        }
+
+        // The program's choice made: the hello fed with the identities, or
+        // the handshake over (internal_error, as Go's server answers a
+        // GetCertificate that fails) with the choice's own error
+        void _take_identities(expected<SelectedIdentities, io::error> r) {
+            _choosing = false;
+            if (!r || r->identities.empty()) {
+                _fail_local(Alert{AlertDescription::internal_error, 0, "no identity for the hello"}, "handshake");
+                if (!r) {
+                    _read_broken = r.error();
+                }
+                return;
+            }
+            for (auto& k : r->keep) {
+                _keep.push_back(k);
+            }
+            _server->set_identities(std::move(r->identities));
+            std::vector<byte> hello = std::move(_hello);
+            _run(_server->feed(bytes_of(hello.data(), hello.size())));
+            if (!_ccs_on) {
+                _ccs_on = true;   // after the first ClientHello, to the client's Finished (§D.4)
+                _b->read.accept_ccs(true);
+            }
+            _drain_messages();
+            _handshake_records();
+        }
+
+        // The whole messages the assembler holds, fed in turn
+        void _drain_messages() {
+            while (!_read_broken) {
+                auto m = _b->assembler.next();
+                if (!m) {
+                    break;
+                }
+                if (_select && !_chosen && _hold_hello(*m)) {
+                    break;   // the identities chosen first (_take_identities feeds it)
+                }
+                _run(_feed_machine(*m));
+                if (_server && !_ccs_on) {
+                    _ccs_on = true;   // after the first ClientHello, to the client's Finished (§D.4)
+                    _b->read.accept_ccs(true);
+                }
+                if (_established()) {
+                    break;
+                }
+            }
+        }
 
         // The client's first flight; nothing for a server, which waits for
         // the ClientHello (and takes a change_cipher_spec only after it)
@@ -652,7 +869,7 @@ namespace sgcl::net::tls::detail {
             }
             _b->read.accept_ccs(true);   // from the ClientHello to the server's Finished (§D.4)
             _run(_hs->start());
-            return _broken;
+            return _read_broken;
         }
 
         SGCL_INLINE_HOT bool _established() const noexcept {
@@ -672,7 +889,7 @@ namespace sgcl::net::tls::detail {
         }
 
         SGCL_INLINE_HOT crypto::x509::reason _verify_reason() const noexcept {
-            return _server ? crypto::x509::reason::none : _hs->verify_reason();
+            return _server ? _server->verify_reason() : _hs->verify_reason();
         }
 
         SGCL_INLINE_HOT slice<const byte> _pending_out() const noexcept {
@@ -702,6 +919,15 @@ namespace sgcl::net::tls::detail {
                 switch (a.kind) {
                 case Action::Kind::send: {
                     auto b = step.bytes(a);
+                    if (_server && _server->established()) {
+                        // the NewSessionTicket goes with the server's first
+                        // write: a client that writes and closes without a
+                        // read would otherwise close over a ticket unread,
+                        // which its kernel answers with a reset, and a ticket
+                        // of a connection that never answers is never used
+                        _b->ticket.assign(reinterpret_cast<const uint8_t*>(b.data()), reinterpret_cast<const uint8_t*>(b.data()) + b.size());
+                        break;
+                    }
                     _queue(_b->write, ContentType::handshake, reinterpret_cast<const uint8_t*>(b.data()), b.size());
                     break;
                 }
@@ -711,7 +937,11 @@ namespace sgcl::net::tls::detail {
                     break;
                 }
                 case Action::Kind::install_read:
-                    _b->read.install(a.cipher, a.secret);
+                    if (a.tls12) {
+                        _b->read.install12(a.cipher, a.secret);
+                    } else {
+                        _b->read.install(a.cipher, a.secret);
+                    }
                     _b->read_epoch = a.epoch;
                     if (auto k = _b->assembler.on_key_change(); !k) {
                         _fail_local(k.error(), "handshake");
@@ -719,10 +949,17 @@ namespace sgcl::net::tls::detail {
                     }
                     break;
                 case Action::Kind::install_write:
-                    _b->write.install(a.cipher, a.secret);
+                    if (a.tls12) {
+                        _b->write.install12(a.cipher, a.secret);
+                    } else {
+                        _b->write.install(a.cipher, a.secret);
+                    }
                     break;
                 case Action::Kind::skip_early_data:
                     _b->read.skip_undecryptable(a.size);   // 0-RTT refused (§4.2.10)
+                    break;
+                case Action::Kind::new_ticket:   // a TLS 1.2 session, at the end of its handshake
+                    _keep_session(step, a);
                     break;
                 case Action::Kind::update_read:
                 case Action::Kind::update_write:
@@ -739,7 +976,7 @@ namespace sgcl::net::tls::detail {
         // records after the server's Finished are the application's: left
         // for the first read)
         void _handshake_records() {
-            while (!_broken && !_established()) {
+            while (!_read_broken && !_established() && !_choosing) {
                 auto rec = _b->framer.next();
                 if (!rec) {
                     _fail_local(rec.error(), "handshake");
@@ -756,25 +993,17 @@ namespace sgcl::net::tls::detail {
                 switch (o->type) {
                 case ContentType::invalid:
                     break;
+                case ContentType::change_cipher_spec:
+                    if (!_server) {
+                        _run(_hs->change_cipher_spec());   // TLS 1.2's read keys; 1.3's compatibility record: nothing
+                    }
+                    break;
                 case ContentType::handshake:
                     if (auto p = _b->assembler.push(o->fragment, _b->read_epoch); !p) {
                         _fail_local(p.error(), "handshake");
                         return;
                     }
-                    while (!_broken) {
-                        auto m = _b->assembler.next();
-                        if (!m) {
-                            break;
-                        }
-                        _run(_feed_machine(*m));
-                        if (_server && !_ccs_on) {
-                            _ccs_on = true;   // after the first ClientHello, to the client's Finished (§D.4)
-                            _b->read.accept_ccs(true);
-                        }
-                        if (_established()) {
-                            break;
-                        }
-                    }
+                    _drain_messages();
                     break;
                 case ContentType::alert: {
                     auto a = read_alert(o->fragment);
@@ -786,8 +1015,8 @@ namespace sgcl::net::tls::detail {
                     // before the server's hello (its records still in the
                     // clear): a range of its own, a server without TLS 1.3
                     // among the senders
-                    _broken = !_server && _b->read_epoch == Epoch::initial ? before_hello_error(a->description, "handshake", describe())
-                                                                           : remote_error(a->description, "handshake", describe());
+                    _read_broken = !_server && !_hs->hello_received() ? before_hello_error(a->description, "handshake", describe())
+                                                                      : remote_error(a->description, "handshake", describe());
                     break;
                 }
                 default:
@@ -802,7 +1031,7 @@ namespace sgcl::net::tls::detail {
         // output, or by the read side under the record mutex), and the
         // connection over
         void _fail_local(const Alert& a, const char* op) noexcept {
-            if (_broken) {
+            if (_read_broken) {
                 return;
             }
             if (!_established()) {
@@ -824,9 +1053,9 @@ namespace sgcl::net::tls::detail {
                 _queue(_b->write, ContentType::alert, bytes, 2);
             }
             if (_verify_reason() != crypto::x509::reason::none) {
-                _broken = certificate_error(_verify_reason(), op, describe());
+                _read_broken = certificate_error(_verify_reason(), op, describe());
             } else {
-                _broken = local_error(a.description, op, describe());
+                _read_broken = local_error(a.description, op, describe());
             }
         }
 
@@ -871,9 +1100,9 @@ namespace sgcl::net::tls::detail {
                 s.n = n;
                 return s;
             }
-            if (_broken || _read_error) {
+            if (_read_broken) {   // its own field: a write's failure never ends a read
                 s.kind = ReadStep::Kind::failed;
-                s.error = _broken ? *_broken : *_read_error;
+                s.error = *_read_broken;
                 return s;
             }
             if (_eof) {
@@ -968,7 +1197,10 @@ namespace sgcl::net::tls::detail {
                     s.kind = ReadStep::Kind::again;
                 return s;   // a warning; the close_notify follows
                 }
-                _broken = remote_error(a->description, "read", describe());
+                // the peer's fatal alert: nothing sent back, the writes
+                // after it refused (the error first, then the flag)
+                _read_broken = remote_error(a->description, "read", describe());
+                _read_fatal.store(true, std::memory_order_release);
                 s.kind = ReadStep::Kind::again;
                 return s;
             }
@@ -977,12 +1209,16 @@ namespace sgcl::net::tls::detail {
             return s;
         }
 
-        // A message after the handshake: NewSessionTicket passed over,
-        // KeyUpdate taken (§4.6); false when it ended the connection
+        // A message after the handshake: a NewSessionTicket's session to
+        // the cache, KeyUpdate taken (§4.6); false when it ended the
+        // connection
         bool _after_handshake(const slice<const byte>& m) noexcept {
             const Step& step = _feed_machine(m);
             for (auto& a : step.actions) {
                 switch (a.kind) {
+                case Action::Kind::new_ticket:
+                    _keep_session(step, a);
+                    break;
                 case Action::Kind::update_read:
                     _b->read.update();
                     if (auto k = _b->assembler.on_key_change(); !k) {
@@ -1003,10 +1239,37 @@ namespace sgcl::net::tls::detail {
             return true;
         }
 
+        // A ticket's session into the cache: the ticket copied, the PSK (a
+        // 1.2 session's master secret) into an unmanaged block of its own
+        void _keep_session(const Step& step, const Action& a) noexcept {
+            if (!_cache || !_hs) {
+                return;
+            }
+            tracked_ptr<Session> s = make_tracked<Session>();
+            s->version = a.tls12 ? Tls12 : Tls13;
+            s->cipher = uint16_t(a.cipher);
+            sgcl::detail::copy_bytes(s->session_id, a.session_id, a.session_id_size);
+            s->session_id_size = a.session_id_size;
+            s->group = a.group;
+            auto ticket = step.bytes(a);
+            s->ticket.assign(ticket.data(), ticket.data() + ticket.size());
+            s->psk = std::make_unique<Secret>();
+            std::memcpy(s->psk->bytes, a.secret.bytes, sizeof a.secret.bytes);
+            s->psk->size = a.secret.size;
+            s->received_ms = a.issued_ms;
+            s->lifetime = a.lifetime;
+            s->age_add = a.age_add;
+            s->peer_certificates = _hs->result().peer_certificates;
+            _cache->put(_cache_key, s);
+        }
+
+        // A failure of the read side, with the alert it sends: the error
+        // first, then the alert stored (the write side that takes it reads
+        // the error)
         void _read_failed(const Alert& a) noexcept {
-            if (!_broken) {
+            if (!_read_broken) {
+                _read_broken = local_error(a.description, "read", describe());
                 _want_alert.store(uint8_t(a.description), std::memory_order_release);
-                _broken = local_error(a.description, "read", describe());
             }
         }
 
@@ -1026,8 +1289,12 @@ namespace sgcl::net::tls::detail {
         }
 
         SGCL_INLINE_HOT optional<io::error> _writable() noexcept {
-            if (_broken) {
-                return _broken;
+            if (_write_broken) {
+                return _write_broken;
+            }
+            if (_read_fatal.load(std::memory_order_acquire)) {   // the peer's fatal alert read: _read_broken written before
+                _write_broken = _read_broken;
+                return _write_broken;
             }
             if (_write_closed) {
                 return net::detail::closed_error("write", describe());
@@ -1106,12 +1373,24 @@ namespace sgcl::net::tls::detail {
             _b->write.update();
         }
 
-        // What the read side asked for: the KeyUpdate answer, the fatal alert
-        void _queue_wants() noexcept {
+        // What the read side asked for: the KeyUpdate answer, the fatal
+        // alert. True when it was the alert: the read side has failed, its
+        // error (written before the alert was stored) now the writes' too,
+        // and nothing may follow the alert
+        bool _queue_wants() noexcept {
             const bool key_update = _want_key_update.exchange(false, std::memory_order_acq_rel);
             const uint8_t alert = _want_alert.exchange(NoAlert, std::memory_order_acq_rel);
+            if (alert != NoAlert && !_write_broken) {
+                _write_broken = _read_broken;
+            }
             if (_write_closed) {
-                return;
+                return alert != NoAlert;
+            }
+            if (!_b->ticket.empty()) {
+                for (size_t at = 0; at < _b->ticket.size(); at += MaxPlaintext) {
+                    _append(ContentType::handshake, _b->ticket.data() + at, std::min(MaxPlaintext, _b->ticket.size() - at));
+                }
+                std::vector<uint8_t>().swap(_b->ticket);
             }
             if (key_update) {
                 _append_key_update();
@@ -1120,6 +1399,7 @@ namespace sgcl::net::tls::detail {
                 const uint8_t bytes[2] = {uint8_t(Alert{AlertDescription(alert)}.fatal() ? 2 : 1), alert};
                 _append(ContentType::alert, bytes, 2);
             }
+            return alert != NoAlert;
         }
 
         SGCL_INLINE_HOT size_t _record_limit() const noexcept {
@@ -1188,8 +1468,11 @@ namespace sgcl::net::tls::detail {
             return n;
         }
 
+        // None after a failure of either side: the writes' own, the peer's
+        // fatal alert, the read side's alert (taken, or still to be taken)
         SGCL_INLINE_HOT bool _queue_close_notify() noexcept {
-            if (_write_closed || _broken || !_b->write.installed()) {
+            if (_write_closed || _write_broken || _read_fatal.load(std::memory_order_acquire) || _want_alert.load(std::memory_order_acquire) != NoAlert ||
+                !_b->write.installed()) {
                 return false;
             }
             const uint8_t bytes[2] = {1, 0};
@@ -1222,19 +1505,34 @@ namespace sgcl::net::tls::detail {
             return _unsent_size() == 0;
         }
 
+        // What the transport takes now, a failure not recorded (close());
+        // true when nothing is left
+        bool _flush_quiet() {
+            while (_unsent_size()) {
+                auto w = _t().try_raw_write(_unsent());
+                if (!w || *w == 0) {
+                    return false;
+                }
+                _sent(*w);
+            }
+            return true;
+        }
+
         // The read side's wants written when the record is free; a writer
         // that held it checks again after letting go, so none is left behind
         void _drain_try() {
             while (_wants() && _record.try_lock()) {
-                _queue_wants();
+                (void)_queue_wants();
                 (void)_flush_try();
                 _record.unlock();
             }
         }
 
+        // A failure of the transport's write, the write side's alone (under
+        // the record mutex)
         io::error _break(const io::error& e) noexcept {
-            if (!_broken) {
-                _broken = e;
+            if (!_write_broken) {
+                _write_broken = e;
             }
             return e;
         }

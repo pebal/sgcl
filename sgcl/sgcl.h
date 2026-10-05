@@ -18,6 +18,7 @@
 #include "math.h"
 #include "net.h"
 #include "net/http.h"
+#include "net/imap.h"
 #include "net/tls.h"
 #include "slog.h"
 #include "time.h"

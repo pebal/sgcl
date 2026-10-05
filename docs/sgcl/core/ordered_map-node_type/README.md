@@ -14,6 +14,8 @@ namespace sgcl {
 }
 ```
 
+**Requires [rooted](../rooted/README.md) outside a stack or a managed object.**
+
 `ordered_map<Key, T, Hash, KeyEqual>::node_type` is the node handle of an [ordered_map](../ordered_map/README.md), as
 `std::unordered_map::node_type` is of its map: it owns one node that [extract](../ordered_map/extract.md) has
 unlinked from a map, its element in it, untouched. Movable, not copyable. Out of a map the key may change;
@@ -27,9 +29,6 @@ the two links of the order, which a `map`'s have not.
 
 ## Rules
 
-- The handle holds its node by a `tracked_ptr`, so it lives where one may: on a stack or inside a managed
-  object, never in `new`/`malloc` memory, a `std` container, a global or a plain coroutine frame
-  ([The rules](../README.md#the-rules), 1).
 - The element is destroyed by the handle that dies holding it, on a stack or inside a managed object destroyed by
   hand. A handle dying in a sweep, inside a managed object nobody refers to any more, leaves its node to the same
   sweep, which destroys the element.

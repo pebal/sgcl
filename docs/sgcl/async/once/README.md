@@ -10,6 +10,8 @@ namespace sgcl::async {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::async::once` runs a function once: the first caller of [call](call.md) runs it, and the others wait for
 it to finish; Go's `sync.Once`, `std::call_once` with a wait that holds no thread. `call(f)` is an
 [operation](../operation/README.md), waited for as every wait of the module: `co_await o.call(f)` in a task, where the tasks
@@ -26,9 +28,7 @@ thrown, and so does every other caller, then and later. Go's `Do` returns quietl
 
 ## Rules
 
-- A once is an object, not a handle: it lives where a `tracked_ptr` may, on a stack or inside a managed object
-  ([The rules](../../core/README.md#the-rules), 1), and is neither copied nor moved. Tasks reach it through the
-  object that holds it.
+- A once is an object, not a handle: it is neither copied nor moved. Tasks reach it through the object that holds it.
 - A function that throws ends the once: the exception is kept, [called](called.md) is `true`, and the function
   is not run again; every caller, waiting or coming later, gets the exception thrown.
 - `o.call(f).wait()` is a thread's: a task on a worker writes `co_await o.call(f)`

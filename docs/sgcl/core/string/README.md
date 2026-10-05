@@ -18,6 +18,8 @@ namespace sgcl {
 }
 ```
 
+**Requires [rooted](../rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::string` is an immutable string on the managed heap. It is one word, a pointer to an object that holds the length
 and the hash (eight bytes together), the characters and a terminator, of exactly that size rounded to four: a string of
 ten characters is an object of 20 bytes. It is what a string is in Java or Go rather than in C++: made once, never
@@ -59,8 +61,6 @@ the same way. The order of a `map` or a `set` of strings therefore differs betwe
 
 ## Rules
 
-- A string holds a `tracked_ptr`, so it lives where one may: on a stack or inside a managed object
-  ([The rules](../README.md#the-rules), 1).
 - Threads share a string the way they share a `tracked_ptr` ([The rules](../README.md#the-rules), 6). The object is
   immutable and is read from any thread without synchronization; a string variable that one thread replaces while
   others read it is an [atomic](../atomic.md) of the string, one word: a load for the string as it was and a store for

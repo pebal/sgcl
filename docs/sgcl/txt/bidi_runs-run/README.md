@@ -17,14 +17,15 @@ namespace sgcl::txt {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `txt::bidi_runs::run` is one piece of [bidi_runs](../bidi_runs/README.md): a run of code points next to each other in the text
 and at one level, which a renderer draws as one. The text is in the order it is stored; a piece of odd level has its
 characters drawn in reverse.
 
 ## Rules
 
-- An aggregate. It holds a slice of the text, so it lives where a `tracked_ptr` may: on a stack or inside a managed
-  object ([the rules of core](../../core/README.md#the-rules), 1).
+- An aggregate.
 
 ## Member objects
 

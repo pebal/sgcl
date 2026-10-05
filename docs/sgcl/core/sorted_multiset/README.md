@@ -11,6 +11,8 @@ namespace sgcl {
 }
 ```
 
+**Requires [rooted](../rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::sorted_multiset<Key, Compare>` is `std::multiset` on a red-black tree whose nodes are managed objects: the
 same tree as [sorted_set](../sorted_set/README.md), with equivalent keys allowed. The interface is the one of
 `std::multiset` (the constructors, `insert`, `emplace`, `erase`, `extract`, `merge`, node handles, the lookups with
@@ -31,9 +33,6 @@ empty multiset allocates nothing.
 
 ## Rules
 
-- A multiset holds a `tracked_ptr`, so it lives on a stack or inside a managed object: never in `new`/`malloc`
-  memory, a `std` container, a global, a `thread_local` or a plain coroutine frame
-  ([The rules](../README.md#the-rules), 1). The same holds for a [node handle](../sorted_set-node_type/README.md).
 - The elements may be, or hold, tracked pointers: the nodes are managed objects, so those pointers are traced.
 - An element is destroyed the moment it is erased, cleared or assigned over, or when the multiset is destroyed,
   exactly as in `std`. The one exception is a multiset dying in a sweep, inside a managed object nobody refers to

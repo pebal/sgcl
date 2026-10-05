@@ -13,6 +13,8 @@ namespace sgcl::compress {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::compress::flate::reader` is an [io reader](../../io/reader/README.md) of what the data read from another reader, `in`,
 decompresses to: DEFLATE (RFC 1951) with nothing around it. It is Go's `flate.NewReader`. The data is read into an input
 buffer and decoded into a window of 64 KB whose first half is the history the back references reach, and the decoded
@@ -30,8 +32,7 @@ of the [compress category](../compress_category.md).
 
 ## Rules
 
-- The reader holds `in`, a handle of a tracked word, so it lives where a `tracked_ptr` may: a stack, a task's frame,
-  a managed object. It is move-only, and read by one thread or task at a time.
+- The reader is move-only, and read by one thread or task at a time.
 - A reader moved from has no stream, it went with the move: a read gives `io::errc::closed` (its
   [last_error](last_error.md) is `errc::io` with that error), its [close](close.md) closes
   nothing, and a [reset](reset.md) gives it a new stream. A reader moved onto itself is unchanged.

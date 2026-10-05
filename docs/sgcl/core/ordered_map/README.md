@@ -11,6 +11,8 @@ namespace sgcl {
 }
 ```
 
+**Requires [rooted](../rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::ordered_map<Key, T, Hash, KeyEqual>` is a hash map iterated in the order its elements were inserted: what
 Java's `LinkedHashMap`, the `dict` of Python and .NET's `OrderedDictionary` are, and `std` has not. It is
 [map](../map/README.md) with one thing added: every node is on a second list, in the order of insertion, closed through
@@ -45,9 +47,6 @@ on each link they change ([README: Containers](../README.md#containers)).
 
 ## Rules
 
-- An `ordered_map` holds tracked pointers, so it lives on a stack or inside a managed object: never in
-  `new`/`malloc` memory, a `std` container, a global, a `thread_local` or a plain coroutine frame
-  ([The rules](../README.md#the-rules), 1). The same holds for a [node handle](../ordered_map-node_type/README.md).
 - The keys and the values may be, or hold, tracked pointers (a `tracked_ptr` key is hashed by its address): the
   nodes are managed objects, so those pointers are traced.
 - An element is destroyed the moment it is erased, cleared, assigned over, or the map is destroyed, exactly as in

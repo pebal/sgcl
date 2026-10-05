@@ -13,6 +13,8 @@ namespace sgcl::compress {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::compress::lzw::writer` is an [io writer](../../io/writer/README.md) that compresses what is written to it into another
 writer, `out`: LZW codes of the order and the literal width given, as Go's `lzw.NewWriter`. What is written is coded
 64 KB of input at a time and the codes are written to `out` as they come; [close](close.md) writes the end
@@ -24,8 +26,7 @@ close after it gives that error at once and writes nothing, so a stream is writt
 
 ## Rules
 
-- The writer holds `out`, a handle of a tracked word, so it lives where a `tracked_ptr` may: a stack, a task's
-  frame, a managed object. It is move-only, and written by one thread or task at a time.
+- The writer is move-only, and written by one thread or task at a time.
 - A writer moved from is closed, its stream gone with the move: its [close](close.md) does nothing, a write
   gives `io::errc::closed` (kept as its first error), and a [reset](reset.md) gives it a new stream with
   the settings it was made with. A writer moved onto itself is unchanged.

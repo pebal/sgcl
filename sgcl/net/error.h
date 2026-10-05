@@ -25,7 +25,30 @@ namespace sgcl::net {
     // speak (https before TLS), a response that breaks RFC 9112, a head
     // or a body past its limit, a chain of redirects too long, a server
     // asked to serve after its shutdown, a Set-Cookie value that holds no
-    // cookie.
+    // cookie. Then the DNS resolver's (dns::lookup_mx and the other
+    // records): a name with no record of the type asked (NODATA, RFC 2308),
+    // a server's SERVFAIL, and any other refusal of a server or an answer
+    // that cannot be read. Then a proxy's (SOCKS5, an HTTP proxy's
+    // CONNECT): a failure the proxy reports without a cause errno names, a
+    // connection it refused, a request it cannot carry out, credentials it
+    // wants or refused, an answer that breaks its protocol; then a
+    // multipart body's: one that breaks RFC 2046, one of more parts than
+    // allowed, a request whose Content-Type is not multipart; then a
+    // WebSocket's: an opening handshake refused or answered wrong, a frame
+    // or a message that breaks RFC 6455, a connection the peer closed;
+    // then SSH's: a handshake that failed (no common algorithm, a host
+    // key's signature that does not verify), a host key known_hosts does
+    // not have, one it has another key for, one it revokes, an
+    // authentication refused, a message that breaks the protocol, a
+    // connection the peer ended, a channel the peer would not open, a
+    // request it refused;
+    // and SMTP's: a reply refusing a command (the reply in the error's
+    // path, smtp::reply_of reads it back), an authentication refused, TLS
+    // required where the server offers none, a need the server's
+    // extensions do not meet (SMTPUTF8, a size past SIZE, a mechanism of
+    // AUTH), and a reply that breaks RFC 5321; then SFTP's: a server's
+    // failure that names no errno (SSH_FX_FAILURE, its message in the
+    // error's path), and a packet that breaks the protocol.
     enum class errc {
         invalid_address = 1,
         host_not_found,
@@ -38,7 +61,37 @@ namespace sgcl::net {
         too_many_redirects,
         server_closed,
         invalid_cookie,
-        http_status
+        http_status,
+        no_data,
+        server_failure,
+        server_misbehaving,
+        proxy_failure,
+        proxy_refused,
+        proxy_unsupported,
+        proxy_auth_required,
+        malformed_proxy_response,
+        malformed_multipart,
+        too_many_parts,
+        not_multipart,
+        websocket_handshake,
+        websocket_protocol,
+        websocket_closed,
+        ssh_handshake,
+        ssh_host_key_unknown,
+        ssh_host_key_mismatch,
+        ssh_host_key_revoked,
+        ssh_auth_failed,
+        ssh_protocol,
+        ssh_disconnected,
+        ssh_channel_refused,
+        ssh_request_refused,
+        smtp_reply,
+        smtp_auth_failed,
+        smtp_tls_required,
+        smtp_unsupported,
+        malformed_smtp_reply,
+        sftp_failure,
+        sftp_protocol
     };
 
     namespace detail {
@@ -63,6 +116,36 @@ namespace sgcl::net {
                     case errc::server_closed: return "server closed";
                     case errc::invalid_cookie: return "invalid cookie";
                     case errc::http_status: return "the response's status is not 2xx";
+                    case errc::no_data: return "no DNS record of the type asked";
+                    case errc::server_failure: return "DNS server failure";
+                    case errc::server_misbehaving: return "DNS server misbehaving";
+                    case errc::proxy_failure: return "proxy failure";
+                    case errc::proxy_refused: return "the proxy refused the connection";
+                    case errc::proxy_unsupported: return "the proxy does not support the request";
+                    case errc::proxy_auth_required: return "proxy authentication required";
+                    case errc::malformed_proxy_response: return "malformed proxy response";
+                    case errc::malformed_multipart: return "malformed multipart body";
+                    case errc::too_many_parts: return "too many parts";
+                    case errc::not_multipart: return "the body is not multipart";
+                    case errc::websocket_handshake: return "WebSocket handshake failed";
+                    case errc::websocket_protocol: return "WebSocket protocol violation";
+                    case errc::websocket_closed: return "WebSocket closed by the peer";
+                    case errc::ssh_handshake: return "SSH handshake failed";
+                    case errc::ssh_host_key_unknown: return "SSH host key unknown";
+                    case errc::ssh_host_key_mismatch: return "SSH host key mismatch";
+                    case errc::ssh_host_key_revoked: return "SSH host key revoked";
+                    case errc::ssh_auth_failed: return "SSH authentication failed";
+                    case errc::ssh_protocol: return "SSH protocol error";
+                    case errc::ssh_disconnected: return "SSH connection closed by the peer";
+                    case errc::ssh_channel_refused: return "SSH channel refused";
+                    case errc::ssh_request_refused: return "SSH request refused";
+                    case errc::smtp_reply: return "the SMTP server refused";
+                    case errc::smtp_auth_failed: return "SMTP authentication failed";
+                    case errc::smtp_tls_required: return "TLS required but not available";
+                    case errc::smtp_unsupported: return "the SMTP server does not support what the message needs";
+                    case errc::malformed_smtp_reply: return "malformed SMTP reply";
+                    case errc::sftp_failure: return "SFTP failure";
+                    case errc::sftp_protocol: return "SFTP protocol error";
                 }
                 return "unknown net error";
             }

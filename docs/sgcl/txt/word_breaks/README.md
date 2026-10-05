@@ -10,6 +10,8 @@ namespace sgcl::txt {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `txt::word_breaks` is the text cut at every word boundary of [UAX #29](https://www.unicode.org/reports/tr29/), which
 gives the words **and** the runs between them: that is what the annex defines, and what a double click, or a text put
 back together word by word, needs. A run of spaces is one segment (rule WB3d) while each punctuation mark is its own.
@@ -23,9 +25,8 @@ that goes back to the bytes. It is a range of the library ([mixin::enumerable](.
 
 ## Rules
 
-- A `word_breaks` holds a slice of the text, so it lives where a `tracked_ptr` may: on a stack or inside a managed
-  object ([the rules of core](../../core/README.md#the-rules), 1). A range over a temporary string is safe: the slice
-  keeps the string's object.
+- A `word_breaks` holds a slice of the text. A range over a temporary string is safe: the slice keeps the string's
+  object.
 - Nothing is copied and nothing is allocated per element: an element is a [slice](../../core/slice/README.md) of the text, found
   as the walk reaches it. An invalid byte of UTF-8 is one code point, `U+FFFD`.
 - An iterator refers to the text, not to the range: it is valid while the text's object lives.

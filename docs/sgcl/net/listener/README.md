@@ -10,6 +10,8 @@ namespace sgcl::net {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::net::listener` is a listening socket and the [connections](../connection/README.md) it accepts: what
 [tcp::listen](../tcp/listen.md), [unix_domain::listen](../unix_domain/listen.md) and [tls::listen](../tls/listen.md) give.
 It is Go's `net.Listener`: `Accept`, `Close` and `Addr` are [accept](accept.md),
@@ -23,8 +25,6 @@ copy is the same listener, and a handle passed by value into a task keeps it ali
 
 - A listener made by the default constructor holds none (`!l`); an operation on it is a contract violation (debug
   builds assert).
-- A handle is a tracked word: on a stack, in a task, in a managed object; in a global or a `std` container, a
-  [rooted](../../core/rooted/README.md) of it.
 - [accept](accept.md) has no deadline of its own: [close](close.md) from another task is how a
   wait for the next connection is ended (Go's `SetDeadline` on a listener, which a server uses for the same, is not
   here). The accepts in progress then end with `io::errc::closed`.

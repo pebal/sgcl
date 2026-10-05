@@ -14,6 +14,8 @@ namespace sgcl::async {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::async::channel<T>` is the channel of Go: a queue with the synchronization of both ends. A channel of
 capacity *n* buffers *n* elements; one of capacity 0 buffers none, and a send waits until a receive takes the
 element, so that the pair is a meeting of the two sides (a rendezvous) and not a delivery to a buffer. A receive on
@@ -44,14 +46,10 @@ is made by its constructor. `size()` and `capacity()` are Go's `len` and `cap`.
 
 ## Rules
 
-- A channel is a handle: one word, a tracked word to the channel's state (the ring, the lists), which copies share;
-  `==` says whether two are the same channel. It is made by the constructor, `channel<T> ch;` a rendezvous and
-  `channel<T> ch(n)` a buffer of *n*; there is no empty channel. It lives where a `tracked_ptr` may: on a stack, in a
-  task (a parameter by value, `async::task<> worker(async::channel<Job> jobs)`, the copy keeping the channel for as
-  long as the task runs), in a managed object; in a global or a `std` container as a `rooted<async::channel<T>>`
-  ([rooted](../../core/rooted/README.md)), the same channel reached with `->`. A root is never part of a cycle: never a
-  `rooted` in a managed object or a task's frame, where a waiting task would hold its own root
-  ([README: Handles](../README.md#handles)).
+- A channel is a handle: one word, a tracked word to the channel's state (the ring, the lists), which copies share; `==`
+  says whether two are the same channel. It is made by the constructor, `channel<T> ch;` a rendezvous and
+  `channel<T> ch(n)` a buffer of *n*; there is no empty channel. A task takes it as a parameter by value,
+  `async::task<> worker(async::channel<Job> jobs)`, the copy keeping the channel for as long as the task runs.
 - [send](send.md) and [receive](receive.md) return an [operation](../operation/README.md), carried out by
   `co_await` in a task or by `.wait()` on a thread ([README: Waiting operations](../README.md#waiting-operations)).
   They wait only for the other side; [try_send](try_send.md) and [try_receive](try_receive.md) never

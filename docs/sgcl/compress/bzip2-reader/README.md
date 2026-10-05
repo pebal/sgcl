@@ -13,6 +13,8 @@ namespace sgcl::compress {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::compress::bzip2::reader` is an [io reader](../../io/reader/README.md) of what the data read from another reader, `in`,
 decompresses to: bzip2 1.0, every stream of it, as Go's `bzip2.NewReader`. Any reader's forms work on it
 (`read_all_text`, `copy_to`, an `io::buffered_reader` over it for lines).
@@ -27,8 +29,7 @@ whole of it, offset included, and a read gives it as an `io::error` of the [comp
 
 ## Rules
 
-- The reader holds `in`, a handle of a tracked word, so it lives where a `tracked_ptr` may: a stack, a task's frame,
-  a managed object. It is move-only, and read by one thread or task at a time.
+- The reader is move-only, and read by one thread or task at a time.
 - A reader moved from has no stream, it went with the move: a read gives `io::errc::closed` (its
   [last_error](last_error.md) is `errc::io` with that error), its [close](close.md) closes
   nothing, and a [reset](reset.md) gives it a new stream. A reader moved onto itself is unchanged.

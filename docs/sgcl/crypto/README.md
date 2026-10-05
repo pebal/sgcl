@@ -135,6 +135,8 @@ AES-NI, PCLMULQDQ and the SSE2 ChaCha20 pass every vector of the suite.
 | [random::secret](random/secret.md) | `random.h` | random bytes that are a secret, in a `secret_bytes`: a key, a seed |
 | [read_secret](read_secret.md) | `read_secret.h` | a file's bytes as a secret, never through managed memory: a key's PEM, a password |
 | [secure_zero](secure_zero.md) | `secure_zero.h` | zeros over a buffer that held a secret, which the compiler cannot drop |
+| [x509::create_certificate](x509-create_certificate.md) | `x509.h` | a certificate of a template, issued by a CA or self-signed: Go's `x509.CreateCertificate` |
+| [x509::create_certificate_request](x509-create_certificate_request.md) | `x509.h` | a certificate request (PKCS #10) of a template: Go's `x509.CreateCertificateRequest` |
 
 ## Classes
 
@@ -152,7 +154,7 @@ ECDSA, which the private keys of both NIST curves sign by:
 | [random](random/README.md) | `random.h` | random bytes from a generator in the process, seeded from the system |
 | [rsa](rsa.md) | `rsa.h` | signatures of certificates and JWTs (PKCS #1 v1.5, PSS: RS256, PS256), OAEP key transport; Go's `crypto/rsa` |
 | [x25519](x25519.md) | `x25519.h` | key agreement (RFC 7748): TLS 1.3, SSH, WireGuard, Signal; Go's `crypto/ecdh.X25519()` |
-| [x509](x509.md) | `x509.h` | certificates (RFC 5280): read, pooled and verified as a chain with the host name; Go's `crypto/x509` |
+| [x509](x509.md) | `x509.h`, `x509_revocation.h` | certificates (RFC 5280): read, pooled and verified as a chain with the host name, the system's roots, made from templates, and certificate requests (PKCS #10); CRLs and OCSP; Go's `crypto/x509` and `x/crypto/ocsp` |
 
 ### Digests and key derivation
 
@@ -202,12 +204,23 @@ ECDSA, which the private keys of both NIST curves sign by:
 |---|---|---|
 | [x509::certificate](x509-certificate/README.md) | `x509.h` | a certificate from DER or PEM, its names, key and extensions; `verify` of its chain |
 | [x509::certificate_pool](x509-certificate_pool/README.md) | `x509.h` | a set of certificates: the roots of a verification, the system's own |
+| [x509::certificate_request](x509-certificate_request/README.md) | `x509.h` | a certificate request (PKCS #10) from DER or PEM, its names and key; the check of its signature |
+| [x509::certificate_request_template](x509-certificate_request_template.md) | `x509.h` | the fields of a certificate request to make |
+| [x509::certificate_template](x509-certificate_template.md) | `x509.h` | the fields of a certificate to make, with their defaults |
 | [x509::extension](x509-extension.md) | `x509.h` | an extension as the certificate has it: its OID, whether it is critical, its value |
 | [x509::ip_address](x509-ip_address/README.md) | `x509.h` | an IP address of a certificate's subject alternative names |
 | [x509::ip_range](x509-ip_range/README.md) | `x509.h` | an IP range of a CA's name constraints: an address and a mask |
 | [x509::name](x509-name/README.md) | `x509.h` | a distinguished name, the issuer or the subject, and its text |
 | [x509::name::attribute](x509-name-attribute.md) | `x509.h` | one attribute of a name: its type and its value |
+| [x509::ocsp_request](x509-ocsp_request/README.md) | `x509_revocation.h` | an OCSP request of a certificate's status (RFC 6960): made, read, its GET |
+| [x509::ocsp_request_options](x509-ocsp_request_options.md) | `x509_revocation.h` | the hash and the nonce of an OCSP request made |
+| [x509::ocsp_response](x509-ocsp_response/README.md) | `x509_revocation.h` | an OCSP response: read, and verified for a certificate and its issuer |
+| [x509::ocsp_single_response](x509-ocsp_single_response.md) | `x509_revocation.h` | the status of one certificate in an OCSP response |
+| [x509::ocsp_verify_options](x509-ocsp_verify_options.md) | `x509_revocation.h` | the time, the skew, the age and the nonce an OCSP response is verified against |
 | [x509::public_key](x509-public_key/README.md) | `x509.h` | a certificate's public key as one of the module's keys |
+| [x509::revocation_list](x509-revocation_list/README.md) | `x509_revocation.h` | a CRL (RFC 5280 §5): read, and the status of a certificate by it and a delta |
+| [x509::revoked_certificate](x509-revoked_certificate.md) | `x509_revocation.h` | an entry of a CRL: the serial number, the time, the reason |
+| [x509::signing_key](x509-signing_key/README.md) | `x509.h` | the private key a certificate or a request is signed with, of any of the four kinds |
 | [x509::verify_options](x509-verify_options.md) | `x509.h` | what a verification asks: the roots, the intermediates, the name, the time, the key usages |
 
 ### Secrets and errors
@@ -227,7 +240,10 @@ ECDSA, which the private keys of both NIST curves sign by:
 | [x509::ext_key_usage](x509-ext_key_usage.md) | `x509.h` | a purpose of extKeyUsage the module knows by name: what a leaf may be used for |
 | [x509::key_kind](x509-key_kind.md) | `x509.h` | the algorithm of a certificate's public key |
 | [x509::key_usage](x509-key_usage.md) | `x509.h` | the bits of a certificate's keyUsage, as flags |
+| [x509::ocsp_response_status](x509-ocsp_response_status.md) | `x509_revocation.h` | whether an OCSP responder answered with a status, or why not |
 | [x509::reason](x509-reason.md) | `error.h` | why a certificate chain does not verify |
+| [x509::revocation_reason](x509-revocation_reason.md) | `x509_revocation.h` | why a certificate was revoked: CRLReason |
+| [x509::revocation_status](x509-revocation_status.md) | `x509_revocation.h` | what is known of a certificate's revocation: good, revoked, unknown |
 | [x509::signature_algorithm](x509-signature_algorithm.md) | `x509.h` | the algorithm a certificate is signed with |
 
 ## Mixins

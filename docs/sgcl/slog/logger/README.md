@@ -10,6 +10,8 @@ namespace sgcl::slog {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::slog::logger` is slog's `Logger`: what a record is written as — text or JSON on a [writer](../../io/writer/README.md),
 or given to a [handler](../handler/README.md) of the program — from which level, with which attributes of its own. It is made
 once, by its constructor, from [options](../options.md), from a writer and a level for text lines, or from a handler and
@@ -27,10 +29,7 @@ by the compiler. The logger the free functions write through is the [default log
 - **The output is shared.** The copies of a logger and the loggers made from it by `with` and `group` share its
   output: the writer, its batches when buffered, the count of the records lost. Each constructor makes an output of
   its own.
-- **Where a logger lives.** A handle, one tracked word: on a stack, in a task, in a managed object; in a global or a
-  `std` container a [rooted](../../core/rooted/README.md) of it
-  (`rooted<slog::logger> log(slog::logger(slog::options{.out = file, .json = true}));`). The default logger is the
-  module's own, kept that way.
+- **The default logger** is the module's own, kept in a [rooted](../../core/rooted/README.md).
 - **From every thread.** The verbs may be called from any thread at once; a record is one write to the writer, or
   one call of the handler ([The rules](../README.md#the-rules)).
 

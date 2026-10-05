@@ -3,7 +3,7 @@
 # tree, then the options as the command line takes them (--tmp, --serve URL=FILE,
 # --echo URL, --tls HOST:PORT[=TEXT], --skip N for program N of the page,
 # page_N, that is not compiled: a fragment, a server with no request block,
-# a program that needs arguments). Pages not named here run with none.
+# a program that needs arguments or the network). Pages not named here run with none.
 docs/sgcl/io/mapping/README.md --tmp
 docs/sgcl/io/working_dir.md --tmp
 docs/sgcl/io/chdir.md --tmp
@@ -140,9 +140,129 @@ docs/sgcl/net/http/response_writer/write.md --tmp
 docs/sgcl/net/http/download.md --tmp
 docs/sgcl/net/http/client/download.md --tmp
 docs/sgcl/net/http/response/save.md --tmp
+docs/sgcl/net/http/cookie_jar/save.md --tmp
+docs/sgcl/net/http/cookie_jar/load.md --tmp
 docs/sgcl/net/connection/read_from.md --tmp
 docs/sgcl/net/connection/path.md --tmp
 docs/sgcl/net/listener/path.md --tmp
 docs/sgcl/net/unix_domain/README.md --tmp
 docs/sgcl/net/unix_domain/connect.md --tmp
 docs/sgcl/net/unix_domain/listen.md --tmp
+docs/sgcl/net/dns/lookup_mx.md --skip 0
+docs/sgcl/net/dns/lookup_txt.md --skip 0
+docs/sgcl/net/dns/lookup_srv.md --skip 0
+docs/sgcl/net/dns/lookup_ns.md --skip 0
+docs/sgcl/net/dns/lookup_cname.md --skip 0
+docs/sgcl/net/dns-options.md --skip 1
+docs/sgcl/net/socks5/README.md --socks5 127.0.0.1:1080
+docs/sgcl/net/socks5/connect.md --socks5 127.0.0.1:1080
+docs/sgcl/net/socks5/client.md --socks5 127.0.0.1:1080
+docs/sgcl/net/socks5-options.md --socks5 127.0.0.1:1080=alice:secret
+docs/sgcl/net/http/proxy/README.md --proxy 127.0.0.1:3128
+docs/sgcl/net/http/form/README.md --tmp
+docs/sgcl/net/http/form/file.md --tmp
+docs/sgcl/net/http/form/add.md --tmp
+docs/sgcl/net/http/form/content_length.md --tmp
+docs/sgcl/net/http/form/reader.md --tmp
+docs/sgcl/net/http/multipart_reader/read.md --tmp
+docs/sgcl/net/http/request/multipart.md --tmp
+docs/sgcl/net/http/client/websocket.md --proxy 127.0.0.1:3128
+docs/sgcl/net/ssh/private_key/save.md --tmp
+docs/sgcl/net/ssh/known_hosts/load.md --tmp
+docs/sgcl/net/ssh/known_hosts/add.md --tmp
+docs/sgcl/net/ssh/known_hosts/path.md --tmp
+docs/sgcl/net/ssh/authorized_keys/load.md --tmp
+docs/sgcl/net/ssh/agent/README.md --tmp
+docs/sgcl/net/ssh/agent/agent.md --tmp
+docs/sgcl/net/ssh/agent/connect.md --tmp
+docs/sgcl/net/ssh/agent/list.md --tmp
+docs/sgcl/net/ssh/agent/sign.md --tmp
+docs/sgcl/net/ssh/agent/add.md --tmp
+docs/sgcl/net/ssh/agent/remove.md --tmp
+docs/sgcl/net/ssh/agent/remove_all.md --tmp
+docs/sgcl/net/ssh/agent/close.md --tmp
+docs/sgcl/net/ssh/agent/operator_bool.md --tmp
+docs/sgcl/encoding/email/save.md --tmp
+docs/sgcl/encoding/email/load.md --tmp
+docs/sgcl/net/smtp/message/README.md --tmp
+docs/sgcl/net/sftp/attributes.md --tmp
+docs/sgcl/net/sftp/client/README.md --tmp
+docs/sgcl/net/sftp/client/chmod.md --tmp
+docs/sgcl/net/sftp/client/client.md --tmp
+docs/sgcl/net/sftp/client/close.md --tmp
+docs/sgcl/net/sftp/client/connect.md --tmp
+docs/sgcl/net/sftp/client/create.md --tmp
+docs/sgcl/net/sftp/client/download.md --tmp
+docs/sgcl/net/sftp/client/exists.md --tmp
+docs/sgcl/net/sftp/client/hard_link.md --tmp
+docs/sgcl/net/sftp/client/has_extension.md --tmp
+docs/sgcl/net/sftp/client/home_dir.md --tmp
+docs/sgcl/net/sftp/client/is_closed.md --tmp
+docs/sgcl/net/sftp/client/limits.md --tmp
+docs/sgcl/net/sftp/client/lstat.md --tmp
+docs/sgcl/net/sftp/client/mkdir.md --tmp
+docs/sgcl/net/sftp/client/mkdir_all.md --tmp
+docs/sgcl/net/sftp/client/open.md --tmp
+docs/sgcl/net/sftp/client/operator_bool.md --tmp
+docs/sgcl/net/sftp/client/read_dir.md --tmp
+docs/sgcl/net/sftp/client/read_file.md --tmp
+docs/sgcl/net/sftp/client/read_link.md --tmp
+docs/sgcl/net/sftp/client/read_text.md --tmp
+docs/sgcl/net/sftp/client/real_path.md --tmp
+docs/sgcl/net/sftp/client/remove.md --tmp
+docs/sgcl/net/sftp/client/remove_all.md --tmp
+docs/sgcl/net/sftp/client/rename.md --tmp
+docs/sgcl/net/sftp/client/rmdir.md --tmp
+docs/sgcl/net/sftp/client/set_modified.md --tmp
+docs/sgcl/net/sftp/client/set_stat.md --tmp
+docs/sgcl/net/sftp/client/stat.md --tmp
+docs/sgcl/net/sftp/client/stat_fs.md --tmp
+docs/sgcl/net/sftp/client/symlink.md --tmp
+docs/sgcl/net/sftp/client/upload.md --tmp
+docs/sgcl/net/sftp/client/write_file.md --tmp
+docs/sgcl/net/sftp/file/README.md --tmp
+docs/sgcl/net/sftp/file/close.md --tmp
+docs/sgcl/net/sftp/file/file.md --tmp
+docs/sgcl/net/sftp/file/is_closed.md --tmp
+docs/sgcl/net/sftp/file/operator_bool.md --tmp
+docs/sgcl/net/sftp/file/path.md --tmp
+docs/sgcl/net/sftp/file/read.md --tmp
+docs/sgcl/net/sftp/file/read_at.md --tmp
+docs/sgcl/net/sftp/file/seek.md --tmp
+docs/sgcl/net/sftp/file/set_stat.md --tmp
+docs/sgcl/net/sftp/file/stat.md --tmp
+docs/sgcl/net/sftp/file/sync.md --tmp
+docs/sgcl/net/sftp/file/truncate.md --tmp
+docs/sgcl/net/sftp/file/write.md --tmp
+docs/sgcl/net/sftp/file/write_at.md --tmp
+docs/sgcl/net/sftp/file_info/README.md --tmp
+docs/sgcl/net/sftp/file_info/is_directory.md --tmp
+docs/sgcl/net/sftp/file_info/is_regular.md --tmp
+docs/sgcl/net/sftp/file_info/is_symlink.md --tmp
+docs/sgcl/net/sftp/file_system_info.md --tmp
+docs/sgcl/net/sftp/limits.md --tmp
+docs/sgcl/net/sftp/serve.md --tmp
+docs/sgcl/net/sftp/server_options.md --tmp
+docs/sgcl/net/imap/maildir_backend/README.md --tmp
+docs/sgcl/net/imap/maildir_backend/add_user.md --tmp
+docs/sgcl/net/imap/maildir_backend/append.md --tmp
+docs/sgcl/net/imap/maildir_backend/authenticate.md --tmp
+docs/sgcl/net/imap/maildir_backend/copy.md --tmp
+docs/sgcl/net/imap/maildir_backend/create.md --tmp
+docs/sgcl/net/imap/maildir_backend/expunge.md --tmp
+docs/sgcl/net/imap/maildir_backend/mailboxes.md --tmp
+docs/sgcl/net/imap/maildir_backend/maildir_backend.md --tmp
+docs/sgcl/net/imap/maildir_backend/open.md --tmp
+docs/sgcl/net/imap/maildir_backend/path.md --tmp
+docs/sgcl/net/imap/maildir_backend/quota.md --tmp
+docs/sgcl/net/imap/maildir_backend/read.md --tmp
+docs/sgcl/net/imap/maildir_backend/remove.md --tmp
+docs/sgcl/net/imap/maildir_backend/rename.md --tmp
+docs/sgcl/net/imap/maildir_backend/revision.md --tmp
+docs/sgcl/net/imap/maildir_backend/set_quota.md --tmp
+docs/sgcl/net/imap/maildir_backend/store.md --tmp
+docs/sgcl/net/imap/maildir_backend/subscribe.md --tmp
+docs/sgcl/net/imap/maildir_backend/uid_validity.md --tmp
+docs/sgcl/net/imap/server/README.md --skip 1
+docs/sgcl/net/http/serve_tls.md --skip 1
+docs/sgcl/net/acme/manager/manager.md --skip 0

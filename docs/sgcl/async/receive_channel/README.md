@@ -14,6 +14,8 @@ namespace sgcl::async {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::async::receive_channel<T>` is a [channel](../channel/README.md) seen from its receiving end, Go's `<-chan T`: a handle
 of the same channel as the one it was made from, with the receive, its case of a select and the looks, and with no
 send and no close. A `channel<T>` converts to it, as a Go channel converts to its receive-only type, so a function
@@ -26,9 +28,8 @@ as a stop that stopped nothing, neither the children of the source nor its deadl
 ## Rules
 
 - A `receive_channel` is a handle: one word, the tracked word of the channel's state, as the
-  [channel](../channel/README.md)'s handle is; `==` says whether two are the same channel, a `channel<T>` compared with it
-  included. It is made from a channel, or copied from another; there is no empty one. It lives where a channel
-  handle lives.
+  [channel](../channel/README.md)'s handle is; `==` says whether two are the same channel, a `channel<T>` compared with
+  it included. It is made from a channel, or copied from another; there is no empty one.
 - [receive](receive.md) returns an [operation](../operation/README.md), carried out by `co_await` in a task or
   by `.wait()` on a thread ([README: Waiting operations](../README.md#waiting-operations)); everything else is the
   channel's, done the same way.

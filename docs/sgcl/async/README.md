@@ -161,6 +161,14 @@ front of every managed frame; its [generator](generator/README.md) may wait betw
   `SGCL_WORKER_SPIN_US`, `SGCL_BLOCKING_THREADS`, read once), then the build's `config`; a value of the
   environment that does not read is ignored with one line on stderr. A stop of the scheduler stops the timer
   thread, the reactor and the blocking pool before it joins the workers.
+- The end of the program stops the runtime once, at the first of its objects destroyed (the scheduler, the
+  reactor, the timers and the blocking pool are statics): the pool runs the jobs queued and leaves, the workers run
+  what is ready until it suspends and leave, then the timer thread and the reactor stop, the reactor waking none
+  of its waits. A task suspended then stays suspended, as a goroutine does when `main` returns, and nothing starts
+  the runtime again. In a static destructor after that, a task spawned never runs and a thread that waits for it
+  waits forever; a task that waits for I/O, a timer or a blocking job stays suspended; on a thread, a wait for I/O
+  ends cancelled, a wait on a timer ends at once (`sleep(d).wait()` returns without sleeping) and a blocking job runs
+  on the thread itself.
 
 ### Time
 

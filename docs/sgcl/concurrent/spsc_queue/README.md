@@ -11,6 +11,8 @@ namespace sgcl::concurrent {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::concurrent::spsc_queue<T>` is a bounded wait-free FIFO queue for exactly one producer thread and one
 consumer thread: a ring of cells, a power of two of them, fixed at construction, with a sequence number per cell,
 the way the [bounded_queue](../bounded_queue/README.md) numbers its cells, and without its compare-exchange, since the
@@ -44,10 +46,9 @@ single-producer queue. The element type is any movable `T`, a `tracked_ptr` incl
   may be both. A second thread on either side is a data race on that side's index; several producers or
   consumers take a [bounded_queue](../bounded_queue/README.md). `size`, `empty`, `full` and `capacity` may be called from
   any thread.
-- The container is three groups of words a cache line apart (`config::cache_line_size`): the buffer, the mask and
-  the count of waiters, read by both sides and written by neither but a side about to wait; the head, the
-  consumer's line; the tail, the producer's. The queue holds its buffer by a `tracked_ptr`, so it lives where one
-  may: on a thread's stack or inside a managed object ([The rules](../../core/README.md#the-rules), 1).
+- The container is three groups of words a cache line apart (`config::cache_line_size`): the buffer, the mask and the
+  count of waiters, read by both sides and written by neither but a side about to wait; the head, the consumer's line;
+  the tail, the producer's.
 - The capacity is rounded up to a power of two, at least one; [capacity](capacity.md) is what the ring
   holds.
 - `try_push`, `try_emplace` and `try_pop` are wait-free: a load of the side's own index, a load of the cell's

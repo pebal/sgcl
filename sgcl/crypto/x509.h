@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "detail/apple_security.h"
 #include "detail/x509_cert.h"
 #include "detail/x509_verify.h"
 #include "error.h"
@@ -53,7 +54,8 @@
 // usages nested down the chain (serverAuth when none is asked), no
 // critical extension left unknown, and the leaf for the name asked (RFC
 // 6125: dNSNames only, a wildcard only as the whole leftmost label, the
-// common name never). Revocation is not checked: no CRL, no OCSP. Policy
+// common name never). Revocation is not part of verify(): CRLs and OCSP
+// responses are x509_revocation.h's, net::tls checks them by its config. Policy
 // validation is not done: a critical policyConstraints, policyMappings or
 // inhibitAnyPolicy is an unhandled critical extension. The implementation
 // has not been through an independent cryptographic audit.
@@ -359,6 +361,30 @@ namespace sgcl::crypto::x509 {
             return _d->policies;
         }
 
+        // authorityInfoAccess: the URIs of the OCSP responders
+        // (id-ad-ocsp) and of the issuer's certificate (id-ad-caIssuers),
+        // Go's OCSPServer and IssuingCertificateURL
+        SGCL_INLINE_HOT const vector<string>& ocsp_servers() const noexcept {
+            return _d->ocsp_servers;
+        }
+
+        SGCL_INLINE_HOT const vector<string>& issuing_certificate_urls() const noexcept {
+            return _d->issuing_certificate_urls;
+        }
+
+        // cRLDistributionPoints: the URIs of the points' full names, Go's
+        // CRLDistributionPoints
+        SGCL_INLINE_HOT const vector<string>& crl_distribution_points() const noexcept {
+            return _d->crl_distribution_points;
+        }
+
+        // Whether the TLS feature extension (RFC 7633) asks for
+        // status_request: OCSP Must-Staple, a server that must staple a
+        // response for the certificate
+        SGCL_INLINE_HOT bool must_staple() const noexcept {
+            return _d->must_staple;
+        }
+
         // The OIDs of the critical extensions not handled here: a
         // certificate with one does not verify
         SGCL_INLINE_HOT const vector<string>& unhandled_critical_extensions() const noexcept {
@@ -448,9 +474,14 @@ namespace sgcl::crypto::x509 {
         : _d(make_tracked<detail::PoolData>()) {
         }
 
-        // The system's roots, loaded once per process and cloned for each
-        // call (a change to the pool returned touches no other): the file
-        // SSL_CERT_FILE names, else the first of the bundles Go looks for
+        // The system's roots, loaded once per process, at the first call,
+        // and cloned for each (a change to the pool returned touches no
+        // other). On macOS the Keychain's trust settings (Security.framework:
+        // the system's anchors, less those an administrator or the user
+        // distrusted, with those they trusted for TLS), and the files below
+        // when Security cannot be read. Elsewhere, and on macOS when
+        // SSL_CERT_FILE or SSL_CERT_DIR is set: the file SSL_CERT_FILE names,
+        // else the first of the bundles Go looks for
         // (/etc/ssl/certs/ca-certificates.crt, /etc/pki/tls/certs/ca-bundle.crt,
         // /etc/ssl/ca-bundle.pem, /etc/pki/tls/cacert.pem,
         // /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem, /etc/ssl/cert.pem
@@ -609,11 +640,66 @@ namespace sgcl::crypto::x509 {
             pool.append_pem(string(std::string(p, bytes->size())));
         }
 
-        inline SystemRoots* load_system_roots() {
-            auto* s = new SystemRoots();
-            certificate_pool pool;
+#if defined(__APPLE__)
+        // The roots of macOS's trust settings (Security.framework): the
+        // system's anchors (SecTrustCopyAnchorCertificates), less those an
+        // administrator or the user distrusted, with those they trusted for
+        // TLS added (SecTrustSettingsCopyCertificates and their settings,
+        // the user's over the administrator's over the system's). False
+        // when the system's anchors cannot be read: the bundle of files is
+        // the fallback then
+        inline bool load_keychain_roots(certificate_pool& pool, const apple::KeychainCalls& calls = apple::KeychainCalls()) {
+            apple::Owned anchors;
+            if (calls.copy_anchors(anchors.out()) != 0 || !anchors.get()) {
+                return false;
+            }
+            // the decisions of the administrator and the user, by the DER
+            std::unordered_map<std::string, int> decided;
+            for (uint32_t domain : {apple::DomainAdmin, apple::DomainUser}) {
+                apple::Owned certs;
+                if (calls.copy_certificates(domain, certs.out()) != 0 || !certs.get()) {
+                    continue;   // errSecNoTrustSettings: none in the domain
+                }
+                const apple::Index n = apple::array_count(certs.get());
+                for (apple::Index i = 0; i < n; ++i) {
+                    apple::Ref c = apple::array_value(certs.get(), i);
+                    int d = apple::trust_decision(calls, c, domain);
+                    if (d == 0) {
+                        continue;
+                    }
+                    apple::with_der(calls, c, [&](const uint8_t* p, size_t size) {
+                        decided[std::string(reinterpret_cast<const char*>(p), size)] = d;
+                    });
+                }
+            }
+            auto add = [&](const uint8_t* p, size_t size) {
+                if (auto c = certificate::parse(slice<const byte>(reinterpret_cast<const byte*>(p), size))) {
+                    pool.add(*c);
+                }
+            };
+            const apple::Index n = apple::array_count(anchors.get());
+            for (apple::Index i = 0; i < n; ++i) {
+                apple::with_der(calls, apple::array_value(anchors.get(), i), [&](const uint8_t* p, size_t size) {
+                    auto it = decided.find(std::string(reinterpret_cast<const char*>(p), size));
+                    if (it == decided.end() || it->second > 0) {
+                        add(p, size);
+                    }
+                });
+            }
+            for (auto& [der, d] : decided) {
+                if (d > 0) {
+                    add(reinterpret_cast<const uint8_t*>(der.data()), der.size());
+                }
+            }
+            return !pool.empty();
+        }
+#endif
+
+        // The bundle files of Go's list, then the directories: the roots
+        // where the system keeps them as PEM
+        inline void load_root_files(certificate_pool& pool, bool from_env) {
             bool found = false;
-            if (auto f = io::getenv(string("SSL_CERT_FILE")); f && !f->empty()) {
+            if (auto f = io::getenv(string("SSL_CERT_FILE")); from_env && f && !f->empty()) {
                 load_pem_file(pool, *f, found);
             } else {
                 static constexpr const char* files[] = {
@@ -632,7 +718,7 @@ namespace sgcl::crypto::x509 {
             }
             if (pool.empty()) {
                 std::vector<std::string> dirs;
-                if (auto d = io::getenv(string("SSL_CERT_DIR")); d && !d->empty()) {
+                if (auto d = io::getenv(string("SSL_CERT_DIR")); from_env && d && !d->empty()) {
                     std::string all(d->view());
                     for (size_t i = 0; i <= all.size();) {
                         size_t j = all.find(':', i);
@@ -657,8 +743,31 @@ namespace sgcl::crypto::x509 {
                     }
                 }
             }
+        }
+
+        // The system's roots: SSL_CERT_FILE or SSL_CERT_DIR when set (the
+        // program's choice, on every system); else on macOS the trust
+        // settings of the Keychain, and the files when they cannot be read;
+        // else the files
+        inline SystemRoots* load_system_roots() {
+            auto* s = new SystemRoots();
+            certificate_pool pool;
+            auto set = [](const char* name) {
+                auto v = io::getenv(string(name));
+                return v && !v->empty();
+            };
+            const bool from_env = set("SSL_CERT_FILE") || set("SSL_CERT_DIR");
+            bool done = false;
+#if defined(__APPLE__)
+            if (!from_env) {
+                done = load_keychain_roots(pool);
+            }
+#endif
+            if (!done) {
+                load_root_files(pool, from_env);
+            }
             if (pool.empty()) {
-                s->error = "no system root certificates: SSL_CERT_FILE, the bundles of /etc/ssl and /etc/pki, SSL_CERT_DIR hold none";
+                s->error = "no system root certificates: the Keychain, SSL_CERT_FILE, the bundles of /etc/ssl and /etc/pki, SSL_CERT_DIR hold none";
             }
             s->pool = PoolAccess::ptr(pool);
             return s;
@@ -920,3 +1029,6 @@ namespace sgcl::crypto::x509 {
         return b.run(*this);
     }
 }
+
+#include "detail/x509_request.h"
+#include "detail/x509_create.h"

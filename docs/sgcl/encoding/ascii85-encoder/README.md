@@ -13,6 +13,8 @@ namespace sgcl::encoding {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::encoding::ascii85::encoder` is a writer whose bytes go out encoded to another writer: Go's
 `ascii85.NewEncoder`, made by [ascii85::encoder_to](../ascii85/encoder_to.md). A [write](write.md)
 encodes the whole groups of four bytes it has and writes them to the writer under it; the bytes short of a group
@@ -29,9 +31,7 @@ on: the `~>` of Adobe's variant, the rest of a PostScript or PDF file.
   (`encoding::ascii85::encoder a85 = encoding::ascii85::encoder_to(w);`) and shared by its copies
   ([operator==](operator_cmp.md) says whether two are the same). A default-constructed one holds
   none (`!a85`), and an operation on it is a contract violation, checked by `assert`.
-- It lies on a stack, in a task, in a managed object; in a global or a `std` container, a
-  [rooted](../../core/rooted/README.md) of it. A stream made of one (`io::writer w = a85;`, `io::copy`) binds the
-  state, so the handle may go first.
+- A stream made of one (`io::writer w = a85;`, `io::copy`) binds the state, so the handle may go first.
 - The state is a managed object that holds its block, 8 KB of `array<byte, N>` as io's buffers are, and the
   writer under it. Nothing is written when it dies: an encoder dropped without `close()` loses its last group.
 - A failure of the writer under it is kept for good, as Go's encoder keeps it: the group being written went with

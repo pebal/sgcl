@@ -13,6 +13,8 @@ namespace sgcl::encoding {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::encoding::xml::builder` makes an element an attribute and a child at a time, and hands it out as an
 [xml](../xml/README.md) node when it is done. The node's own [push_back](../xml/push_back.md) and [set](../xml/set.md) copy the
 whole node each time, so an element of n children made by them costs n²; the builder gathers the attributes and the
@@ -26,7 +28,7 @@ children in lists of its own and makes the node once, in [build](build.md).
   itself tells: its `xmlns` declarations and its own prefix. An element whose declarations do not name its prefix
   is in no namespace, but for the prefix `xml`, as the [constructor](../xml/xml.md) of a node makes it.
 - `build()` leaves the builder empty, with the same name, ready for the next element.
-- A builder holds tracked pointers (its lists): it lives where a `tracked_ptr` may. A copy has lists of its own.
+- A copy of a builder has lists of its own.
 
 ## Member functions
 

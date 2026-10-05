@@ -14,6 +14,8 @@ namespace sgcl {
 }
 ```
 
+**Requires [rooted](../rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::list<T>` is `std::list` over managed nodes: a circular doubly linked list around a managed sentinel. The
 interface is the one of `std::list` (constructors, `assign`, `front` and `back`, bidirectional iterators, modifiers
 at both ends and in the middle, `merge`, `splice`, `remove`, `remove_if`, `reverse`, `unique`, `sort`, three-way
@@ -35,9 +37,6 @@ the writes of the [mixins](../mixin/README.md) every sequence of the library has
 
 ## Rules
 
-- A list holds a `tracked_ptr` (the sentinel), so it lives where one may: on a stack or inside a managed object,
-  never in `new`/`malloc` memory, a `std` container, a global or a plain coroutine frame
-  ([The rules](../README.md#the-rules), 1).
 - The list destroys an element the moment it is erased, popped, cleared, assigned over or the list is destroyed,
   exactly like `std::list`. The one exception is a list dying in a sweep, inside a managed object nobody refers to
   any more: its nodes are garbage of the same sweep, and each destroys its element when the sweep reaches it

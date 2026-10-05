@@ -11,6 +11,8 @@ namespace sgcl::txt {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::txt::folded_text` is a text folded once ([fold_case](../fold_case.md)) and asked as often as you like without
 regard to case; `sgcl::txt::normalized_text` is a text decomposed and put in canonical order once, asked without
 regard to the way it was written. The two are one class over two mappings, with one interface: what this page and
@@ -26,8 +28,8 @@ prepared [fold_searcher](../fold_searcher/README.md). A match takes whole charac
 
 ## Rules
 
-- A text holds a [slice](../../core/slice/README.md) of the text it was built from and [vectors](../../core/vector/README.md) of the
-  mapping, so it lives where those may: on a stack or inside a managed object. The slice keeps the text alive.
+- A text holds a [slice](../../core/slice/README.md) of the text it was built from and
+  [vectors](../../core/vector/README.md) of the mapping. The slice keeps the text alive.
 - Nothing in it changes after it is built: one text may be asked by any number of threads at once.
 - The positions it answers with are bytes of the text as it was given, not of the mapped copy.
 - The mapping is kept as a code point and its byte position in the text for every code point the text mapped to,

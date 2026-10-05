@@ -1,0 +1,12 @@
+SGCL: a C++20 application platform
+Copyright (c) 2022-2026 Sebastian Nibisz
+Licensed under the Apache License, Version 2.0 (LICENSE).
+
+This product includes third-party data under its own license:
+
+The Public Suffix List (https://publicsuffix.org), Mozilla Public License 2.0
+(https://mozilla.org/MPL/2.0/).
+  tools/public_suffix_list.dat                the list as published (2024-01-07)
+  sgcl/net/http/detail/public_suffix_table.h  the list compiled by tools/gen_public_suffix.py
+Both files are covered by the MPL 2.0, not by the Apache License; their source
+is the list above, and they keep the list's notice.

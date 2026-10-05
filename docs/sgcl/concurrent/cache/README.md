@@ -11,6 +11,8 @@ namespace sgcl::concurrent {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::concurrent::cache<Key, T, Hash, KeyEqual>` is a key-value cache shared by any number of threads, bounded by a
 capacity (a number of entries) and, if asked, by a time to live, evicting the entries least recently used: what
 Guava's `Cache` and Caffeine are in Java (the standard libraries of Go and Java have none, and everybody writes
@@ -46,10 +48,6 @@ the same key both compute it, and neither waits for the other ([get_or_compute](
 
 ## Rules
 
-- The cache holds its map, its counters and its cursors by `tracked_ptr`s, so it lives where one may: on a thread's
-  stack or inside a managed object ([The rules](../../core/README.md#the-rules), 1). A cache the threads share is a
-  member of the managed object they share, held by a [root_ptr](../../core/root_ptr/README.md) when that object is a global,
-  as in the example.
 - Every member function may be called from any thread at any time. `get` writes nothing shared but the stamp of
   the entry it hit, when it changed, and is wait-free when it finds the entry fresh or no entry; `put`,
   `get_or_compute` and `erase` are lock-free: the map's `try_emplace` or `erase`, and the eviction the insertion

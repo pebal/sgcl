@@ -10,6 +10,8 @@ namespace sgcl::net::http {
 }
 ```
 
+**Requires [rooted](../../../core/rooted/README.md) outside a stack or a managed object.**
+
 `net::http::response_writer` is the response a handler of a [server](../server/README.md) writes, Go's `http.ResponseWriter`:
 the status, the fields, the body. [write](write.md) does not wait: it adds to a buffer in memory, and
 the server sends the whole response when the handler returns, with an exact Content-Length, so that a handler that
@@ -24,7 +26,6 @@ and DATA with END_STREAM, a flush sends HEADERS and DATA without it ([server, HT
 
 ## Rules
 
-- A writer holds a `tracked_ptr`, so it lives where one may: on a stack, in a task, in a managed object.
 - The status is 200 unless set, one of 200 to 999; after the head has gone, a new one is ignored, and so are the
   fields.
 - `Date` is the server's: every response carries one, IMF-fixdate of `time::now()` (made once a second), unless the
@@ -57,6 +58,7 @@ and DATA with END_STREAM, a flush sends HEADERS and DATA without it ([server, HT
 | [add_cookie](add_cookie.md) | adds a Set-Cookie field |
 | [headers](headers.md) | the fields of the response |
 | [header_sent](header_sent.md) | checks whether the head has gone |
+| [send_informational, async_send_informational](send_informational.md) | sends a 1xx before the head: 103 Early Hints |
 
 #### The body
 
@@ -64,6 +66,7 @@ and DATA with END_STREAM, a flush sends HEADERS and DATA without it ([server, HT
 |---|---|
 | [write](write.md) | adds bytes, a text or a file to the body |
 | [flush, async_flush](flush.md) | sends the head and what is buffered |
+| [trailers](trailers.md) | the fields sent after the body |
 
 #### Whole answers
 

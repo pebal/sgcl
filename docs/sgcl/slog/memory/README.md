@@ -10,6 +10,8 @@ namespace sgcl::slog {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::slog::memory` is a handler that keeps the records, for tests: `slog::logger(kept)`, then `kept.records()`.
 Each record kept is a [clone](../record/clone.md), which owns its texts and its attributes, so it may be read long
 after the call that logged it. It takes every level; the logger's level decides.
@@ -19,9 +21,6 @@ after the call that logged it. It takes every level; the logger's level decides.
 - A handle of one word, made empty by its constructor; the copies share the records. Given to a
   [handler](../handler/README.md), it is copied, so the logger and the handle share them too.
 - Any thread may log through it: the records are kept under a lock, in the order they came.
-- It holds a `tracked_ptr`, so it lives where one may: on a stack, in a task, in a managed object; in a global or a
-  `std` container, a [rooted](../../core/rooted/README.md) of it.
-
 ## Member functions
 
 | Function | Description |

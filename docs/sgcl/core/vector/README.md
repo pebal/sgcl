@@ -14,6 +14,8 @@ namespace sgcl {
 }
 ```
 
+**Requires [rooted](../rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::vector<T>` is a sequence of elements stored contiguously in one buffer on the managed heap, with the
 interface and the behaviour of `std::vector`: elements are constructed and destroyed one at a time, an explicit
 removal destroys them at once, a reallocation moves them and destroys the moved-from ones, `clear()` keeps the
@@ -33,9 +35,6 @@ changes the vector in place instead of returning a new one. The view is [as_slic
 
 ## Rules
 
-- A vector holds a `tracked_ptr`, so it lives where one may: on a stack or inside a managed object, never in
-  `new`/`malloc` memory, a `std` container, a global or a plain coroutine frame
-  ([The rules](../README.md#the-rules), 1).
 - The elements are destroyed by the vector itself, exactly when `std::vector` destroys them: on removal, on a
   reallocation (the moved-from elements) and in the destructor, wherever that runs, on a stack or in a sweep
   inside a dying managed object ([Containers](../README.md#containers)).

@@ -11,6 +11,8 @@ namespace sgcl::io {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::io::transform_reader<F>` is a reader that hands on what another reader reads after a function has changed it
 in place: `f` is called with the bytes just read, as a `slice<byte>`, and may change them but not their number. A
 decryption with a stream cipher, a case or a byte mapping, a count of what passes: the most common wrapper of a
@@ -19,9 +21,7 @@ counterpart in `io` (a `cipher.StreamReader` is one case of it); neither has the
 
 ## Rules
 
-- It holds an [io::reader](../reader/README.md), a `tracked_ptr`, and the function, so it lives where a `tracked_ptr` may: on a
-  stack, in a task, in a managed object ([The rules](../../core/README.md#the-rules), 1); a function that captures a
-  tracked pointer is kept with it.
+- It holds the function, so a function that captures a tracked pointer is kept with it.
 - An object, not a handle: given by reference to an `io::reader` or to `io::copy`, it is referenced, and the caller
   keeps it alive; given as a temporary, it is copied into a managed object of its own.
 - [async_read](read.md) is over the source's own `async_read`; for a source that has only `read`,

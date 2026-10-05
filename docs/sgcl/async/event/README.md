@@ -15,6 +15,8 @@ namespace sgcl::async {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::async::event` is set once and waited for by any number of tasks and threads, and a wait after the set does
 not wait. Under it is a channel of signals that [set](set.md) closes: Go's idiom of a channel closed to tell
 every receiver at once that something happened, `close(done)`. It is one of the family the [mutex](../mutex/README.md) heads,

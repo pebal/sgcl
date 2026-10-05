@@ -540,6 +540,8 @@ namespace x509_test {
             case reason::incompatible_usage: return "incompatible_usage";
             case reason::unhandled_critical_extension: return "unhandled_critical_extension";
             case reason::too_many_constraints: return "too_many_constraints";
+            case reason::revoked: return "revoked";
+            case reason::revocation_unknown: return "revocation_unknown";
         }
         return "openssl_other";
     }

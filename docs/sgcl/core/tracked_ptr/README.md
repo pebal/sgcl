@@ -11,6 +11,8 @@ namespace sgcl {
 }
 ```
 
+**Requires [rooted](../rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::tracked_ptr<T>` is the pointer the collector follows. It is one word, the address of the object; copying it
 is a store of that word and the write barrier, a byte of state on the target. There is no reference count and no
 control block: an object lives as long as some `tracked_ptr` in a live object or on a stack, some
@@ -27,12 +29,10 @@ moved-from pointer keeps its value.
 
 ## Rules
 
-- A `tracked_ptr` lives inside a managed object (one created with `make_tracked`, a node or buffer of an `sgcl`
-  container, a managed coroutine frame) or on a thread's stack. Never in `new`/`malloc` memory, a `std`
-  container, a global, a `thread_local`, a lambda copied to the heap, or the frame of a plain coroutine. Debug
-  builds assert it in the constructor; a release build loses the object ([The rules](../README.md#the-rules), 1;
-  [Stack roots](../../../garbage_collector/overview.md#stack-roots)). A global root is a `unique_ptr`, to the object
-  or to a managed object holding the `tracked_ptr`, or a [root_ptr](../root_ptr/README.md).
+- A `tracked_ptr` in the wrong place is asserted by debug builds in the constructor; a release build loses the object
+  ([The rules](../README.md#the-rules), 1; [Stack roots](../../../garbage_collector/overview.md#stack-roots)). A global
+  root is a `unique_ptr`, to the object or to a managed object holding the `tracked_ptr`, or a
+  [root_ptr](../root_ptr/README.md).
 - The object held from unmanaged memory is a `std::shared_ptr` from [to_shared](to_shared.md): a
   `unique_ptr` for one owner, a `shared_ptr` for many, a `tracked_ptr` for neither.
 - It does not share its storage with data: no `union` with a value, no `std::variant`, no small-buffer

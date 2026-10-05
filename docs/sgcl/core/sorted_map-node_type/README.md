@@ -14,6 +14,8 @@ namespace sgcl {
 }
 ```
 
+**Requires [rooted](../rooted/README.md) outside a stack or a managed object.**
+
 `sorted_map<Key, T, Compare>::node_type` is the node handle of a sorted map, as `std::map::node_type` is: it owns
 one node taken out of a map by [extract](../sorted_map/extract.md), with its element, and gives it to
 [insert](../sorted_map/insert.md) of a map with the same `Key` and `T`, which links the node without copying the
@@ -27,9 +29,6 @@ of the same `Key` and `T`.
 
 ## Rules
 
-- A handle holds its node by a `tracked_ptr`, so it lives where the map may: on a stack or inside a managed
-  object, never in `new`/`malloc` memory, a `std` container, a global, a `thread_local` or a plain coroutine frame
-  ([The rules](../README.md#the-rules), 1).
 - A handle dying in a sweep, inside a managed object nobody refers to any more, leaves its node to the same sweep,
   which destroys the element.
 - `key()` and `mapped()` may be called only on a handle that is not empty.

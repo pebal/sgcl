@@ -13,6 +13,8 @@ namespace sgcl::encoding {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::encoding::xml::token` is one token of a document, as [reader](../xml-reader/README.md)'s
 [next](../xml-reader/next.md) and [peek](../xml-reader/peek.md) give it: the start of an element with its name, its
 namespace and its attributes, its end, a run of text, a comment, a processing instruction, or the DOCTYPE
@@ -33,7 +35,7 @@ document: a thousand `<book>` elements hold one `"book"`.
 - The DOCTYPE declaration's name is the root's name it gives, its text all of it after its keyword
   (`html PUBLIC ...`).
 - A token is made by the reader; a token constructed by the program is an empty text.
-- A token holds strings, which are tracked words: it lives where a `tracked_ptr` may. It is copied, as a value.
+- A token is copied, as a value.
 
 ### From code written for Go
 

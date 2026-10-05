@@ -10,21 +10,23 @@ namespace sgcl::net::http {
 }
 ```
 
+**Requires [rooted](../../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::net::http::cookie` is a cookie as a server sets it (`Set-Cookie`, RFC 6265 §4.1) and as a client reads one
 back (§5.2): a value type with its attributes as public fields, Go's `http.Cookie`. [to_string](to_string.md)
 writes the value of a `Set-Cookie` field, [parse](parse.md) reads one; a handler sends one with the
 [response_writer](../response_writer/README.md)'s `add_cookie`, and a request's `Cookie` field is read by
 [request::cookie](../request/cookie.md).
 
-There is no jar: which cookies go to which request needs the public suffix list, which is not in the library yet.
+Which cookies go to which request is a [cookie_jar](../cookie_jar/README.md)'s, by RFC 6265 and the
+[Public Suffix List](../public_suffix.md), and a [client](../client/README.md) takes one in its member `jar`.
 `Expires` is a [time::datetime](../../../time/README.md), written as IMF-fixdate in GMT and read by the cookie-date
 algorithm of RFC 6265 §5.1.1, which takes what browsers take.
 
 ## Rules
 
-- A `cookie` is a value: a copy is a cookie of its own, and a moved-from one keeps its fields (a string's move
-  copies its word). It holds strings, so it lives where a `tracked_ptr` may: on a
-  stack, in a task, in a managed object; in a global or a `std` container, a [rooted](../../../core/rooted/README.md) of it.
+- A `cookie` is a value: a copy is a cookie of its own, and a moved-from one keeps its fields (a string's move copies
+  its word).
 - **Written**, a name that is not a token is `invalid_argument`; a byte of the value no cookie may hold is dropped and
   a value with a space or a comma is quoted, as Go does; a `Path` loses its `;` and controls; a `Domain` that is not
   a host name is left out; a `Max-Age` of zero or less is written `Max-Age=0` (the cookie is deleted now)
@@ -96,4 +98,5 @@ id=42 example.com true false
 
 - [response_writer](../response_writer/README.md): `add_cookie`, a cookie sent by a handler
 - [request::cookie](../request/cookie.md): a cookie of a request's `Cookie` field
-- [headers](../headers/README.md): the `Set-Cookie` fields of a response, by `get_all`
+- [headers](../headers/README.md): the `Set-Cookie` fields of a response, by `get_all`; [response::cookies](../response/cookies.md): read as cookies
+- [cookie_jar](../cookie_jar/README.md): the cookies a client keeps and sends

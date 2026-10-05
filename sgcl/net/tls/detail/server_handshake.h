@@ -31,12 +31,24 @@
 //   - the protocol (RFC 7301): the first of the server's list the client
 //     offers; the client offering some and none of them in common is
 //     no_application_protocol; a server with no list answers none.
-// v1: no PSK, no 0-RTT (early data refused: the client's is skipped,
-// skip_early_data), no CertificateRequest (a client Certificate is
-// unexpected_message), no NewSessionTicket sent. A client that sent a
-// session id is answered in compatibility mode: the id echoed, a
-// change_cipher_spec after the ServerHello or the HelloRetryRequest,
-// whichever goes first (§D.4).
+//   - a client certificate (§4.3.2, §4.4.2): asked for when the settings
+//     say so (CertificateRequest with signature_algorithms and the
+//     subjects of the client roots as certificate_authorities), its chain
+//     verified against those roots for client authentication, its
+//     CertificateVerify checked; none sent where one is required is
+//     certificate_required;
+//   - resumption (§2.2, §4.2.11, psk_dhe_ke only): the first identity of
+//     the client's pre_shared_key that is a ticket of the server's keys,
+//     opens, is of a suite of the hash chosen, within its lifetime, and
+//     carries a client chain where one is required, is taken once its
+//     binder verifies (a binder that does not is decrypt_error); anything
+//     else is a full handshake. A resumed handshake sends no certificate
+//     and asks for none. After the client's Finished, one NewSessionTicket
+//     when tickets are on (§4.6.1).
+// No 0-RTT: early data refused, the client's skipped (skip_early_data). A
+// client that sent a session id is answered in compatibility mode: the id
+// echoed, a change_cipher_spec after the ServerHello or the
+// HelloRetryRequest, whichever goes first (§D.4).
 //
 // The secrets (the key schedule, the transcript, the random, the cookie,
 // the secrets the step carries) are in an unmanaged block of the machine's
@@ -45,55 +57,6 @@
 // settings and the result hold managed values (strings, certificates):
 // the machine lives in a frame or in a managed object.
 namespace sgcl::net::tls::detail {
-    // The server's certificate chain and a way to sign with its key: the
-    // key itself is not here (tls::identity keeps it, unmanaged, T6)
-    struct ServerIdentity {
-        std::vector<std::vector<byte>> chain;           // the DER of each certificate, the leaf first
-        optional<crypto::x509::certificate> leaf;        // chain[0] read: the names SNI is matched against
-        std::vector<uint16_t> schemes;                   // the schemes the key signs, the server's preference first
-        void (*sign)(const void* key, uint16_t scheme, const Bytes& content, Builder& out) = nullptr;
-        const void* key = nullptr;
-    };
-
-    // An identity of a certificate chain (DER, the leaf first) and a key of
-    // the module; the key must outlive the identity
-    template<class K>
-    ServerIdentity identity_of(const std::vector<std::vector<byte>>& chain, const K& key) noexcept {
-        ServerIdentity id;
-        id.chain = chain;
-        if (!chain.empty()) {
-            auto leaf = crypto::x509::certificate::parse(bytes_of(chain[0].data(), chain[0].size()));
-            if (leaf) {
-                id.leaf = std::move(*leaf);
-            }
-        }
-        if constexpr (std::is_same_v<K, crypto::ed25519::private_key>) {
-            id.schemes = {uint16_t(SignatureScheme::ed25519)};
-        } else if constexpr (std::is_same_v<K, crypto::p256::private_key>) {
-            id.schemes = {uint16_t(SignatureScheme::ecdsa_secp256r1_sha256)};
-        } else if constexpr (std::is_same_v<K, crypto::p384::private_key>) {
-            id.schemes = {uint16_t(SignatureScheme::ecdsa_secp384r1_sha384)};
-        } else {
-            static_assert(std::is_same_v<K, crypto::rsa::private_key>, "a key of the module: ed25519, p256, p384 or rsa");
-            // the schemes whose digest and salt the key's encoding holds
-            // (a key of 1024 bits has no room for SHA-512's): one it does
-            // not is never chosen, so a client that offers it alone gets
-            // handshake_failure, never a signature that cannot be made
-            static constexpr SignatureScheme pss[] = {SignatureScheme::rsa_pss_rsae_sha256, SignatureScheme::rsa_pss_rsae_sha384, SignatureScheme::rsa_pss_rsae_sha512};
-            static constexpr size_t digest[] = {32, 48, 64};
-            for (size_t i = 0; i < 3; ++i) {
-                if (rsa_pss_fits(key.bits(), digest[i])) {
-                    id.schemes.push_back(uint16_t(pss[i]));
-                }
-            }
-        }
-        id.key = &key;
-        id.sign = [](const void* k, uint16_t scheme, const Bytes& content, Builder& out) {
-            sign(out, scheme, *static_cast<const K*>(k), content);
-        };
-        return id;
-    }
-
     // What the server offers and accepts: the lists are the codes on the
     // wire, the server's preference first (tls::config makes them, T6)
     struct ServerSettings {
@@ -105,7 +68,18 @@ namespace sgcl::net::tls::detail {
         vector<uint16_t> advertised_groups;              // supported_groups in EncryptedExtensions (§4.2.7); empty: not sent
         std::vector<byte> retry_cookie;                  // a cookie in the HelloRetryRequest (§4.2.2), for the tests of RFC 8448 §5
         size_t early_data_limit = 1 << 18;               // the bytes of refused early data skipped at most (§4.2.10)
+        uint8_t client_auth = 0;                         // a client certificate: 0 not asked for, 1 asked for, 2 required
+        optional<crypto::x509::certificate_pool> client_roots;   // what a client's chain must lead to; nullopt: the system's
+        TicketKeys* tickets = nullptr;                   // tickets issued and taken; null: neither
+        uint32_t ticket_lifetime = 86400;                // seconds, at most 604800
     };
+
+    // The identities of a client's pre_shared_key tried at most (§4.2.11)
+    inline constexpr size_t MaxPskIdentities = 5;
+
+    // The schemes a CertificateRequest takes (§4.2.3): CertificateVerify's,
+    // and PKCS #1 v1.5 for the certificates of the chain
+    inline constexpr uint16_t RequestSchemes[] = {0x0403, 0x0804, 0x0503, 0x0805, 0x0806, 0x0807, 0x0401, 0x0501, 0x0601};
 
     // What the handshake settled
     struct ServerResult {
@@ -117,12 +91,16 @@ namespace sgcl::net::tls::detail {
         uint16_t scheme = 0;                             // CertificateVerify's
         bool retried = false;                            // a HelloRetryRequest went
         bool early_data_refused = false;                 // the client offered 0-RTT
+        bool resumed = false;                            // a session of a ticket taken
+        crypto::x509::chain peer_certificates;           // the client's, the leaf first (mTLS; a resumed session's from its ticket)
+        crypto::x509::chain verified_chain;              // the client's chain as verification built it, the leaf to a root
+        bool staple_sent = false;                        // an OCSP response stapled to the leaf (the client asked, the identity had one)
     };
 
     class ServerHandshake {
     public:
-        SGCL_INLINE_HOT ServerHandshake(const ServerSettings& settings, const Entropy& entropy = Entropy()) noexcept
-        : _settings(settings), _entropy(entropy), _s(std::make_unique<Secrets>()) {
+        SGCL_INLINE_HOT ServerHandshake(const ServerSettings& settings, const Entropy& entropy = Entropy(), const Clock& clock = Clock()) noexcept
+        : _settings(settings), _entropy(entropy), _clock(clock), _s(std::make_unique<Secrets>()) {
         }
 
         ServerHandshake(const ServerHandshake&) = delete;
@@ -142,6 +120,13 @@ namespace sgcl::net::tls::detail {
                 return _fail(r.error());
             }
             return _s->step;
+        }
+
+        // The identities of this connection, chosen once its first
+        // ClientHello was seen (tls::config::identity_for), before that
+        // hello is fed
+        SGCL_INLINE_HOT void set_identities(vector<ServerIdentity> identities) noexcept {
+            _settings.identities = std::move(identities);
         }
 
         // An alert record from the client: the handshake is over
@@ -167,10 +152,18 @@ namespace sgcl::net::tls::detail {
             return _peer_alert;
         }
 
+        // Why the client's chain did not verify, when that ended the
+        // handshake (reason::none otherwise)
+        SGCL_INLINE_HOT crypto::x509::reason verify_reason() const noexcept {
+            return _verify_reason;
+        }
+
     private:
         enum class State : uint8_t {
             wait_client_hello,
             wait_second_hello,
+            wait_certificate,
+            wait_certificate_verify,
             wait_finished,
             connected,
             failed,
@@ -180,6 +173,7 @@ namespace sgcl::net::tls::detail {
             optional<Transcript> transcript;
             optional<KeySchedule> schedule;
             uint8_t random[32] = {};
+            Secret psk;                  // a ticket's, once taken, until the schedule has it
             Step step;
 
             SGCL_INLINE_HOT ~Secrets() {
@@ -189,14 +183,18 @@ namespace sgcl::net::tls::detail {
 
         ServerSettings _settings;
         Entropy _entropy;
+        Clock _clock;
         std::unique_ptr<Secrets> _s;
         State _state = State::wait_client_hello;
         Hash _hash = Hash::sha256;
         uint8_t _session_id[32] = {};
         size_t _session_id_size = 0;
         bool _ccs_sent = false;
+        bool _status_requested = false;     // the client's status_request (RFC 6066) asked for an OCSP staple
         ServerResult _result;
         optional<Alert> _peer_alert;
+        uint16_t _psk_identity = 0;
+        crypto::x509::reason _verify_reason = crypto::x509::reason::none;
 
         static Alert _alert(AlertDescription d, const char* what) noexcept {
             return Alert{d, 0, what};
@@ -219,9 +217,19 @@ namespace sgcl::net::tls::detail {
                     break;
                 }
                 return _client_hello(message, h->body, true);
+            case State::wait_certificate:
+                if (type != HandshakeType::certificate) {
+                    break;
+                }
+                return _client_certificate(message, h->body);
+            case State::wait_certificate_verify:
+                if (type != HandshakeType::certificate_verify) {
+                    break;
+                }
+                return _client_certificate_verify(message, h->body);
             case State::wait_finished:
                 if (type != HandshakeType::finished) {
-                    break;   // a Certificate: none was asked for (no mTLS in v1)
+                    break;   // a Certificate where none was asked for, or a resumed handshake
                 }
                 return _finished(message, h->body);
             case State::connected:
@@ -270,7 +278,10 @@ namespace sgcl::net::tls::detail {
             auto shares_body = x.find(ExtensionType::key_share);
             auto schemes_body = x.find(ExtensionType::signature_algorithms);
             if (!groups_body || !shares_body) {
-                return unexpected(_alert(AlertDescription::missing_extension, "a ClientHello without supported_groups or key_share (no PSK in v1)"));
+                return unexpected(_alert(AlertDescription::missing_extension, "a ClientHello without supported_groups or key_share (psk_dhe_ke alone is taken)"));
+            }
+            if (x.has(ExtensionType::pre_shared_key) && !x.has(ExtensionType::psk_key_exchange_modes)) {
+                return unexpected(_alert(AlertDescription::missing_extension, "pre_shared_key without psk_key_exchange_modes (§4.2.9)"));
             }
             if (!schemes_body) {
                 return unexpected(_alert(AlertDescription::missing_extension, "a ClientHello without signature_algorithms"));
@@ -294,6 +305,13 @@ namespace sgcl::net::tls::detail {
             }
             if (second) {
                 return _second_hello(message, *ch, *shares);
+            }
+            if (auto st = x.find(ExtensionType::status_request)) {
+                auto ocsp = read_status_request(*st);
+                if (!ocsp) {
+                    return unexpected(ocsp.error());
+                }
+                _status_requested = *ocsp;
             }
             if (ch->session_id.size()) {
                 std::memcpy(_session_id, ch->session_id.data(), ch->session_id.size());
@@ -391,12 +409,118 @@ namespace sgcl::net::tls::detail {
                 a.size = _settings.early_data_limit;
                 _s->step.actions.push_back(std::move(a));
             }
+            if (shared) {   // a session for this hello's ServerHello (after a HelloRetryRequest, the second's)
+                if (auto p = _try_psk(message, x, nullptr); !p) {
+                    return p;
+                }
+            }
             _s->transcript.emplace(_hash);
             _s->transcript->update(message);
             if (!shared) {
                 return _retry();
             }
             return _server_flight(*shares->find(*group));
+        }
+
+        // A session of the client's pre_shared_key (§4.2.11): the first
+        // identity that is a ticket of the server's keys and holds; its
+        // binder checked over `prior` (the transcript before this hello,
+        // none for the first) and the hello truncated. Nothing taken is no
+        // error: a full handshake
+        expected<void, Alert> _try_psk(const Bytes& message, const Extensions& x, const Transcript* prior) {
+            auto body = x.find(ExtensionType::pre_shared_key);
+            if (!body) {
+                return {};
+            }
+            auto modes = read_psk_modes(*x.find(ExtensionType::psk_key_exchange_modes));
+            if (!modes) {
+                return unexpected(modes.error());
+            }
+            auto keys = read_pre_shared_keys(*body);
+            if (!keys) {
+                return unexpected(keys.error());
+            }
+            bool dhe = false;
+            for (auto m : *modes) {
+                dhe |= uint8_t(m) == 1;   // psk_dhe_ke: psk_ke alone is not taken
+            }
+            if (!_settings.tickets || !dhe) {
+                return {};
+            }
+            const size_t n = hash_size(_hash);
+            const time::datetime now = _clock();
+            const int64_t now_ms = now.unix_milli();
+            std::vector<byte> plain;   // the content opened: unmanaged, zeroed
+            auto zero = [&]() noexcept {
+                crypto::detail::secure_zero(plain.data(), plain.size());
+            };
+            // the identities and their binders side by side, the first
+            // MaxPskIdentities of them (as Go: the work of a hello bounded)
+            Reader identities(keys->identities), binders(keys->binders);
+            for (size_t i = 0; i < keys->count && i < MaxPskIdentities; ++i) {
+                PskIdentity id;
+                Bytes theirs;
+                (void)identities.vec16(id.identity, 1, 0xFFFF);   // read once already: cannot fail
+                (void)identities.u32(id.obfuscated_age);
+                (void)binders.vec8(theirs, 32, 255);
+                if (id.identity.size() < TicketKeys::Overhead || id.identity.size() > MaxTicket) {
+                    continue;
+                }
+                zero();
+                plain.resize(id.identity.size() - TicketKeys::Overhead);
+                auto opened = _settings.tickets->open(id.identity, reinterpret_cast<uint8_t*>(plain.data()));
+                if (!opened) {
+                    continue;
+                }
+                auto t = read_ticket_content(bytes_of(plain.data(), *opened));
+                if (!t || !known(Cipher(t->cipher)) || hash_of(Cipher(t->cipher)) != _hash || t->psk.size() != n) {
+                    continue;   // of a suite of another hash: a full handshake (§4.2.11)
+                }
+                if (now_ms < t->issued_ms || now_ms - t->issued_ms > int64_t(t->lifetime) * 1000) {
+                    continue;   // past its lifetime
+                }
+                crypto::x509::chain certificates;
+                bool chain_ok = true;
+                Reader list(t->certificates);
+                while (!list.empty()) {
+                    Bytes der;
+                    (void)list.vec24(der, 1, 0xFFFFFF);
+                    auto c = crypto::x509::certificate::parse(der);
+                    if (!c) {
+                        chain_ok = false;
+                        break;
+                    }
+                    certificates.push_back(std::move(*c));
+                }
+                if (!chain_ok || (_settings.client_auth == 2 && certificates.empty())) {
+                    continue;   // a session without the client certificate now required
+                }
+                if (!certificates.empty() && (now < certificates[0].not_before() || now > certificates[0].not_after())) {
+                    continue;   // the client's certificate out of its time
+                }
+                // the binder: one that does not verify ends the handshake (§4.2.11.2)
+                Secret psk;
+                std::memcpy(psk.bytes, t->psk.data(), n);
+                psk.size = uint8_t(n);
+                zero();
+                Transcript tr = prior ? *prior : Transcript(_hash);
+                tr.update(bytes_of(message.data(), keys->truncated_size(message)));
+                uint8_t h[MaxHashSize], mine[MaxHashSize];
+                tr.value_to(h);
+                KeySchedule(_hash, psk).binder(mine, bytes_of(h, n));
+                const bool ok = theirs.size() == n && crypto::constant_time::equal(bytes_of(mine, n), theirs);
+                crypto::detail::secure_zero(mine, sizeof mine);
+                if (!ok) {
+                    return unexpected(_alert(AlertDescription::decrypt_error, "a PSK binder that does not verify"));
+                }
+                _s->psk = std::move(psk);
+                _psk_identity = uint16_t(i);
+                _result.resumed = true;
+                _result.peer_certificates = certificates;
+                return {};
+            }
+            zero();
+            return {};
         }
 
         expected<void, Alert> _choose_identity(const string& sni, const U16List& offered) noexcept {
@@ -492,6 +616,9 @@ namespace sgcl::net::tls::detail {
                     return unexpected(_alert(AlertDescription::illegal_parameter, "a second ClientHello without the cookie sent"));
                 }
             }
+            if (auto p = _try_psk(message, ch.extensions, &*_s->transcript); !p) {
+                return p;
+            }
             _s->transcript->update(message);
             return _server_flight(*share);
         }
@@ -514,8 +641,14 @@ namespace sgcl::net::tls::detail {
                     auto e = w.extension(ExtensionType::key_share);
                     write_key_share_selected(w, KeyShare{uint16_t(_result.group), bytes_of(share->public_share.data(), share->public_share.size())});
                 }
-                auto e = w.extension(ExtensionType::supported_versions);
-                write_version_selected(w, Tls13);
+                {
+                    auto e = w.extension(ExtensionType::supported_versions);
+                    write_version_selected(w, Tls13);
+                }
+                if (_result.resumed) {
+                    auto e = w.extension(ExtensionType::pre_shared_key);
+                    write_pre_shared_key_selected(w, _psk_identity);
+                }
             });
             _s->transcript->update(bytes_of(out.data() + at, out.size() - at));
             _push_send(Epoch::initial, at, out.size() - at);
@@ -524,7 +657,12 @@ namespace sgcl::net::tls::detail {
             }
             uint8_t h[MaxHashSize];
             _s->transcript->value_to(h);
-            _s->schedule.emplace(_hash);
+            if (_result.resumed) {
+                _s->schedule.emplace(_hash, _s->psk);
+                _s->psk.wipe();
+            } else {
+                _s->schedule.emplace(_hash);
+            }
             KeySchedule& k = *_s->schedule;
             k.handshake(share->secret.view(), bytes_of(h, n));
             _push_install(Action::Kind::install_write, Epoch::handshake, k.server_handshake_traffic);
@@ -552,26 +690,40 @@ namespace sgcl::net::tls::detail {
                 }
             });
             _s->transcript->update(bytes_of(out.data() + at, out.size() - at));
-            const ServerIdentity& id = _settings.identities[_result.identity];
-            at = out.size();
-            {
-                std::vector<Bytes> ders;   // lint-handles: ok views of unmanaged bytes (bytes_of): no owner, no word
-                for (auto& d : id.chain) {
-                    ders.push_back(bytes_of(d.data(), d.size()));
+            // a resumed handshake authenticates by the PSK: no certificate
+            // either way (§4.3.2)
+            if (!_result.resumed) {
+                if (_settings.client_auth) {
+                    at = out.size();
+                    _write_certificate_request(w);
+                    _s->transcript->update(bytes_of(out.data() + at, out.size() - at));
                 }
-                write_certificate(w, Bytes(), ders);
+                const ServerIdentity& id = _settings.identities[_result.identity];
+                at = out.size();
+                {
+                    std::vector<Bytes> ders;   // lint-handles: ok views of unmanaged bytes (bytes_of): no owner, no word
+                    for (auto& d : id.chain) {
+                        ders.push_back(bytes_of(d.data(), d.size()));
+                    }
+                    std::vector<byte> staple;
+                    if (_status_requested && id.staple) {
+                        staple = id.staple->current(_clock().unix());
+                    }
+                    write_certificate(w, Bytes(), ders, bytes_of(staple.data(), staple.size()));
+                    _result.staple_sent = !staple.empty();
+                }
+                _s->transcript->update(bytes_of(out.data() + at, out.size() - at));
+                _s->transcript->value_to(h);
+                at = out.size();
+                {
+                    auto content = certificate_verify_content(true, bytes_of(h, n));
+                    auto m = w.message(HandshakeType::certificate_verify);
+                    w.u16(_result.scheme);
+                    auto sig = w.block16();
+                    id.sign(id.key, _result.scheme, content.view(), w);
+                }
+                _s->transcript->update(bytes_of(out.data() + at, out.size() - at));
             }
-            _s->transcript->update(bytes_of(out.data() + at, out.size() - at));
-            _s->transcript->value_to(h);
-            at = out.size();
-            {
-                auto content = certificate_verify_content(true, bytes_of(h, n));
-                auto m = w.message(HandshakeType::certificate_verify);
-                w.u16(_result.scheme);
-                auto sig = w.block16();
-                id.sign(id.key, _result.scheme, content.view(), w);
-            }
-            _s->transcript->update(bytes_of(out.data() + at, out.size() - at));
             _s->transcript->value_to(h);
             uint8_t mine[MaxHashSize];
             verify_data(_hash, mine, k.server_handshake_traffic, bytes_of(h, n));
@@ -587,6 +739,102 @@ namespace sgcl::net::tls::detail {
             _s->transcript->value_to(h);
             k.application(bytes_of(h, n));
             _push_install(Action::Kind::install_write, Epoch::application, k.server_application_traffic);
+            _state = _settings.client_auth && !_result.resumed ? State::wait_certificate : State::wait_finished;
+            return {};
+        }
+
+        // CertificateRequest (§4.3.2): an empty context, the schemes taken,
+        // the subjects of the client roots as certificate_authorities (as
+        // many as the extension holds) when the roots are given
+        void _write_certificate_request(Builder& w) noexcept {
+            write_certificate_request(w, Bytes(), [&](Builder& w) noexcept {
+                {
+                    auto e = w.extension(ExtensionType::signature_algorithms);
+                    write_signature_schemes(w, RequestSchemes);
+                }
+                if (_settings.client_roots && !_settings.client_roots->empty()) {
+                    auto e = w.extension(ExtensionType::certificate_authorities);
+                    auto list = w.block16();
+                    size_t used = 0;
+                    for (const auto& c : _settings.client_roots->certificates()) {
+                        auto subject = c.raw_subject();
+                        if (subject.empty() || subject.size() > 0xFFFF || used + 2 + subject.size() > 0xFFFF) {
+                            continue;
+                        }
+                        used += 2 + subject.size();
+                        auto one = w.block16();
+                        w.bytes(subject);
+                    }
+                }
+            });
+        }
+
+        // --- the client's certificate ------------------------------------------------
+
+        expected<void, Alert> _client_certificate(const Bytes& message, const Bytes& body) {
+            auto c = read_certificate(body);
+            if (!c) {
+                return unexpected(c.error());
+            }
+            if (!c->context.empty()) {
+                return unexpected(_alert(AlertDescription::illegal_parameter, "the client's Certificate with a context"));
+            }
+            if (c->count == 0) {
+                if (_settings.client_auth == 2) {
+                    return unexpected(_alert(AlertDescription::certificate_required, "no client certificate where one is required"));
+                }
+                _s->transcript->update(message);
+                _state = State::wait_finished;
+                return {};
+            }
+            crypto::x509::chain chain;
+            for (auto entry : *c) {
+                if (auto v = validate_extensions(HandshakeType::certificate, false, entry.extensions, 0); !v) {
+                    return unexpected(v.error());
+                }
+                auto cert = crypto::x509::certificate::parse(entry.der);
+                if (!cert) {
+                    return unexpected(_alert(AlertDescription::bad_certificate, "a client certificate that does not parse"));
+                }
+                chain.push_back(std::move(*cert));
+            }
+            crypto::x509::verify_options o;
+            if (_settings.client_roots) {
+                o.roots = *_settings.client_roots;
+            }
+            for (size_t i = 1; i < chain.size(); ++i) {
+                o.intermediates.add(chain[i]);
+            }
+            o.key_usages = {crypto::x509::ext_key_usage::client_auth};
+            o.time = _clock();
+            auto v = chain[0].verify(o);
+            if (!v) {
+                _verify_reason = v.error().reason();
+                return unexpected(verification_alert(v.error(), false));
+            }
+            _result.verified_chain = std::move(*v);
+            _result.peer_certificates = chain;
+            _s->transcript->update(message);
+            _state = State::wait_certificate_verify;
+            return {};
+        }
+
+        expected<void, Alert> _client_certificate_verify(const Bytes& message, const Bytes& body) noexcept {
+            auto cv = read_certificate_verify(body);
+            if (!cv) {
+                return unexpected(cv.error());
+            }
+            if (!_has(RequestSchemes, cv->scheme)) {
+                return unexpected(_alert(AlertDescription::illegal_parameter, "the client's CertificateVerify with a scheme not asked for"));
+            }
+            const size_t n = hash_size(_hash);
+            uint8_t h[MaxHashSize];
+            _s->transcript->value_to(h);
+            auto content = certificate_verify_content(false, bytes_of(h, n));
+            if (auto v = verify(cv->scheme, _result.peer_certificates[0].public_key(), content.view(), cv->signature); !v) {
+                return unexpected(v.error());
+            }
+            _s->transcript->update(message);
             _state = State::wait_finished;
             return {};
         }
@@ -622,9 +870,64 @@ namespace sgcl::net::tls::detail {
             _s->transcript->update(message);
             _push_install(Action::Kind::install_read, Epoch::application, _s->schedule->client_application_traffic);
             _s->step.actions.push_back(Action{Action::Kind::established});
+            if (_settings.tickets) {
+                _issue_ticket();
+            }
             _wipe();
             _state = State::connected;
             return {};
+        }
+
+        // One NewSessionTicket (§4.6.1), under the application keys: the
+        // PSK of the resumption master secret and the nonce 0, sealed with
+        // what the session needs into the ticket; none when the client's
+        // chain makes it larger than MaxTicket
+        void _issue_ticket() noexcept {
+            const size_t n = hash_size(_hash);
+            uint8_t h[MaxHashSize];
+            _s->transcript->value_to(h);
+            Secret master, psk;
+            _s->schedule->resumption(master, bytes_of(h, n));
+            ZeroingProbe::on_secret(master);
+            const uint8_t nonce[1] = {0};
+            resumption_psk(_hash, psk, master, bytes_of(nonce, 1));
+            master.wipe();
+            ZeroingProbe::on_secret(psk);
+            uint8_t add[4];
+            _entropy(add, 4);
+            const uint32_t age_add = uint32_t(add[0]) << 24 | uint32_t(add[1]) << 16 | uint32_t(add[2]) << 8 | add[3];
+            const int64_t now_ms = _clock().unix_milli();
+            std::vector<byte> content;
+            {
+                Builder c(content);
+                write_ticket_content(c, uint16_t(_result.cipher), now_ms, _settings.ticket_lifetime, age_add, psk, _result.peer_certificates);
+            }
+            psk.wipe();
+            if (content.size() + TicketKeys::Overhead > MaxTicket) {
+                crypto::detail::secure_zero(content.data(), content.size());
+                return;
+            }
+            std::vector<byte> ticket;
+            _settings.tickets->seal(ticket, bytes_of(content.data(), content.size()), now_ms, int64_t(_settings.ticket_lifetime) * 1000, _entropy);
+            crypto::detail::secure_zero(content.data(), content.size());
+            auto& out = _s->step.out;
+            const size_t at = out.size();
+            Builder w(out);
+            {
+                auto m = w.message(HandshakeType::new_session_ticket);
+                w.u32(_settings.ticket_lifetime);
+                w.u32(age_add);
+                {
+                    auto b = w.block8();
+                    w.bytes(nonce, 1);
+                }
+                {
+                    auto t = w.block16();
+                    w.bytes(ticket.data(), ticket.size());
+                }
+                auto x = w.block16(0xFFFE);
+            }
+            _push_send(Epoch::application, at, out.size() - at);
         }
 
         // After the handshake: KeyUpdate answered (§4.6.3); nothing else a
@@ -684,6 +987,7 @@ namespace sgcl::net::tls::detail {
         }
 
         SGCL_INLINE_HOT void _wipe() noexcept {
+            _s->psk.wipe();
             if (_s->schedule) {
                 _s->schedule->finish_handshake();
                 _s->schedule.reset();

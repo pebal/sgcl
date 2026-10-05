@@ -14,6 +14,8 @@ namespace sgcl {
 }
 ```
 
+**Requires [rooted](../rooted/README.md) outside a stack or a managed object.**
+
 `ordered_set<Key, Hash, KeyEqual>::node_type` is the node handle of an [ordered_set](../ordered_set/README.md), as
 `std::unordered_set::node_type` is of its set: it owns one node that [extract](../ordered_set/extract.md) has
 unlinked from a set, its element in it, untouched. Movable, not copyable. Out of a set the element may change,
@@ -27,9 +29,6 @@ the two links of the order, which a `set`'s have not.
 
 ## Rules
 
-- The handle holds its node by a `tracked_ptr`, so it lives where one may: on a stack or inside a managed
-  object, never in `new`/`malloc` memory, a `std` container, a global or a plain coroutine frame
-  ([The rules](../README.md#the-rules), 1).
 - The element is destroyed by the handle that dies holding it, on a stack or inside a managed object destroyed by
   hand. A handle dying in a sweep, inside a managed object nobody refers to any more, leaves its node to the same
   sweep, which destroys the element.

@@ -13,6 +13,8 @@ namespace sgcl::slog {
 }
 ```
 
+**Requires [rooted](../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::slog::attrs::iterator` is the input iterator of [attrs](attrs/README.md) and of a [record](record/README.md)
 ([begin](record/begin.md)): its `*` is an [attr](attr/README.md), made by value when it is asked for. At the place a
 logger's group left for the attributes of the call it goes on through those, and after the last it compares equal

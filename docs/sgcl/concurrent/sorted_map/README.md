@@ -11,6 +11,8 @@ namespace sgcl::concurrent {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::concurrent::sorted_map<Key, T, Compare>` is a lock-free sorted map shared by any number of threads: a skip
 list with the algorithm of Herlihy and Shavit (*The Art of Multiprocessor Programming*, the lock-free skip list),
 the structure Java's `ConcurrentSkipListMap` is. The bottom level is a sorted singly linked list holding every
@@ -38,10 +40,8 @@ map for many goroutines; its `sync.Map` is a hash map.
 
 ## Rules
 
-- The container holds the head node, a sentinel of the maximum height and no element, by a `tracked_ptr`, and the
-  number of levels in use, so it lives where a `tracked_ptr` may: on a thread's stack or inside a managed object
-  ([The rules](../../core/README.md#the-rules), 1). Its iterators hold their node by a `tracked_ptr` and live where
-  the map may.
+- The container holds the head node, a sentinel of the maximum height and no element, by a `tracked_ptr`, and the number
+  of levels in use. Its iterators hold their node by a `tracked_ptr`.
 - Every member function may be called from any thread at any time. `insert`, `emplace`, `try_emplace`, `erase` and
   `clear` are lock-free and linearizable: an insertion takes effect at the compare-exchange that links the node
   into the bottom list, an erasure at the one that marks it there. `find`, `contains`, `count`, `lower_bound`,

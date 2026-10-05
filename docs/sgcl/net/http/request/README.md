@@ -10,6 +10,8 @@ namespace sgcl::net::http {
 }
 ```
 
+**Requires [rooted](../../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::net::http::request` is a request of HTTP, Go's `http.Request`: one type for the [client](../client/README.md), which builds
 one and sends it ([send](../client/send.md)), and for the [server](../server/README.md), which reads one and hands it to the
 handler of the route it matched. A program builds a request of a method and a URL, sets its fields and its body, and
@@ -21,12 +23,10 @@ alive. Its fields are a [headers](../headers/README.md) of its own, which [heade
 
 ## Rules
 
-- A request holds a `tracked_ptr`, so it lives where one may: on a stack, in a task, in a managed object; in a global
-  or a `std` container, a [rooted](../../../core/rooted/README.md) of it ([The rules](../../../core/README.md#the-rules), 1).
 - **Built by a program**: the method as given, the URL parsed at once by [net::url](../../url/README.md); one that does not parse,
   or a text past 512 MiB ([the limit](../../url/README.md#rules)), is reported by the send, `net::errc::invalid_url`, and
   [url](url.md) throws `invalid_argument` for it; the constructor throws nothing. A body
-  is text, bytes, or a stream ([set_body](set_body.md)): text and bytes are held in memory and can be sent
+  is text, bytes, a stream or a [form](../form/README.md) ([set_body](set_body.md)): text and bytes are held in memory and can be sent
   again (a retry, a 307); a stream is read once, with a `Content-Length` when its length is given and chunked when it
   is not.
 - **Received by a server**: [url](url.md) is the URL the request was for (`http://`, the `Host` and the
@@ -69,7 +69,9 @@ alive. Its fields are a [headers](../headers/README.md) of its own, which [heade
 |---|---|
 | [set_header](set_header.md) | sets a field, in the place of the first of its name |
 | [add_header](add_header.md) | appends a field |
-| [set_body](set_body.md) | sets the body to send: text, bytes or a stream |
+| [set_body](set_body.md) | sets the body to send: text, bytes, a stream or a form |
+| [set_url](set_url.md) | sets the URL to send to |
+| [set_stop](set_stop.md) | ties the exchange to a stop token: a stop cancels it |
 
 #### Received by a server
 
@@ -80,7 +82,8 @@ alive. Its fields are a [headers](../headers/README.md) of its own, which [heade
 | [cookie](cookie.md) | the value of the first cookie of a name |
 | [content_length](content_length.md) | the length of the body as the request declared it |
 | [remote_endpoint](remote_endpoint.md) | the address and the port of the client |
-| [stop](stop.md) | a token stopped when the server closes or a write fails |
+| [tls](tls.md) | what the TLS handshake of its connection settled: the client's certificates, the resumption |
+| [stop](stop.md) | a token stopped when the server closes, a write fails or the connection is lost |
 
 #### The body
 
@@ -89,6 +92,8 @@ alive. Its fields are a [headers](../headers/README.md) of its own, which [heade
 | [text, async_text](text.md) | the whole body as text |
 | [bytes, async_bytes](bytes.md) | the whole body as bytes |
 | [body](body.md) | the body as a stream |
+| [multipart](multipart.md) | the parts of a multipart body, read as they come |
+| [form, async_form](form.md) | the fields of a form, urlencoded or multipart, as pairs |
 | [trailers](trailers.md) | the trailer fields of a chunked body |
 
 ## Example

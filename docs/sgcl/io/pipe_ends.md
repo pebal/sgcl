@@ -13,14 +13,11 @@ namespace sgcl::io {
 }
 ```
 
+**Requires [rooted](../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::io::pipe_ends` is the two ends of a pipe, by name, as [pipe](pipe.md) returns them: `ends.read` and
 `ends.write`, or `auto [r, w] = io::pipe().value();`. Each is a [file](file/README.md), a handle: copied into a task, it
 is the same end.
-
-## Rules
-
-- The struct holds two handles, tracked words: it lives where a [file](file/README.md) may, on a stack, in a task, in a
-  managed object.
 
 ## Member objects
 

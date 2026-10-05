@@ -63,6 +63,20 @@ namespace sgcl::net::tls::detail {
                 f(p, n, k);
             }
         }
+
+        // `derived` hears of the secrets of resumption as they are made: a
+        // resumption master secret, a ticket's PSK, a ticket key
+        static inline std::atomic<void (*)(const void*, size_t)> derived{nullptr};
+
+        SGCL_INLINE_HOT static void on_secret(const void* p, size_t n) noexcept {
+            if (auto f = derived.load(std::memory_order_acquire)) {
+                f(p, n);
+            }
+        }
+
+        SGCL_INLINE_HOT static void on_secret(const Secret& s) noexcept {
+            on_secret(s.bytes, s.size);
+        }
     };
 
     // An unmanaged byte buffer that zeroes what it lets go of: the old
@@ -114,9 +128,10 @@ namespace sgcl::net::tls::detail {
 
     // A record opened: its content type and its fragment, the plaintext
     // without the inner type and the padding. ContentType::invalid with an
-    // empty fragment is a record dropped: a compatibility change_cipher_spec
-    // (§5, D.4) or an early data record skipped after 0-RTT was refused
-    // (§4.2.10).
+    // empty fragment is a record dropped: an early data record skipped after
+    // 0-RTT was refused (§4.2.10); ContentType::change_cipher_spec with an
+    // empty fragment a change_cipher_spec taken, which TLS 1.3 drops
+    // (compatibility mode, §D.4) and TLS 1.2 acts on (RFC 5246 §7.1).
     struct Opened {
         ContentType type = ContentType::invalid;
         slice<const byte> fragment;
@@ -125,7 +140,13 @@ namespace sgcl::net::tls::detail {
     // The protection of one direction of a connection. Until install() its
     // records are TLSPlaintext; after it, TLSCiphertext under the keys of
     // the traffic secret given, the sequence number starting at zero with
-    // every install and update.
+    // every install and update. install12() is the client's TLS 1.2 (RFC
+    // 5246 §6.2.3.3): the record's own content type, no inner type and no
+    // padding, the additional data the sequence number, the type, the
+    // version and the plaintext's length; AES-GCM's nonce its 4-byte salt
+    // and 8 bytes the record carries (the sequence number, as RFC 5288
+    // suggests), ChaCha20-Poly1305's the IV XOR the sequence number (RFC
+    // 7905), as TLS 1.3's.
     class RecordProtection {
     public:
         RecordProtection() noexcept = default;
@@ -144,6 +165,24 @@ namespace sgcl::net::tls::detail {
             std::memcpy(_secret.bytes, traffic_secret.bytes, sizeof _secret.bytes);
             _secret.size = traffic_secret.size;
             _derive();
+        }
+
+        // TLS 1.2's keys (the client's): the AEAD's key, then its fixed IV
+        // (key_block12, prf.h)
+        SGCL_INLINE_HOT void install12(Cipher cipher, const Secret& key_iv) noexcept {
+            _drop_keys();
+            _cipher = cipher;
+            _tls12 = true;
+            const size_t k = key_size(cipher);
+            std::memcpy(_iv, key_iv.bytes + k, iv_size12(cipher));
+            if (chacha(cipher)) {
+                _chacha.emplace(bytes_of(key_iv.bytes, k));
+            } else {
+                _gcm.emplace(bytes_of(key_iv.bytes, k));
+            }
+            _installed = true;
+            _sequence = 0;
+            ZeroingProbe::on_secret(key_iv);
         }
 
         SGCL_INLINE_HOT bool installed() const noexcept {
@@ -173,17 +212,20 @@ namespace sgcl::net::tls::detail {
         // RFC's bound is 2^24.5 full-size records), 2^48 under
         // ChaCha20-Poly1305 (whose bound is past the sequence number)
         SGCL_INLINE_HOT bool needs_update() const noexcept {
-            if (!_installed) {
-                return false;
+            if (!_installed || _tls12) {
+                return false;   // TLS 1.2 has no KeyUpdate
             }
-            const uint64_t limit = _cipher == Cipher::chacha20_poly1305_sha256 ? uint64_t(1) << 48 : uint64_t(1) << 24;
+            const uint64_t limit = chacha(_cipher) ? uint64_t(1) << 48 : uint64_t(1) << 24;
             return _sequence >= limit;
         }
 
         // The bytes a record of the type with n bytes of content and the
         // padding takes
         SGCL_INLINE_HOT size_t sealed_size(ContentType type, size_t n, size_t padding = 0) const noexcept {
-            return _installed && type != ContentType::change_cipher_spec ? HeaderSize + n + 1 + padding + TagSize : HeaderSize + n;
+            if (!_installed || type == ContentType::change_cipher_spec) {
+                return HeaderSize + n;
+            }
+            return _tls12 ? HeaderSize + explicit_nonce12(_cipher) + n + TagSize : HeaderSize + n + 1 + padding + TagSize;
         }
 
         // One record of the fragment into out: sealed_size(type,
@@ -226,6 +268,12 @@ namespace sgcl::net::tls::detail {
             if (_sequence == ~uint64_t(0)) {
                 throw std::logic_error("sgcl::net::tls: the sequence number is exhausted (no key update)");
             }
+            if (_tls12) {
+                if (padding != 0) {
+                    throw std::logic_error("sgcl::net::tls: padding on a TLS 1.2 record");
+                }
+                return _seal12(type, in, n, out);
+            }
             const size_t inner = n + 1 + padding;
             uint8_t* body = out + HeaderSize;
             if (n > 0 && in != body) {
@@ -243,7 +291,7 @@ namespace sgcl::net::tls::detail {
             const auto room = room_of(body, inner + TagSize);
             const auto plain = bytes_of(body, inner);
             const auto aad = bytes_of(out, HeaderSize);
-            if (_cipher == Cipher::chacha20_poly1305_sha256) {
+            if (chacha(_cipher)) {
                 _chacha->seal_to(room, bytes_of(nonce, 12), plain, aad);
             } else {
                 _gcm->seal_to(room, bytes_of(nonce, 12), plain, aad);
@@ -272,7 +320,7 @@ namespace sgcl::net::tls::detail {
                 if (length != 1 || record[HeaderSize] != 1) {
                     return unexpected(record_alert(AlertDescription::unexpected_message, "a change_cipher_spec record other than the byte 1"));
                 }
-                return Opened{};
+                return Opened{ContentType::change_cipher_spec, slice<const byte>()};
             }
             if (!_installed) {
                 if (type != ContentType::handshake && type != ContentType::alert) {
@@ -288,6 +336,9 @@ namespace sgcl::net::tls::detail {
                     std::memcpy(out, record + HeaderSize, length);
                 }
                 return Opened{type, bytes_of(out, length)};
+            }
+            if (_tls12) {
+                return _open12(record, size, out);
             }
             if (type != ContentType::application_data) {
                 return unexpected(record_alert(AlertDescription::unexpected_message, "a plaintext record after the keys"));
@@ -306,7 +357,7 @@ namespace sgcl::net::tls::detail {
             const auto room = room_of(out, length - TagSize);
             const auto sealed = bytes_of(record + HeaderSize, length);
             const auto aad = bytes_of(record, HeaderSize);
-            const bool ok = _cipher == Cipher::chacha20_poly1305_sha256
+            const bool ok = chacha(_cipher)
                 ? _chacha->open_to(room, bytes_of(nonce, 12), sealed, aad).has_value()
                 : _gcm->open_to(room, bytes_of(nonce, 12), sealed, aad).has_value();
             if (!ok) {
@@ -359,6 +410,7 @@ namespace sgcl::net::tls::detail {
         Cipher _cipher = Cipher::aes_128_gcm_sha256;
         Hash _hash = Hash::sha256;
         bool _installed = false;
+        bool _tls12 = false;
         bool _plain_written = false;
         bool _ccs_accepted = false;
         bool _skipping = false;
@@ -375,7 +427,8 @@ namespace sgcl::net::tls::detail {
             TrafficKeys keys;
             traffic_keys(_hash, keys, _secret, key_size(_cipher));
             std::memcpy(_iv, keys.iv, 12);
-            if (_cipher == Cipher::chacha20_poly1305_sha256) {
+            _tls12 = false;
+            if (chacha(_cipher)) {
                 _chacha.emplace(bytes_of(keys.key, keys.key_size));
             } else {
                 _gcm.emplace(bytes_of(keys.key, keys.key_size));
@@ -389,6 +442,95 @@ namespace sgcl::net::tls::detail {
             _gcm.reset();
             _chacha.reset();
             crypto::detail::secure_zero(_iv, sizeof _iv);
+        }
+
+        // TLS 1.2's additional data (RFC 5246 §6.2.3.3): seq_num, type,
+        // version, the plaintext's length
+        SGCL_INLINE_HOT void _aad12(uint8_t* aad, ContentType type, size_t length) const noexcept {
+            for (int i = 0; i < 8; ++i) {
+                aad[i] = uint8_t(_sequence >> (8 * (7 - i)));
+            }
+            aad[8] = uint8_t(type);
+            aad[9] = uint8_t(Tls12 >> 8);
+            aad[10] = uint8_t(Tls12);
+            aad[11] = uint8_t(length >> 8);
+            aad[12] = uint8_t(length);
+        }
+
+        // TLS 1.2's nonce: AES-GCM's salt and the explicit part, or
+        // ChaCha20-Poly1305's IV XOR the sequence number
+        SGCL_INLINE_HOT void _nonce12(uint8_t* nonce, const uint8_t* explicit_part) const noexcept {
+            if (chacha(_cipher)) {
+                _nonce(nonce);
+                return;
+            }
+            std::memcpy(nonce, _iv, 4);
+            std::memcpy(nonce + 4, explicit_part, 8);
+        }
+
+        size_t _seal12(ContentType type, const uint8_t* in, size_t n, uint8_t* out) {
+            const size_t e = explicit_nonce12(_cipher);
+            uint8_t* body = out + HeaderSize + e;
+            if (n > 0 && in != body) {
+                std::memmove(body, in, n);
+            }
+            uint8_t* explicit_part = out + HeaderSize;
+            for (size_t i = 0; i < e; ++i) {
+                explicit_part[i] = uint8_t(_sequence >> (8 * (e - 1 - i)));
+            }
+            _header(out, type, Tls12, e + n + TagSize);
+            uint8_t nonce[12], aad[13];
+            _nonce12(nonce, explicit_part);
+            _aad12(aad, type, n);
+            const auto room = room_of(body, n + TagSize);
+            if (chacha(_cipher)) {
+                _chacha->seal_to(room, bytes_of(nonce, 12), bytes_of(body, n), bytes_of(aad, 13));
+            } else {
+                _gcm->seal_to(room, bytes_of(nonce, 12), bytes_of(body, n), bytes_of(aad, 13));
+            }
+            ++_sequence;
+            return HeaderSize + e + n + TagSize;
+        }
+
+        // A TLS 1.2 record opened: into out, or (out the record's body) in
+        // place after the explicit nonce
+        expected<Opened, Alert> _open12(uint8_t* record, size_t size, uint8_t* out) noexcept {
+            const ContentType type = ContentType(record[0]);
+            const size_t length = size - HeaderSize;
+            if (type != ContentType::handshake && type != ContentType::alert && type != ContentType::application_data) {
+                return unexpected(record_alert(AlertDescription::unexpected_message, "a protected record of an unknown or forbidden type"));
+            }
+            if (length > MaxCiphertext) {
+                return unexpected(record_alert(AlertDescription::record_overflow, "a protected record over 2^14 + 256 bytes"));
+            }
+            const size_t e = explicit_nonce12(_cipher);
+            if (length < e + TagSize) {
+                return _failed(length);
+            }
+            if (_sequence == ~uint64_t(0)) {
+                return unexpected(record_alert(AlertDescription::internal_error, "the sequence number is exhausted"));
+            }
+            const size_t n = length - e - TagSize;
+            uint8_t* sealed = record + HeaderSize + e;
+            uint8_t* to = out == record + HeaderSize ? sealed : out;
+            uint8_t nonce[12], aad[13];
+            _nonce12(nonce, record + HeaderSize);
+            _aad12(aad, type, n);
+            const auto room = room_of(to, n);
+            const auto in = bytes_of(sealed, n + TagSize);
+            const bool ok = chacha(_cipher) ? _chacha->open_to(room, bytes_of(nonce, 12), in, bytes_of(aad, 13)).has_value()
+                                            : _gcm->open_to(room, bytes_of(nonce, 12), in, bytes_of(aad, 13)).has_value();
+            if (!ok) {
+                return _failed(length);
+            }
+            ++_sequence;
+            if (n > MaxPlaintext) {
+                return unexpected(record_alert(AlertDescription::record_overflow, "a protected record's content over 2^14 bytes"));
+            }
+            if (n == 0 && type != ContentType::application_data) {
+                return unexpected(record_alert(AlertDescription::unexpected_message, "an empty handshake or alert record"));
+            }
+            return Opened{type, bytes_of(to, n)};
         }
 
         // §5.3: the IV XOR the sequence number, big-endian, left-padded

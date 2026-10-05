@@ -28,11 +28,11 @@ the format gave no words of its own.
 | Value | Description |
 |---|---|
 | `syntax` | "syntax error": a character the grammar does not allow here. base64, base32 and hex: data after the padding, padding where the data cannot end, bits past the data in the last character; ascii85: a `z` inside a group; PEM: a boundary line, a label, a header or an `END` that does not match; CSV: a bare quote, a character after a closing quote; JSON, XML |
-| `unexpected_end` | "unexpected end of input": the input ends in the middle of a value. The byte codecs and varint: a cut input; PEM: no block, no `END` line; CSV: a quoted field not closed; JSON, XML |
+| `unexpected_end` | "unexpected end of input": the input ends in the middle of a value. The byte codecs and varint: a cut input (a quoted-printable escape among them); PEM: no block, no `END` line; CSV: a quoted field not closed; JSON, XML |
 | `invalid_character` | "invalid character": a byte outside the alphabet of base64, base32, hex or ascii85; a character XML does not allow |
 | `invalid_utf8` | "invalid UTF-8": JSON, XML |
-| `invalid_escape` | "invalid escape sequence": `\x` in JSON, `&#xD800;` in XML |
-| `depth_limit` | "nesting too deep": JSON and XML past their depth |
+| `invalid_escape` | "invalid escape sequence": `\x` in JSON, `&#xD800;` in XML, a `=` that is not an escape in strict quoted-printable |
+| `depth_limit` | "nesting too deep": JSON and XML past their depth, a mail's multiparts and messages past `max_depth` |
 | `duplicate_key` | "duplicate key": a key given twice in a JSON object, an attribute given twice in an XML tag |
 | `out_of_range` | "value out of range": a varint past 64 bits, an ascii85 group past 32; `1e400`, `300` read into an `uint8_t` (JSON, CSV and XML fields of a type); a CSV record or an XML token of a stream past its bound |
 | `type_mismatch` | "type mismatch": `"abc"` where a field of a type is a number (JSON, CSV, XML) |
@@ -44,6 +44,7 @@ the format gave no words of its own.
 | `undefined_entity` | "undefined entity": XML, `&nbsp;` with no DTD to define it |
 | `unsupported_encoding` | "unsupported encoding": XML, `encoding="Shift_JIS"` |
 | `io` | "input/output error": the source or the sink failed, a file did not open; the error's [io_error()](error/io_error.md) says how |
+| `limit_exceeded` | "limit exceeded": a limit of the reading passed: a mail's head past `max_header_bytes`, its parts past `max_parts` ([email::limits](email-limits.md)) |
 
 ## Example
 

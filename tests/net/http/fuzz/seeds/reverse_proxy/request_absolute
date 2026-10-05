@@ -1,0 +1,7 @@
+"POST http://abs.test/x HTTP/1.1
+Host: abs.test
+Content-Length: 3
+Forwarded: for="[2001:db8::1]:4711", by=unknown
+Proxy-Authorization: Basic eDp5
+
+abc

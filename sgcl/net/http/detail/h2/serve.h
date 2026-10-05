@@ -282,6 +282,7 @@ namespace sgcl::net::http::detail::h2 {
             }
             req->content_length = head.content_length;
             req->remote = _remote;
+            req->conn = _c;
             req->stop = _node->stop.token();
             tracked_ptr st = make_tracked<ServerStream>(id, tracked_ptr<StreamOwner>(this));
             st->req = req;
@@ -662,6 +663,7 @@ namespace sgcl::net::http::detail::h2 {
                     st->reset_by(ErrorCode::cancel);
                 }
             }
+            h->_node->stop.request_stop();   // the requests' stop(): the connection is gone (a reverse proxy cancels its backend's request)
             co_await h->_handlers;
             h->_wake.close();
             co_await h->_pump_done;
@@ -815,6 +817,9 @@ namespace sgcl::net::http::detail::h2 {
                 refused = true;
             }
             if (!refused) {
+                if (h->_cfg->observe) [[unlikely]] {
+                    h->_cfg->observe(r);
+                }
                 try {
                     if (auto t = dispatch(*h->_s, req, r, writer, method, host_text, path)) {
                         co_await *t;

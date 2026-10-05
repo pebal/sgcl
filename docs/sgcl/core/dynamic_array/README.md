@@ -11,6 +11,8 @@ namespace sgcl {
 }
 ```
 
+**Requires [rooted](../rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::dynamic_array<T>` is an array whose size is a value, fixed when the array is created and never changed
 after: Java's `new T[n]`, C#'s `T[]`, what `std::dynarray` was to be. It is a handle of two words — a
 `tracked_ptr` to the first element and the count — that lives on a stack or inside a managed object; the elements
@@ -26,9 +28,6 @@ are `dynamic_array`s. For `N` known at compile time, inline: [array](../array/RE
 
 ## Rules
 
-- A `dynamic_array` holds a `tracked_ptr`, so it lives where one may: on a stack or inside a managed object, never
-  in `new`/`malloc` memory, a `std` container, a global or a plain coroutine frame
-  ([The rules](../README.md#the-rules), 1).
 - It destroys its elements itself, in its destructor and on assignment, wherever the handle dies, on a stack or in
   a sweep inside a dying managed object. The collector never destroys a buffer, it only frees one nothing refers
   to any more ([Containers](../README.md#containers)).

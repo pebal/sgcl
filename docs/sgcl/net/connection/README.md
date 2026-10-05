@@ -10,6 +10,8 @@ namespace sgcl::net {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::net::connection` is a stream of bytes both ways: a TCP socket, a unix socket, a TLS session
 ([net::tls](../tls/README.md)), or one end of a pair in memory ([in_memory](in_memory.md)). It is Go's
 `net.Conn` with its `Read`, `Write`, `Close`, `CloseWrite`, `LocalAddr` and `RemoteAddr`
@@ -41,9 +43,8 @@ descriptor, which neither a close nor the manual clock could interrupt.
   [listener::accept](../listener/accept.md), [tls::connect](../tls/connect.md), [tls::client](../tls/client.md),
   [tls::server](../tls/server.md) and [in_memory](in_memory.md). A connection made by the default
   constructor holds none (`!c`); an operation on it is a contract violation (debug builds assert).
-- A handle is a tracked word: on a stack, in a task, in a managed object. In a global or a `std` container it goes
-  into a [rooted](../../core/rooted/README.md), `rooted<net::connection>`; it takes part in the atomics by its word
-  ([atomic](../../core/atomic-handle/README.md)), compared by identity.
+- A connection takes part in the atomics by its word ([atomic](../../core/atomic-handle/README.md)), compared by
+  identity.
 - Full duplex, one at a time per direction. One read and one write may run at once; two reads at once are taken one
   after the other, by a [mutex](../../async/mutex/README.md) of the library per direction which parks no worker, and so are
   two writes, so that a message written from each of two tasks lands whole.

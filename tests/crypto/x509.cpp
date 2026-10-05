@@ -256,18 +256,33 @@ TEST(Crypto_X509, TheSystemBundleReadsWhole) {
     if (n == 0) {
         GTEST_SKIP() << "no /etc/ssl/cert.pem";
     }
+    // the system's pool is the bundle's, but on macOS, where it is the
+    // Keychain's (tests/crypto/x509_keychain.cpp) unless SSL_CERT_FILE or
+    // SSL_CERT_DIR is set
+    size_t expected_size = distinct.size();
+#if defined(__APPLE__)
+    if (!getenv("SSL_CERT_FILE") && !getenv("SSL_CERT_DIR")) {
+        x509::certificate_pool keychain;
+        if (x509::detail::load_keychain_roots(keychain)) {
+            expected_size = keychain.size();
+        }
+    }
+#endif
+    x509::certificate_pool files;
+    x509::detail::load_root_files(files, false);
+    EXPECT_EQ(files.size(), distinct.size());
     auto pool = x509::certificate_pool::system();
     ASSERT_TRUE(pool);
-    EXPECT_EQ(pool->size(), distinct.size());
+    EXPECT_EQ(pool->size(), expected_size);
     // a clone each call: a change to one is not seen by the next
     pool->add(parse_or_fail(make_cert(root_spec(key_type::p256)).der));
     auto again = x509::certificate_pool::system();
     ASSERT_TRUE(again);
-    EXPECT_EQ(again->size(), distinct.size());
+    EXPECT_EQ(again->size(), expected_size);
     // the same from a task, the files read on the blocking pool
     auto from_task = sgcl::async::spawn(x509::certificate_pool::async_system()).wait();
     ASSERT_TRUE(from_task);
-    EXPECT_EQ(from_task->size(), distinct.size());
+    EXPECT_EQ(from_task->size(), expected_size);
     std::printf("  %zu certificates in /etc/ssl/cert.pem\n", n);
 }
 

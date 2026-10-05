@@ -13,6 +13,8 @@ namespace sgcl::encoding {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::encoding::json::writer` writes JSON piece by piece into a stream: [begin_object](begin_object.md),
 [key](key.md), [value](value.md), [end_object](end_object.md)… chained, the
 text gathered in the writer and handed to the stream by [flush](flush.md). It is what Go's
@@ -45,8 +47,8 @@ So a loop writes, and one `flush()` at its end says whether all of it went out.
   a cycle of pointers past 512 levels) is the writer's mistake, its path in the words
   (`json: /x: NaN is not a JSON number`).
 - **A failure of the stream is kept for good**: every later `flush()` reports it and writes nothing.
-- **A writer is neither copied nor moved.** It holds the stream (an `io::writer`, which holds what it was made
-  of) and the text, and lives where it is used: on a thread's stack or in a task's frame.
+- **A writer is neither copied nor moved.** It holds the stream (an `io::writer`, which holds what it was made of) and
+  the text.
 
 ### From code written for Go
 

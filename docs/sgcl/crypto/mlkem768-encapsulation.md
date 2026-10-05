@@ -18,6 +18,8 @@ namespace sgcl::crypto::mlkem1024 {
 }
 ```
 
+**Requires [rooted](../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::crypto::mlkem768::encapsulation` is what an
 [encapsulation](mlkem768-encapsulation_key/encapsulate.md) gives: the shared key, which the sender keeps, and the
 ciphertext, which it sends to the owner of the key. It names a struct of these two fields and nothing else, an
@@ -30,8 +32,6 @@ types, with ciphertexts of 768 and 1568 bytes, so that one set's result is never
 
 - **Move-only**, since its shared key is a secret: there is no copy, and the shared key is zeroed when the
   encapsulation goes.
-- **A tracked pointer inside**: the ciphertext is a managed `vector<byte>`, so an encapsulation lives where a
-  `tracked_ptr` may ([The rules of core](../core/README.md#the-rules)), on the stack above all.
 - An encapsulation is made only by `encapsulate`: a `secret<32>` cannot be made by the program.
 
 ## Member objects

@@ -10,6 +10,8 @@ namespace sgcl::async {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 The side of cancellation a task sees: a [stop_source](../stop_source/README.md) requests the stop, the tokens handed down
 from it see it. It is the standard's `std::stop_token` by name and Go's `context.Context` by use: a task takes a
 token as a parameter, hands it to what it calls, and stops itself when it sees the stop; nothing stops a task from
@@ -28,9 +30,6 @@ and keeps the state alive while any copy is. Nothing is freed and nothing counte
 
 ## Rules
 
-- A token lives where a `tracked_ptr` may ([The rules](../../core/README.md#the-rules), 1): on a stack, in a task's
-  frame, inside a managed object, in the closure of an `sgcl::thread`; in a global or a std container, a
-  `rooted<async::stop_token>`.
 - The stop is a state, not an event: a wait that starts after the stop ends at once.
 - A token made by default has no source: it never stops, `stop_possible()` is `false`, and `on_stop`, `stopped()`
   and `channel()` of it are an error (an assertion in debug builds). A function that takes a token it may be given

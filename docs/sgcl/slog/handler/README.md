@@ -10,6 +10,8 @@ namespace sgcl::slog {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::slog::handler` is any handler of the program, held as a value: whatever meets
 [req::handler](../req/handler.md), a type with `handle(const record&)`, and with `enabled(slog::level)` if it would
 rather not be given some levels. A [logger](../logger/README.md) made from one (`slog::logger(h)`, or
@@ -34,7 +36,7 @@ Go's `Handler` gets a logger's attributes apart (`WithAttrs`, `WithGroup`); here
   `group("req")` an attribute of kind group named `req` holding what came after it, and the call's own attributes
   inside the innermost group.
 - A logger with a handler is not batched (`options::buffered`): the handler is given each record as it comes.
-- A copy is the same handler: the words copied, the handler shared. It lives where a `tracked_ptr` may.
+- A copy is the same handler: the words copied, the handler shared.
 
 ## Member functions
 

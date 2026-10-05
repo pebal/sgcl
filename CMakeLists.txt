@@ -35,17 +35,21 @@ target_include_directories(sgcl INTERFACE
 )
 
 # The system frameworks codec::heif calls on Apple's systems (ImageIO for
-# HEIF and AVIF, CoreGraphics, CoreFoundation, vImage in Accelerate), linked
+# HEIF and AVIF, CoreGraphics, CoreFoundation, vImage in Accelerate), and
+# Security, whose trust settings crypto::x509 reads the system's roots from
+# (sgcl/crypto/detail/apple_security.h), linked
 # with the library. A program that makes no call still lists them (loaded
 # from the shared cache at start); -Wl,-dead_strip_dylibs drops them.
-# Their headers are never included: sgcl/codec/detail/apple_imageio.h
-# declares what it calls (the rule for platform headers).
+# Their headers are never included: sgcl/codec/detail/apple_imageio.h and
+# sgcl/crypto/detail/apple_security.h declare what they call (the rule for
+# platform headers).
 if(APPLE)
     target_link_libraries(sgcl INTERFACE
         "-framework ImageIO"
         "-framework CoreGraphics"
         "-framework CoreFoundation"
         "-framework Accelerate"
+        "-framework Security"
     )
 endif()
 

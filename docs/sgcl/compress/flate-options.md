@@ -16,6 +16,8 @@ namespace sgcl::compress {
 }
 ```
 
+**Requires [rooted](../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::compress::flate::options` is how DEFLATE data is made and read: the [level](level/README.md) of the encoder and a
 preset dictionary, data both sides agree on in advance, which the first matches may refer to (Go's
 `NewWriterDict` and `NewReaderDict`). [compress](flate/compress.md) and the [writer](flate-writer/README.md) take both;

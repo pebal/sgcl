@@ -10,6 +10,8 @@ namespace sgcl::net::http {
 }
 ```
 
+**Requires [rooted](../../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::net::http::response` is a response as the [client](../client/README.md) returns it, Go's `http.Response`: the status and
 the head read, the body still on the connection. A 4xx or a 5xx is a response and not an error, as in Go:
 [ok](ok.md) tells a 2xx. The body is read once, as text, bytes, JSON, into a file or as a stream, and its end
@@ -20,8 +22,6 @@ it, and its connection, alive. The program does not make one: the client does.
 
 ## Rules
 
-- A response holds a `tracked_ptr`, so it lives where one may: on a stack, in a task, in a managed object; in a global
-  or a `std` container, a [rooted](../../../core/rooted/README.md) of it ([The rules](../../../core/README.md#the-rules), 1).
 - **The body** is read once, with [text](text.md), [bytes](bytes.md), [json](json.md),
   [save](save.md) or the stream [body](body.md), and its end gives the connection back to the
   client's pool. In a task, `co_await res.async_text()`; `text()` blocks the thread.
@@ -53,6 +53,7 @@ it, and its connection, alive. The program does not make one: the client does.
 | [proto](proto.md) | the protocol the response came over |
 | [header](header.md) | the first value of a field |
 | [headers](headers.md) | the fields |
+| [cookies](cookies.md) | the cookies of the `Set-Cookie` fields |
 | [content_length](content_length.md) | the length of the body as the response declared it |
 | [url](url.md) | the URL the response came from, the last of the redirects |
 

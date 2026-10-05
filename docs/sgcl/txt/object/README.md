@@ -10,6 +10,8 @@ namespace sgcl::txt {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 A mapping of names to [values](../value/README.md) written as data: `txt::object{{"name", "Ada"}, {"admin", true}}`. It is a
 `value` and adds nothing to its data — no member, nothing virtual — so it is a value wherever one is wanted. A
 mapping keeps the order it was written in, not the order of a hash ([ordered_map](../../core/ordered_map/README.md)): a page
@@ -18,10 +20,9 @@ the mapping with `range`, `.` a row of `key` and `value`; `format` writes it in 
 
 ## Rules
 
-- What a [value](../value/README.md) holding a mapping is: it lives where a `tracked_ptr` may, and a copy shares the mapping —
-  [set](set.md) on one is seen through every copy. So a mapping may be put inside itself; a field writes such
-  a value as far as the ring closes: where a value would be written inside itself it is `...`, however many
-  names lead back into the ring.
+- What a [value](../value/README.md) holding a mapping is: a copy shares the mapping — [set](set.md) on one is seen
+  through every copy. So a mapping may be put inside itself; a field writes such a value as far as the ring closes:
+  where a value would be written inside itself it is `...`, however many names lead back into the ring.
 - A name written twice keeps its first place and its last value.
 - [format](../format.md) writes it as the value it is: `txt::format("{}", o)`.
 

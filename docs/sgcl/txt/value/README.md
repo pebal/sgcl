@@ -10,6 +10,8 @@ namespace sgcl::txt {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 One value handed to a [stencil](../stencil/README.md): text, a whole number, a real one, a truth, nothing, a list, or a mapping
 of names to more of the same. C++20 has no reflection, so a template cannot walk the fields of a struct of the
 program's and does not pretend to: the program builds a `value`, and the braces are arranged so that the call reads
@@ -27,8 +29,6 @@ page.
 
 ## Rules
 
-- A value holds a `tracked_ptr` (in its two compound shapes), so it lives where one may: on a stack or inside a
-  managed object, a container of the library included ([the rules of core](../../core/README.md#the-rules), 1).
 - One trap of the language comes with the braces and is worth saying out loud: `value v{"one"}` is a **list of one
   piece of text**, where `value v("one")` is the text. The initializer list wins in copy-list-initialization, as it
   does everywhere else in C++.

@@ -86,26 +86,68 @@ namespace sgcl::crypto::detail {
         return r;
     }
 
+    // a + b + carry and a - b - borrow, the carry or borrow (0 or 1) in and
+    // out through the last argument. By the compiler's builtin where it has
+    // one: a run of these is then one chain of add- or subtract-with-carry
+    // instructions, the carry in the flags, where a 128-bit sum takes it
+    // into a register and back each time. Neither branches
+    SGCL_INLINE_HOT constexpr uint64_t add_carry(uint64_t a, uint64_t b, uint64_t& carry) noexcept {
+#if defined(__has_builtin)
+#if __has_builtin(__builtin_addcll)
+        if (!std::is_constant_evaluated()) {
+            unsigned long long out;
+            uint64_t s = __builtin_addcll(a, b, carry, &out);
+            carry = out;
+            return s;
+        }
+#endif
+#endif
+        u128 t = u128(a) + b + carry;
+        carry = uint64_t(t >> 64);
+        return uint64_t(t);
+    }
+
+    SGCL_INLINE_HOT constexpr uint64_t sub_borrow(uint64_t a, uint64_t b, uint64_t& borrow) noexcept {
+#if defined(__has_builtin)
+#if __has_builtin(__builtin_subcll)
+        if (!std::is_constant_evaluated()) {
+            unsigned long long out;
+            uint64_t d = __builtin_subcll(a, b, borrow, &out);
+            borrow = out;
+            return d;
+        }
+#endif
+#endif
+        u128 t = u128(a) - b - borrow;
+        borrow = uint64_t(t >> 64) & 1;
+        return uint64_t(t);
+    }
+
+    // hi:lo = a * b
+    SGCL_INLINE_HOT constexpr uint64_t mul_wide(uint64_t a, uint64_t b, uint64_t& lo) noexcept {
+        u128 p = u128(a) * b;
+        lo = uint64_t(p);
+        return uint64_t(p >> 64);
+    }
+
     // a - b over N words; the borrow out
     template<size_t N>
-    constexpr uint64_t limbs_sub(limbs<N>& r, const limbs<N>& a, const limbs<N>& b) noexcept {
+    SGCL_INLINE_HOT constexpr uint64_t limbs_sub(limbs<N>& r, const limbs<N>& a, const limbs<N>& b) noexcept {
         uint64_t borrow = 0;
+        SGCL_CRYPTO_UNROLL
         for (size_t i = 0; i < N; ++i) {
-            u128 t = u128(a[i]) - b[i] - borrow;
-            r[i] = uint64_t(t);
-            borrow = uint64_t(t >> 64) & 1;
+            r[i] = sub_borrow(a[i], b[i], borrow);
         }
         return borrow;
     }
 
     // a + b over N words; the carry out
     template<size_t N>
-    constexpr uint64_t limbs_add(limbs<N>& r, const limbs<N>& a, const limbs<N>& b) noexcept {
+    SGCL_INLINE_HOT constexpr uint64_t limbs_add(limbs<N>& r, const limbs<N>& a, const limbs<N>& b) noexcept {
         uint64_t carry = 0;
+        SGCL_CRYPTO_UNROLL
         for (size_t i = 0; i < N; ++i) {
-            u128 t = u128(a[i]) + b[i] + carry;
-            r[i] = uint64_t(t);
-            carry = uint64_t(t >> 64);
+            r[i] = add_carry(a[i], b[i], carry);
         }
         return carry;
     }
@@ -129,7 +171,7 @@ namespace sgcl::crypto::detail {
 
     // r = mask ? a : b, word by word
     template<size_t N>
-    constexpr void limbs_select(limbs<N>& r, uint64_t mask, const limbs<N>& a, const limbs<N>& b) noexcept {
+    SGCL_INLINE_HOT constexpr void limbs_select(limbs<N>& r, uint64_t mask, const limbs<N>& a, const limbs<N>& b) noexcept {
         for (size_t i = 0; i < N; ++i) {
             r[i] = (a[i] & mask) | (b[i] & ~mask);
         }
@@ -249,96 +291,252 @@ namespace sgcl::crypto::detail {
             limbs_add(r, t, m);
         }
 
-        // r = a * b / R mod m
-        static constexpr void mul(element& r, const element& a, const element& b) noexcept {
-            uint64_t t[N + 2] = {};
+        // Whether m is P-256's prime p = 2^256 - 2^224 + 2^192 + 2^96 - 1,
+        // whose multiplication and squaring have a reduction of their own
+        static constexpr bool p256_prime = N == 4 && k.m[0] == ~uint64_t(0) && k.m[1] == 0xffffffff && k.m[2] == 0 && k.m[3] == 0xffffffff00000001;
+
+        // Montgomery's reduction of t (below p^2, eight words) modulo
+        // P-256's prime: -p^-1 mod 2^64 is 1, so each step's multiplier q
+        // is the lowest word t_i itself, and t + q p 2^(64i) needs one
+        // product alone. q (2^64 - 1) clears word i with a carry of q;
+        // q (2^32 - 1) and that carry make q 2^32, q << 32 into word i + 1
+        // and q >> 32 into word i + 2; the top word of p, 2^64 - 2^32 + 1,
+        // is one product into words i + 3 and i + 4. That product's high
+        // word is at most 2^64 - 2^32, so the carry out of a step joins the
+        // next step's high word with no overflow. The result is below 2p:
+        // one subtraction of p at most
+        SGCL_INLINE_HOT static constexpr void p256_reduce(element& r, uint64_t (&t)[8]) noexcept {
+            uint64_t carry_word = 0;
             SGCL_CRYPTO_UNROLL
-            for (size_t i = 0; i < N; ++i) {
+            for (size_t i = 0; i < 4; ++i) {
+                uint64_t q = t[i];
+                uint64_t lo = 0;
+                uint64_t hi = mul_wide(q, 0xffffffff00000001, lo) + carry_word;
                 uint64_t c = 0;
-                SGCL_CRYPTO_UNROLL
-                for (size_t j = 0; j < N; ++j) {
-                    u128 x = u128(a[j]) * b[i] + t[j] + c;
-                    t[j] = uint64_t(x);
-                    c = uint64_t(x >> 64);
-                }
-                u128 x = u128(t[N]) + c;
-                t[N] = uint64_t(x);
-                t[N + 1] = uint64_t(x >> 64);
-                uint64_t q = t[0] * k.m0inv;
-                x = u128(q) * k.m[0] + t[0];
-                c = uint64_t(x >> 64);
-                SGCL_CRYPTO_UNROLL
-                for (size_t j = 1; j < N; ++j) {
-                    x = u128(q) * k.m[j] + t[j] + c;
-                    t[j - 1] = uint64_t(x);
-                    c = uint64_t(x >> 64);
-                }
-                x = u128(t[N]) + c;
-                t[N - 1] = uint64_t(x);
-                t[N] = t[N + 1] + uint64_t(x >> 64);
+                t[i + 1] = add_carry(t[i + 1], q << 32, c);
+                t[i + 2] = add_carry(t[i + 2], q >> 32, c);
+                t[i + 3] = add_carry(t[i + 3], lo, c);
+                t[i + 4] = add_carry(t[i + 4], hi, c);
+                carry_word = c;
             }
-            element low{};
-            SGCL_CRYPTO_UNROLL
-            for (size_t i = 0; i < N; ++i) {
-                low[i] = t[i];
-            }
-            reduce_once(r, low, t[N]);
+            element high{t[4], t[5], t[6], t[7]};
+            reduce_once(r, high, carry_word);
         }
 
-        // r = a^2 / R mod m: the product first (each cross product once,
-        // then doubled, then the squares added: N(N+1)/2 products against
-        // mul's N^2), then N steps of Montgomery's reduction, a word each
-        static constexpr void sqr(element& r, const element& a) noexcept {
-            uint64_t t[2 * N] = {};
+        // a * b over P-256's prime: the product row by row, the low words
+        // of a row's four products added in one chain of carries and the
+        // high words in another, then p256_reduce
+        SGCL_INLINE_HOT static constexpr void p256_mul(element& r, const element& a, const element& b) noexcept {
+            uint64_t t[8] = {};
+            uint64_t lo[4] = {};
+            uint64_t hi[4] = {};
             SGCL_CRYPTO_UNROLL
-            for (size_t i = 0; i < N; ++i) {
-                uint64_t c = 0;
-                SGCL_CRYPTO_UNROLL
-                for (size_t j = i + 1; j < N; ++j) {
-                    u128 x = u128(a[j]) * a[i] + t[i + j] + c;
-                    t[i + j] = uint64_t(x);
-                    c = uint64_t(x >> 64);
-                }
-                t[i + N] = c;
-            }
-            uint64_t hi = 0;
-            SGCL_CRYPTO_UNROLL
-            for (size_t i = 0; i < 2 * N; ++i) {
-                uint64_t v = t[i];
-                t[i] = v << 1 | hi;
-                hi = v >> 63;
+            for (size_t j = 0; j < 4; ++j) {
+                hi[j] = mul_wide(a[j], b[0], lo[j]);
             }
             uint64_t c = 0;
+            t[0] = lo[0];
+            t[1] = add_carry(lo[1], hi[0], c);
+            t[2] = add_carry(lo[2], hi[1], c);
+            t[3] = add_carry(lo[3], hi[2], c);
+            t[4] = hi[3] + c;   // a high word is at most 2^64 - 2
             SGCL_CRYPTO_UNROLL
-            for (size_t i = 0; i < N; ++i) {
-                u128 s = u128(a[i]) * a[i];
-                u128 x = u128(t[2 * i]) + uint64_t(s) + c;
-                t[2 * i] = uint64_t(x);
-                x = u128(t[2 * i + 1]) + uint64_t(s >> 64) + uint64_t(x >> 64);
-                t[2 * i + 1] = uint64_t(x);
-                c = uint64_t(x >> 64);
+            for (size_t i = 1; i < 4; ++i) {
+                SGCL_CRYPTO_UNROLL
+                for (size_t j = 0; j < 4; ++j) {
+                    hi[j] = mul_wide(a[j], b[i], lo[j]);
+                }
+                c = 0;
+                SGCL_CRYPTO_UNROLL
+                for (size_t j = 0; j < 4; ++j) {
+                    t[i + j] = add_carry(t[i + j], lo[j], c);
+                }
+                t[i + 4] = c;
+                c = 0;
+                // no carry out: the sum so far is below 2^(64(i + 5))
+                SGCL_CRYPTO_UNROLL
+                for (size_t j = 0; j < 4; ++j) {
+                    t[i + 1 + j] = add_carry(t[i + 1 + j], hi[j], c);
+                }
             }
-            // the square is below m^2 < 2^(128N): no word above t[2N - 1]
-            uint64_t top = 0;
+            p256_reduce(r, t);
+        }
+
+        // a^2 over P-256's prime: the six cross products, doubled, the four
+        // squares added, then p256_reduce
+        SGCL_INLINE_HOT static constexpr void p256_sqr(element& r, const element& a) noexcept {
+            uint64_t t[8] = {};
+            uint64_t l1 = 0, l2 = 0, l3 = 0;
+            uint64_t h1 = mul_wide(a[1], a[0], l1);
+            uint64_t h2 = mul_wide(a[2], a[0], l2);
+            uint64_t h3 = mul_wide(a[3], a[0], l3);
+            uint64_t c = 0;
+            t[1] = l1;
+            t[2] = add_carry(l2, h1, c);
+            t[3] = add_carry(l3, h2, c);
+            t[4] = h3 + c;
+            uint64_t lx = 0, ly = 0, lz = 0;
+            uint64_t hx = mul_wide(a[2], a[1], lx);
+            uint64_t hy = mul_wide(a[3], a[1], ly);
+            uint64_t hz = mul_wide(a[3], a[2], lz);
+            c = 0;
+            t[3] = add_carry(t[3], lx, c);
+            t[4] = add_carry(t[4], ly, c);
+            t[5] = c;
+            c = 0;
+            t[4] = add_carry(t[4], hx, c);
+            t[5] = add_carry(t[5], hy, c);
+            c = 0;
+            t[5] = add_carry(t[5], lz, c);
+            t[6] = hz + c;
+            // doubled: the cross products are below 2^511
+            c = 0;
+            SGCL_CRYPTO_UNROLL
+            for (size_t i = 1; i < 7; ++i) {
+                t[i] = add_carry(t[i], t[i], c);
+            }
+            t[7] = c;
+            uint64_t s[8] = {};
+            SGCL_CRYPTO_UNROLL
+            for (size_t i = 0; i < 4; ++i) {
+                s[2 * i + 1] = mul_wide(a[i], a[i], s[2 * i]);
+            }
+            c = 0;
+            SGCL_CRYPTO_UNROLL
+            for (size_t i = 0; i < 8; ++i) {
+                t[i] = add_carry(t[i], s[i], c);
+            }
+            p256_reduce(r, t);
+        }
+
+        // Montgomery's reduction of t (below m^2, 2N words), N steps of a
+        // word each: q = t_i (-m^-1) mod 2^64, t + q m 2^(64i), the low
+        // words of q m added in one chain of carries and the high words in
+        // another. The first chain's carry joins the high word of q m's top
+        // product (at most m_(N-1) - 1, no overflow); the second's, a word
+        // above the step, is kept aside and all of them added in one chain
+        // at the end (no step reads those words for its q). The result is
+        // below 2m: one subtraction of m at most
+        SGCL_INLINE_HOT static constexpr void reduce_wide(element& r, uint64_t (&t)[2 * N]) noexcept {
+            uint64_t pending[N] = {};
             SGCL_CRYPTO_UNROLL
             for (size_t i = 0; i < N; ++i) {
                 uint64_t q = t[i] * k.m0inv;
-                uint64_t cc = 0;
+                uint64_t lo[N] = {};
+                uint64_t hi[N] = {};
                 SGCL_CRYPTO_UNROLL
                 for (size_t j = 0; j < N; ++j) {
-                    u128 x = u128(q) * k.m[j] + t[i + j] + cc;
-                    t[i + j] = uint64_t(x);
-                    cc = uint64_t(x >> 64);
+                    hi[j] = mul_wide(q, k.m[j], lo[j]);
                 }
-                u128 x = u128(t[i + N]) + cc + top;
-                t[i + N] = uint64_t(x);
-                top = uint64_t(x >> 64);
+                uint64_t c = 0;
+                SGCL_CRYPTO_UNROLL
+                for (size_t j = 0; j < N; ++j) {
+                    t[i + j] = add_carry(t[i + j], lo[j], c);
+                }
+                hi[N - 1] += c;
+                c = 0;
+                SGCL_CRYPTO_UNROLL
+                for (size_t j = 0; j < N; ++j) {
+                    t[i + 1 + j] = add_carry(t[i + 1 + j], hi[j], c);
+                }
+                pending[i] = c;   // into word i + N + 1
             }
+            uint64_t c = 0;
+            SGCL_CRYPTO_UNROLL
+            for (size_t i = 0; i + 1 < N; ++i) {
+                t[N + 1 + i] = add_carry(t[N + 1 + i], pending[i], c);
+            }
+            uint64_t top = pending[N - 1] + c;
             element high{};
+            SGCL_CRYPTO_UNROLL
             for (size_t i = 0; i < N; ++i) {
                 high[i] = t[N + i];
             }
             reduce_once(r, high, top);
+        }
+
+        // r = a * b / R mod m: the product row by row, the low words of a
+        // row's N products added in one chain of carries and the high
+        // words in another, then reduce_wide (P-256's prime p256_mul)
+        static constexpr void mul(element& r, const element& a, const element& b) noexcept {
+            if constexpr (p256_prime) {
+                p256_mul(r, a, b);
+                return;
+            }
+            uint64_t t[2 * N] = {};
+            uint64_t lo[N] = {};
+            uint64_t hi[N] = {};
+            SGCL_CRYPTO_UNROLL
+            for (size_t i = 0; i < N; ++i) {
+                SGCL_CRYPTO_UNROLL
+                for (size_t j = 0; j < N; ++j) {
+                    hi[j] = mul_wide(a[j], b[i], lo[j]);
+                }
+                uint64_t c = 0;
+                SGCL_CRYPTO_UNROLL
+                for (size_t j = 0; j < N; ++j) {
+                    t[i + j] = add_carry(t[i + j], lo[j], c);
+                }
+                t[i + N] = c;
+                c = 0;
+                // no carry out: the sum so far is below 2^(64(i + N + 1))
+                SGCL_CRYPTO_UNROLL
+                for (size_t j = 0; j < N; ++j) {
+                    t[i + 1 + j] = add_carry(t[i + 1 + j], hi[j], c);
+                }
+            }
+            reduce_wide(r, t);
+        }
+
+        // r = a^2 / R mod m: the product first (each cross product once,
+        // then doubled, then the squares added: N(N+1)/2 products against
+        // mul's N^2), then reduce_wide (P-256's prime p256_sqr)
+        static constexpr void sqr(element& r, const element& a) noexcept {
+            if constexpr (p256_prime) {
+                p256_sqr(r, a);
+                return;
+            }
+            uint64_t t[2 * N] = {};
+            SGCL_CRYPTO_UNROLL
+            for (size_t i = 0; i + 1 < N; ++i) {
+                uint64_t lo[N] = {};
+                uint64_t hi[N] = {};
+                SGCL_CRYPTO_UNROLL
+                for (size_t j = i + 1; j < N; ++j) {
+                    hi[j] = mul_wide(a[j], a[i], lo[j]);
+                }
+                uint64_t c = 0;
+                SGCL_CRYPTO_UNROLL
+                for (size_t j = i + 1; j < N; ++j) {
+                    t[i + j] = add_carry(t[i + j], lo[j], c);
+                }
+                t[i + N] = c;
+                c = 0;
+                // no carry out: the cross products so far are below
+                // 2^(64(i + N + 1))
+                SGCL_CRYPTO_UNROLL
+                for (size_t j = i + 1; j < N; ++j) {
+                    t[i + j + 1] = add_carry(t[i + j + 1], hi[j], c);
+                }
+            }
+            // doubled: the cross products are below 2^(128N - 1)
+            uint64_t c = 0;
+            SGCL_CRYPTO_UNROLL
+            for (size_t i = 1; i < 2 * N; ++i) {
+                t[i] = add_carry(t[i], t[i], c);
+            }
+            uint64_t s[2 * N] = {};
+            SGCL_CRYPTO_UNROLL
+            for (size_t i = 0; i < N; ++i) {
+                s[2 * i + 1] = mul_wide(a[i], a[i], s[2 * i]);
+            }
+            // the square is below m^2 < 2^(128N): no carry out
+            c = 0;
+            SGCL_CRYPTO_UNROLL
+            for (size_t i = 0; i < 2 * N; ++i) {
+                t[i] = add_carry(t[i], s[i], c);
+            }
+            reduce_wide(r, t);
         }
 
         // Into the form (a R mod m) and out of it; a below m

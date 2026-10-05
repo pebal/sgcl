@@ -13,6 +13,8 @@ namespace sgcl::encoding {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::encoding::ascii85::decoder` is a reader of the bytes another reader's text decodes to: Go's
 `ascii85.NewDecoder`, made by [ascii85::decoder_from](../ascii85/decoder_from.md). The text may come in pieces of any
 size, white space and line endings anywhere; a [read](read.md) into a buffer smaller than a group
@@ -29,9 +31,7 @@ every read after. The read's `io::error` has the code in the `encoding` category
   (`encoding::ascii85::decoder plain = encoding::ascii85::decoder_from(r);`) and shared by its copies
   ([operator==](operator_cmp.md) says whether two are the same). A default-constructed one holds
   none (`!plain`), and an operation on it is a contract violation, checked by `assert`.
-- It lies on a stack, in a task, in a managed object; in a global or a `std` container, a
-  [rooted](../../core/rooted/README.md) of it. A stream made of one (`io::reader r = plain;`, `io::copy`) binds the state,
-  so the handle may go first.
+- A stream made of one (`io::reader r = plain;`, `io::copy`) binds the state, so the handle may go first.
 - The state is a managed object that holds its block, 8 KB of `array<byte, N>` as io's buffers are, and the
   reader under it. The text is read into the block and decoded straight into the caller's buffer.
 - One thread or task at a time, as on any stream; a read waits as the reader under it does.

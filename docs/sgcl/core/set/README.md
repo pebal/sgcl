@@ -11,6 +11,8 @@ namespace sgcl {
 }
 ```
 
+**Requires [rooted](../rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::set<Key, Hash, KeyEqual>` is `std::unordered_set` over managed nodes: the same hash table as
 [map](../map/README.md), holding keys alone. The interface is the one of `std::unordered_set` — the constructors,
 insertion, erasure, node handles and `merge`, the lookups with a transparent hash and equality, forward
@@ -35,9 +37,6 @@ randomizes the order of every iteration, while here the order is the chain's and
 
 ## Rules
 
-- A set holds tracked pointers, so it lives on a stack or inside a managed object: never in `new`/`malloc`
-  memory, a `std` container, a global, a `thread_local` or a plain coroutine frame
-  ([The rules](../README.md#the-rules), 1). The same holds for a [node handle](../set-node_type/README.md).
 - The elements may be, or hold, tracked pointers: the nodes are managed objects, so those pointers are traced.
 - An element is destroyed the moment it is erased, cleared, assigned over, or the set is destroyed, exactly as in
   `std`. The one exception is a set dying in a sweep, inside a managed object nobody refers to any more: its

@@ -16,6 +16,8 @@ namespace sgcl {
 }
 ```
 
+**Requires [rooted](../rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::function<R(Args...)>` is `std::function` for a closure that captures tracked pointers. `std::function` keeps
 a small closure in a buffer inside itself, where a `tracked_ptr` would share its word with the data of other
 closures (the offset leaves the collector's pointer map by elimination:
@@ -48,9 +50,7 @@ lives on the collected heap.
 
 ## Rules
 
-- The word is a `tracked_ptr`, so a `function` lives where one may, as the containers do: on a stack or inside a
-  managed object ([The rules](../README.md#the-rules), 1). The closure follows the rules of its captures where the
-  `function` lives, as a member would.
+- The closure of a `function` follows the rules of its captures where the `function` lives, as a member would.
 - A closure in a node is destroyed by an assignment, the assignment of `nullptr` or the destructor, at once, on the
   calling thread; the objects it captured are unreferenced from then on and die with the next cycle that finds them
   so.

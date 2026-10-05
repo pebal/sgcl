@@ -1,0 +1,5 @@
+host.lan.example
+nameserver 10.0.0.1
+nameserver 2001:db8::53
+search corp.example example.com
+options ndots:2 timeout:3 attempts:4 rotate

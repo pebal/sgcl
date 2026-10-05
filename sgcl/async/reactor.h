@@ -14,6 +14,8 @@
 #include <algorithm>
 #include <atomic>
 #include <cerrno>
+#include <chrono>
+#include <condition_variable>
 #include <cstdint>
 #include <mutex>
 #include <thread>
@@ -41,6 +43,14 @@
 #else
 #define SGCL_REACTOR_KQUEUE 0
 #define SGCL_REACTOR_EPOLL 0
+#endif
+
+// The workers read the queue themselves (scheduler.h: SGCL_REACTOR_IN_WORKERS,
+// PollSeat): kqueue only for now; epoll's thread works as it did
+#if SGCL_REACTOR_KQUEUE && SGCL_REACTOR_IN_WORKERS
+#define SGCL_REACTOR_WORKERS_POLL 1
+#else
+#define SGCL_REACTOR_WORKERS_POLL 0
 #endif
 
 namespace sgcl::async {
@@ -75,6 +85,12 @@ namespace sgcl::async {
     //
     // Under both one thread on the kernel's queue (kqueue here, epoll on
     // Linux, IOCP to come), asleep in the kernel until something is ready.
+    // With kqueue the workers read the queue themselves (scheduler.h:
+    // PollSeat): a worker with nothing to run waits in the queue, and runs
+    // the first task an event makes ready on its own stack, with no wake of
+    // another thread for it; the reactor's thread reads it only while every
+    // worker is busy (and while no worker runs: a program of threads), and
+    // sleeps otherwise.
     namespace detail {
         class Reactor;
         inline Reactor& reactor_instance();
@@ -375,7 +391,12 @@ namespace sgcl::async {
                 return false;
             }
 
-            // The kernel's event for the direction, on the reactor's thread
+            // The kernel's event for the direction, on the thread that took
+            // it from the queue (the reactor's, or a worker's: two events
+            // of one descriptor may be handled at once by two threads, and
+            // the second then finds the first's taker between its steps,
+            // Claim without Parked, and leaves Ready: one try of the call
+            // more, which an edge-triggered wait allows)
             void fire(int dir, WakeBatch* batch) {
                 auto& st = state[dir];
                 uint32_t s = st.load(std::memory_order_relaxed);
@@ -513,6 +534,14 @@ namespace sgcl::async {
         public:
             SGCL_INLINE_HOT Reactor() {
                 scheduler_instance();   // made after the scheduler, so destroyed before it (timer.h: Timers)
+#if SGCL_REACTOR_WORKERS_POLL
+                // the seat's calls, set before the queue is ever opened to the
+                // workers (`enabled`, stored with release at the start)
+                poll_seat.wait = &_seat_wait;
+                poll_seat.dispatch = &_seat_dispatch;
+                poll_seat.wake_poller = &_seat_wake_poller;
+                poll_seat.wake_backstop = &_seat_wake_backstop;
+#endif
             }
 
             // The chunks are kept (PollChunk): a descriptor destroyed by the
@@ -566,6 +595,9 @@ namespace sgcl::async {
             // meanwhile carries a number that names nothing and is dropped.
             void cancel(int fd) {
 #if SGCL_REACTOR_KQUEUE
+                if (runtime_exiting()) {
+                    return;   // the queue is gone or going, nothing to cancel, and the mutex may be destroyed (scheduler.h: runtime_exit)
+                }
                 std::vector<root_ptr<IoWait>> ended;
                 {
                     std::lock_guard lock(_m);
@@ -624,8 +656,7 @@ namespace sgcl::async {
                 if (inc) [[likely]] {
                     return inc;
                 }
-                std::lock_guard lock(_m);
-                return _start() ? _live.load(std::memory_order_relaxed) : 0;
+                return _running_slow();
             }
 
             // The incarnation now, 0 when stopped: a waiter's look after its
@@ -697,10 +728,21 @@ namespace sgcl::async {
             // nothing), and so is every wait parked in a slot, which sees
             // the incarnation moved (cancelled); a wait registered while
             // the thread is being joined ends the same way. The next wait
-            // starts the reactor again.
-            void stop() {
+            // starts the reactor again. Without `wake`, the end of the
+            // program's (runtime_exit): the waits are left as they are,
+            // none woken, and no wait starts the reactor again.
+            void stop(bool wake = true) {
 #if SGCL_REACTOR_KQUEUE || SGCL_REACTOR_EPOLL
                 std::lock_guard stopping(_stop_m);   // one stop at a time: a second (two threads stopping the scheduler, the destructor at exit beside a stop) would join the thread again; it waits and finds the reactor stopped
+#if SGCL_REACTOR_WORKERS_POLL
+                {
+                    std::lock_guard lock(_m);
+                    if (!_running) {
+                        return;
+                    }
+                }
+                _close_to_workers();   // first, outside the lock: a worker handling its events may wait for it; the stop's wake below is then the thread's alone
+#endif
                 {
                     std::lock_guard lock(_m);
                     if (!_running) {
@@ -716,16 +758,31 @@ namespace sgcl::async {
                     _close_queue();
                     _running = false;
 #if SGCL_REACTOR_KQUEUE
-                    _take_all(ended);   // the waits still registered: ended with nothing
+                    if (wake) {
+                        _take_all(ended);   // the waits still registered: ended with nothing
+                    }
 #endif
                 }
-                _end(ended, false);
-                _sweep();
+                if (wake) {
+                    _end(ended, false);
+                    _sweep();
+                }
 #endif
             }
 
         private:
             static constexpr uint64_t PollTag = uint64_t(1) << 63;   // a udata of a slot's registration, not of a one-shot one
+
+            // No queue running: one started, unless the program is ending
+            // (0: a wait ends cancelled; scheduler.h: runtime_exit)
+            SGCL_NOINLINE uint64_t _running_slow() {
+                RuntimeStart starting;
+                if (!starting) {
+                    return 0;
+                }
+                std::lock_guard lock(_m);
+                return _start() ? _live.load(std::memory_order_relaxed) : 0;
+            }
 
             // The kernel's udata of a slot's registration: the tag, the
             // slot's generation, the number
@@ -785,11 +842,226 @@ namespace sgcl::async {
                 return ::kevent(_queue.load(std::memory_order_acquire), &ev, 1, nullptr, 0, nullptr) == 0 ? 0 : errno;
             }
 
+            static constexpr uintptr_t StopIdent = 1;     // the user event of stop(): the reactor's thread woken in the queue
+            static constexpr uintptr_t WorkerIdent = 2;   // the user event of a worker asleep in the queue (PollSeat::wake_poller)
+
+            // Under _m: the thread woken for stop(), in the queue or asleep
+            // without the seat
             SGCL_INLINE_HOT void _wake_thread() noexcept {
                 if (_kq >= 0) {
                     struct kevent ev;
-                    EV_SET(&ev, 1, EVFILT_USER, 0, NOTE_TRIGGER, 0, nullptr);
+                    EV_SET(&ev, StopIdent, EVFILT_USER, 0, NOTE_TRIGGER, 0, nullptr);
                     ::kevent(_kq, &ev, 1, nullptr, 0, nullptr);
+                }
+#if SGCL_REACTOR_WORKERS_POLL
+                _wake_watch();
+#endif
+            }
+
+#if SGCL_REACTOR_WORKERS_POLL
+            // The seat's calls (scheduler.h: PollSeat), from the workers.
+            //
+            // A wait counts itself in `inside` before it looks at
+            // `enabled`, and the close to the workers clears `enabled` before
+            // it waits for `inside` to be zero (both sequentially
+            // consistent): a wait either sees the queue closed, or is
+            // waited for, and the queue's descriptor is never closed under
+            // one (its number could be another descriptor's by then)
+            static int _seat_wait(void* events, int capacity, bool block) noexcept {
+                auto& seat = poll_seat;
+                seat.inside.fetch_add(1, std::memory_order_seq_cst);
+                seat.polls.fetch_add(1, std::memory_order_relaxed);
+                int n = -1;
+                if (seat.enabled.load(std::memory_order_seq_cst)) {
+                    static constexpr struct timespec zero = {0, 0};
+                    n = ::kevent(reactor_instance()._queue.load(std::memory_order_acquire), nullptr, 0, static_cast<struct kevent*>(events), capacity, block ? nullptr : &zero);
+                    if (n < 0 && errno == EINTR) {
+                        n = 0;
+                    }
+                }
+                seat.inside.fetch_sub(1, std::memory_order_release);
+                return n;
+            }
+
+            // The events a worker took, handled as the thread handles its
+            // own (_run), with the first task made ready kept for the
+            // worker to run, each placed as Scheduler::DispatchScope says
+            // (its last worker while that one looks, the first kept here,
+            // the rest to the global queue with one wake when nobody looks). The user events are
+            // not the worker's: a worker's own wake has done its work by
+            // ending the wait; the
+            // stop's is the thread's, given back to the queue (the stop
+            // closes the queue to the workers before it sends it, so this
+            // is a safety, never the path)
+            static void _seat_dispatch(void* events, int n, tracked_ptr<FrameWord>& first) {
+                auto& r = reactor_instance();
+                auto* ev = static_cast<struct kevent*>(events);
+                Scheduler::DispatchScope scope(&first);   // each task to its last worker, the first kept, the rest to the global queue
+                bool one_shot = false;
+                {
+                    WakeBatch batch;
+                    batch.affine();
+                    for (int i = 0; i < n; ++i) {
+                        if (ev[i].filter == EVFILT_USER) {
+                            if (ev[i].ident == StopIdent) {
+                                struct kevent again;
+                                EV_SET(&again, StopIdent, EVFILT_USER, 0, NOTE_TRIGGER, 0, nullptr);
+                                ::kevent(r._queue.load(std::memory_order_acquire), &again, 1, nullptr, 0, nullptr);
+                            }
+                            continue;
+                        }
+                        uint64_t u = (uint64_t)(uintptr_t)ev[i].udata;
+                        if (!(u & PollTag)) {
+                            one_shot = true;
+                            continue;
+                        }
+                        r._dispatch(u, ev[i].filter == EVFILT_WRITE ? 1 : 0, batch);
+                    }
+                }
+                if (one_shot) {
+                    Waits ready;
+                    {
+                        std::lock_guard lock(r._m);
+                        r._take_one_shot(ev, n, ready);
+                    }
+                    _end(ready, true);
+                }
+            }
+
+            // The worker asleep in the queue woken: its user event triggered.
+            // A trigger that finds nobody asleep stays until the next wait,
+            // which returns at once and finds nothing for it
+            static void _seat_wake_poller() noexcept {
+                int q = reactor_instance()._queue.load(std::memory_order_acquire);
+                if (q >= 0) {
+                    struct kevent ev;
+                    EV_SET(&ev, WorkerIdent, EVFILT_USER, 0, NOTE_TRIGGER, 0, nullptr);
+                    ::kevent(q, &ev, 1, nullptr, 0, nullptr);
+                }
+            }
+
+            // The thread told that the seat is free with every worker busy
+            // (Scheduler::_keep_looking): woken into its watch when it is
+            // not watching (the program was idle), else nothing: the watch
+            // sees the seat at its next look
+            static void _seat_wake_backstop() noexcept {
+                auto& r = reactor_instance();
+                if (!r._watching.load(std::memory_order_seq_cst)) {
+                    r._wake_watch();
+                }
+            }
+
+            // The thread's watch woken: told to watch, or stopped
+            void _wake_watch() noexcept {
+                {
+                    std::lock_guard lock(_watch_m);
+                    _watch_wake = true;
+                }
+                _watch_cv.notify_one();
+            }
+
+            static constexpr auto WatchPeriod = std::chrono::milliseconds(1);   // the watch's look at the seat (Go's sysmon polls the network after 10 ms)
+            static constexpr unsigned WatchIdle = 10;                           // the looks that find the program idle before the watch ends
+
+            // The thread without the seat (SGCL_REACTOR_WORKERS_POLL): it
+            // watches the seat, a look every WatchPeriod, and takes it when
+            // it finds it free and no worker has read the queue since the
+            // look before (PollSeat::polls): every worker is busy, a long
+            // task or a block, and the queue's events (a thread's wait, a
+            // task to run when a worker comes back) would wait. A seat a
+            // worker holds while it comes back to the queue between tasks
+            // is left to it: no thread is asleep in the queue beside a busy
+            // worker (one worker and a stream: every event woke the thread
+            // in the queue, 2 to 2.6 us of CPU per write, measured). The
+            // watch ends after WatchIdle looks that found the holder asleep
+            // in the queue (the program idle: no look a millisecond for
+            // nothing), and the thread sleeps until a worker gives the seat
+            // up with nobody to take it (_seat_wake_backstop): the end is a
+            // store of `_watching`, a fence and one more look at the holder,
+            // against the worker's release, fence and look at `_watching`
+            // (Scheduler::_keep_looking): one of the two sees the other.
+            // True with the seat, false for a stop
+            bool _watch() {
+                bool watching = _watching.load(std::memory_order_relaxed);
+                uint32_t last = poll_seat.polls.load(std::memory_order_relaxed);
+                unsigned idle = 0;
+                for (;;) {
+                    {
+                        std::unique_lock lock(_watch_m);
+                        if (watching) {
+                            _watch_cv.wait_for(lock, WatchPeriod, [this] { return _watch_wake; });
+                        } else {
+                            _watch_cv.wait(lock, [this] { return _watch_wake; });
+                        }
+                        _watch_wake = false;
+                    }
+                    {
+                        std::lock_guard lock(_m);
+                        if (_stop) {
+                            return false;
+                        }
+                    }
+                    auto& sched = scheduler_instance();
+                    if (!watching) {
+                        watching = true;
+                        _watching.store(true, std::memory_order_seq_cst);
+                        last = poll_seat.polls.load(std::memory_order_relaxed);
+                        idle = 0;
+                        continue;
+                    }
+                    uint32_t h = poll_seat.holder.load(std::memory_order_seq_cst);
+                    const uint32_t polls = poll_seat.polls.load(std::memory_order_relaxed);
+                    if (h == PollSeat::Reactor) {
+                        return true;
+                    }
+                    if (h == PollSeat::Free && polls == last && poll_seat.holder.compare_exchange_strong(h, PollSeat::Reactor, std::memory_order_acq_rel, std::memory_order_acquire)) {
+                        return true;
+                    }
+                    last = polls;
+                    if (!sched.holder_asleep_in_queue(h)) {
+                        idle = 0;
+                    } else if (++idle >= WatchIdle) {
+                        _watching.store(false, std::memory_order_seq_cst);
+                        std::atomic_thread_fence(std::memory_order_seq_cst);
+                        if (sched.holder_asleep_in_queue(poll_seat.holder.load(std::memory_order_seq_cst))) {
+                            watching = false;   // asleep until told
+                        } else {
+                            _watching.store(true, std::memory_order_seq_cst);   // a worker left the queue meanwhile: watched on
+                            idle = 0;
+                        }
+                    }
+                }
+            }
+
+            // The queue closed to the workers: no wait starts, and the one
+            // in the queue is woken, until none is inside (the stop, a
+            // queue that failed). A worker that held the seat finds it so
+            // at its next look
+            void _close_to_workers() noexcept {
+                poll_seat.enabled.store(false, std::memory_order_seq_cst);
+                for (unsigned i = 0; poll_seat.inside.load(std::memory_order_seq_cst) != 0; ++i) {
+                    if (i % 64 == 0) {
+                        _seat_wake_poller();
+                    }
+                    std::this_thread::yield();
+                }
+            }
+#endif
+
+            // Under _m: the one-shot registrations named by the events,
+            // taken (an event whose number is not the number of the node
+            // the table holds for its pair is dropped: cancelled, or fired
+            // and registered again since)
+            void _take_one_shot(const struct kevent* events, int n, Waits& ready) noexcept {
+                for (int i = 0; i < n; ++i) {
+                    auto& ev = events[i];
+                    if (ev.filter == EVFILT_USER || ((uint64_t)(uintptr_t)ev.udata & PollTag)) {
+                        continue;
+                    }
+                    auto it = _pending.find(Key(int(ev.ident), ev.filter));
+                    if (it != _pending.end() && it->second.number == (uint64_t)(uintptr_t)ev.udata) {
+                        _take(it, ready);
+                    }
                 }
             }
 
@@ -808,6 +1080,11 @@ namespace sgcl::async {
             // a cancel and a new wait on the pair, and could leave the
             // kernel naming a node gone and the new one never signalled.
             void _watch(int ident, short filter, unsigned fflags, const tracked_ptr<void>& keep, ChannelState<void>* ch) {
+                RuntimeStart in;   // the program ending: no queue started, the wait ends with nothing
+                if (!in) {
+                    ch->close();
+                    return;
+                }
                 root_ptr<IoWait> wait = make_tracked<IoWait>();
                 wait->keep = keep;
                 wait->ch = ch;
@@ -902,14 +1179,20 @@ namespace sgcl::async {
                 if (kq < 0) {
                     return false;
                 }
-                struct kevent ev;
-                EV_SET(&ev, 1, EVFILT_USER, EV_ADD | EV_CLEAR, 0, 0, nullptr);   // the wake for stop()
-                if (::kevent(kq, &ev, 1, nullptr, 0, nullptr) < 0) {
+                struct kevent ev[2];
+                EV_SET(&ev[0], StopIdent, EVFILT_USER, EV_ADD | EV_CLEAR, 0, 0, nullptr);     // the wake for stop()
+                EV_SET(&ev[1], WorkerIdent, EVFILT_USER, EV_ADD | EV_CLEAR, 0, 0, nullptr);   // the wake of a worker asleep in the queue
+                if (::kevent(kq, ev, 2, nullptr, 0, nullptr) < 0) {
                     ::close(kq);
                     return false;
                 }
                 _kq = kq;
                 _stop = false;
+#if SGCL_REACTOR_WORKERS_POLL
+                poll_seat.holder.store(PollSeat::Reactor, std::memory_order_release);   // the thread starts with the seat, before any worker can have it
+                _watching.store(true, std::memory_order_relaxed);
+                _watch_wake = false;
+#endif
                 try {
                     _thread = std::thread([this] { _run(); });
                 } catch (...) {
@@ -920,6 +1203,9 @@ namespace sgcl::async {
                 _running = true;
                 _queue.store(kq, std::memory_order_release);
                 _live.store(++_incarnations, std::memory_order_release);
+#if SGCL_REACTOR_WORKERS_POLL
+                poll_seat.enabled.store(true, std::memory_order_release);
+#endif
                 scheduler_stop_hook2.store([] { reactor_instance().stop(); }, std::memory_order_release);
                 return true;
             }
@@ -934,6 +1220,16 @@ namespace sgcl::async {
             // kernel's event and before this is signalled with the others:
             // the descriptor was ready a moment ago. The lock is taken only
             // for such events and for the wake of stop().
+            //
+            // With the workers reading the queue (SGCL_REACTOR_WORKERS_POLL)
+            // the thread reads it only while it holds the seat (PollSeat):
+            // from its start, and when its watch finds the seat free with no
+            // worker reading the queue for a WatchPeriod (_watch); it
+            // watches otherwise, and sleeps when the program is idle. After
+            // each return from the queue it gives the seat up when workers
+            // look for work, and takes it back at once when none looks after
+            // the release (the release's fence against the looker's after
+            // its count goes down: one of the two sees the other)
             void _run() {
                 struct kevent events[64];
                 Waits ready;
@@ -941,6 +1237,13 @@ namespace sgcl::async {
                 const uintptr_t floor = dead_stack_floor();
 #endif
                 for (;;) {
+#if SGCL_REACTOR_WORKERS_POLL
+                    if (poll_seat.holder.load(std::memory_order_acquire) != PollSeat::Reactor) {
+                        if (!_watch()) {
+                            return;
+                        }
+                    }
+#endif
 #if !defined(NDEBUG)
                     // A build without NDEBUG: the dead stack zeroed before the
                     // wait, as the other threads of the library do theirs
@@ -958,53 +1261,74 @@ namespace sgcl::async {
                     }
                     bool locked = n < 0;
                     if (n > 0) {
+#if SGCL_REACTOR_WORKERS_POLL
+                        Scheduler::DispatchScope scope(nullptr);   // each task to its last worker while it looks (Scheduler::DispatchScope)
+#endif
                         WakeBatch batch;
+#if SGCL_REACTOR_WORKERS_POLL
+                        batch.affine();
+#endif
                         for (int i = 0; i < n; ++i) {
                             auto& ev = events[i];
                             uint64_t u = (uint64_t)(uintptr_t)ev.udata;
-                            if (ev.filter == EVFILT_USER || !(u & PollTag)) {
+                            if (ev.filter == EVFILT_USER) {
+                                locked |= ev.ident == StopIdent;   // a worker's wake (a stale one) is nothing here
+                                continue;
+                            }
+                            if (!(u & PollTag)) {
                                 locked = true;
                                 continue;
                             }
                             _dispatch(u, ev.filter == EVFILT_WRITE ? 1 : 0, batch);
                         }
                     }
-                    if (!locked) {
-                        continue;
-                    }
-                    bool stop;
-                    {
-                        std::lock_guard lock(_m);
-                        if (n < 0) {   // the queue has failed: the waits end with nothing, and the next wait joins this thread and makes a queue again (_start)
-                            _take_all(ready);
-                            _close_queue();
-                            stop = true;
-                        } else {
-                            for (int i = 0; i < n; ++i) {
-                                auto& ev = events[i];
-                                if (ev.filter == EVFILT_USER || ((uint64_t)(uintptr_t)ev.udata & PollTag)) {
-                                    continue;
-                                }
-                                auto it = _pending.find(Key(int(ev.ident), ev.filter));
-                                if (it != _pending.end() && it->second.number == (uint64_t)(uintptr_t)ev.udata) {
-                                    _take(it, ready);
-                                }
+                    if (locked) {
+                        bool stop;
+#if SGCL_REACTOR_WORKERS_POLL
+                        if (n < 0) {
+                            _close_to_workers();   // before the lock: a worker handling its events may wait for it
+                        }
+#endif
+                        {
+                            std::lock_guard lock(_m);
+                            if (n < 0) {   // the queue has failed: the waits end with nothing, and the next wait joins this thread and makes a queue again (_start)
+                                _take_all(ready);
+                                _close_queue();
+                                stop = true;
+                            } else {
+                                _take_one_shot(events, n, ready);
+                                stop = _stop;
                             }
-                            stop = _stop;
+                        }
+                        _end(ready, n >= 0);
+                        if (n < 0) {
+                            _sweep();
+                        }
+                        if (stop) {
+                            return;
                         }
                     }
-                    _end(ready, n >= 0);
-                    if (n < 0) {
-                        _sweep();
+#if SGCL_REACTOR_WORKERS_POLL
+                    if (scheduler_instance().looking() != 0) {
+                        poll_seat.holder.store(PollSeat::Free, std::memory_order_seq_cst);
+                        std::atomic_thread_fence(std::memory_order_seq_cst);
+                        if (scheduler_instance().looking() == 0) {
+                            uint32_t h = PollSeat::Free;
+                            poll_seat.holder.compare_exchange_strong(h, PollSeat::Reactor, std::memory_order_acq_rel, std::memory_order_relaxed);   // nobody took it: kept (or a worker that did keeps it)
+                        }
                     }
-                    if (stop) {
-                        return;
-                    }
+#endif
                 }
             }
 
             uint64_t _numbers = 0;   // the last registration's number (under _m)
             std::unordered_map<Key, IoNode, KeyHash> _pending;   // guarded by _m
+#if SGCL_REACTOR_WORKERS_POLL
+            std::mutex _watch_m;                       // the thread's watch of the seat (_watch)
+            std::condition_variable _watch_cv;
+            bool _watch_wake = false;                  // under _watch_m: told to watch, or stopped
+            std::atomic<bool> _watching = {true};      // the watch looks at the seat every WatchPeriod (false: asleep until told)
+#endif
 #elif SGCL_REACTOR_EPOLL
             using Waits = std::vector<root_ptr<IoWait>>;
 
@@ -1202,8 +1526,22 @@ namespace sgcl::async {
             bool _running = false;   // the thread started and not yet joined (under _m)
         };
 
+        // The singleton. Its destruction at exit ends the runtime first
+        // (scheduler.h: runtime_exit), which joins the thread through the
+        // hook set here and wakes no wait: a task parked here stays
+        // parked, and one woken would run on into a destroyed singleton
+        // (DESIGN 478); the stop of ~Reactor then finds nothing to do
         inline Reactor& reactor_instance() {
-            static Reactor reactor;
+            struct Instance : Reactor {
+                Instance() {
+                    reactor_exit_hook.store([] { reactor_instance().stop(false); }, std::memory_order_release);
+                }
+
+                ~Instance() {
+                    runtime_exit();
+                }
+            };
+            static Instance reactor;
             return reactor;
         }
     }

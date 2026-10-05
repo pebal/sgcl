@@ -11,6 +11,8 @@ namespace sgcl::immutable {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::immutable::map<Key, T, Hash, KeyEqual>` is the immutable hash map, the persistent map of Clojure and Scala:
 a map every `insert`, `set` and `erase` of which returns a new map and leaves the old one exactly as it was, the
 two sharing everything but the path that changed. It is a hash array mapped trie, Bagwell's (*Ideal Hash Trees*,
@@ -36,8 +38,6 @@ once go through a [builder](../map-builder/README.md), the transient of Clojure 
 
 ## Rules
 
-- A map holds its root by a `tracked_ptr`, so it lives where one may: on a thread's stack or inside a managed
-  object ([The rules](../../core/README.md#the-rules), 1).
 - Every member but the assignment is `const`. `insert`, `set`, `emplace` and `erase` return the new map; the one
   they were called on is unchanged, and stays so for as long as it is held. The elements are `const` through the
   map.

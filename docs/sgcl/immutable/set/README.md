@@ -11,6 +11,8 @@ namespace sgcl::immutable {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::immutable::set<Key, Hash, KeyEqual>` is the immutable hash set: the hash array mapped trie of
 [map](../map/README.md), which has the account of the structure, with the key as the element. Every `insert` and `erase`
 returns a new set that shares all but the path it changed with the old one, which stays exactly as it was; a
@@ -27,8 +29,6 @@ Many changes at once go through a [builder](../set-builder/README.md).
 
 ## Rules
 
-- A set holds its root by a `tracked_ptr`, so it lives where one may: on a thread's stack or inside a managed
-  object ([The rules](../../core/README.md#the-rules), 1).
 - Every member but the assignment is `const`. `insert` and `erase` return the new set; the one they were called
   on is unchanged, and stays so for as long as it is held. The elements are `const`.
 - A change copies the elements of the nodes on the path, up to 32 per node: the copy constructor of `Key` is what

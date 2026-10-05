@@ -1,0 +1,14 @@
+EHLO c
+MAIL FROM:<a@b>
+RCPT TO:<bad@y>
+RCPT TO:<1@y>
+RCPT TO:<2@y>
+RCPT TO:<3@y>
+DATA
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+.
+NOOP
+NOOP
+NOOP
+VRFY x
+FOO

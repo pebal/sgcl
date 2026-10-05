@@ -235,11 +235,21 @@ namespace sgcl::io::detail {
         // awaiter (it lives in the task's frame) is touched after the
         // publication, from which the task may be resumed on another
         // worker; what the look after it needs is copied out before.
+        // At the end of the program (async/scheduler.h: runtime_exit) the
+        // reactor starts no more, and a wait it cannot serve leaves the
+        // task suspended, held by nothing, as a task parked at exit stays:
+        // answered cancelled, a loop that tries again (an accept loop)
+        // would spin on its worker and hold the exit's join forever. A
+        // thread's wait ends cancelled.
         class wait_op {
         public:
             SGCL_INLINE_HOT bool await_ready() {
                 if (auto r = _d->_begin(_p.dir, _p, _look)) {
                     _result = *r;
+                    if (*r == WaitResult::cancelled && sgcl::async::detail::runtime_exiting()) [[unlikely]] {
+                        _at_exit = true;
+                        return false;
+                    }
                     return true;
                 }
                 return false;
@@ -247,6 +257,9 @@ namespace sgcl::io::detail {
 
             template<class P>
             bool await_suspend(std::coroutine_handle<P> h) {
+                if (_at_exit) [[unlikely]] {
+                    return true;   // parked for good: the program is ending
+                }
                 PollSlot& s = *_p.slot;
                 int dir = _p.dir;
                 auto c = s.claim(dir);
@@ -311,6 +324,7 @@ namespace sgcl::io::detail {
             WaitResult _result = WaitResult::ready;
             bool _look = true;
             bool _suspended = false;
+            bool _at_exit = false;   // suspended with nothing to resume it (await_ready)
         };
 
         SGCL_INLINE_HOT wait_op async_wait(int dir, bool deadline_looked = false) noexcept {

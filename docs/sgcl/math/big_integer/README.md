@@ -15,6 +15,8 @@ namespace sgcl::math {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::math::big_integer` is a whole number of any size: what Go's `math/big.Int` is, with the manners of an
 `int`. Operators and all: `a * 2 + 1` is written as it reads, `a < 10` and `a == 0` compare with the language's
 own integers, `/` cuts towards zero and `%` takes the sign of the dividend as they do for `int`, and the methods
@@ -47,9 +49,6 @@ words; and a copy is two words with the object of limbs shared, where Go's `new(
   negation, which shares the limbs) marks the object shared, with one atomic write the first time, and from then
   on both values allocate their results as any value does; a move hands the object on and leaves zero behind.
   Nothing of this shows but in the time: a copy never changes with the value it was taken from.
-- **Where it lives.** A `big_integer` holds a `tracked_ptr`, so it goes where one may: on a stack, in a managed
-  object, in a container of the library ([The rules](../../core/README.md#the-rules) of core). In a `std::vector` or
-  a global, through [rooted](../../core/rooted/README.md) or [root_ptr](../../core/root_ptr/README.md).
 - **An error of the program throws.** A division, a remainder or a `mod` by zero, a negative shift, a NaN or an
   infinity made into a number are `domain_error`; a base outside 2 to 36 is `invalid_argument`; `to_bytes(length)`
   too short and a shift past 2^46 limbs are `length_error`. Go panics in all of these, and `int` would be

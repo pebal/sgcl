@@ -68,6 +68,9 @@ namespace sgcl::detail {
             // collector scans its used pages for roots.
             uintptr_t stack_begin = 0;
             uintptr_t stack_end = 0;
+            // The collector's: the lowest page of the stack known to be
+            // used, 0 while none is (collector.h: _thread_stack_segments)
+            uintptr_t stack_used = 0;
             std::thread::id id;   // the thread, for the diagnostics that name a stack (collector.h: referrers)
             // Handshake at thread exit: the collector raises stack_scan for
             // the time it reads the stack and skips a thread that is exiting;

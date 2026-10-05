@@ -10,6 +10,8 @@ namespace sgcl::encoding {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::encoding::pem` is a block of the textual encoding of [RFC 7468](https://www.rfc-editor.org/rfc/rfc7468):
 bytes — a certificate, a key, a request — as base64 between two lines that name what they are,
 `-----BEGIN CERTIFICATE-----` and `-----END CERTIFICATE-----`, with the headers of
@@ -51,9 +53,8 @@ two or three arguments, makes a block from its parts, and [to_string](to_string.
   header name that is empty, holds a colon, white space or a control character, or starts with `-----`, a value
   with a control character (a tab inside it is fine) or with white space at either end, which a reader trims —
   `invalid_argument`. A mistake in the program throws; a mistake in the input is an error value.
-- A `pem` holds its bytes and its headers in managed containers: it lives where a `tracked_ptr` may. A private key
-  read into one is in managed memory, where a secret must not be: the keys of the crypto module read their PEM
-  with their own `from_pem`, into memory they zero.
+- A `pem` holds its bytes and its headers in managed containers. A private key read into one is in managed memory, where
+  a secret must not be: the keys of the crypto module read their PEM with their own `from_pem`, into memory they zero.
 - **The oracle**: the fourteen examples of RFC 7468 itself — figures 6 to 19, the non-conforming labels of
   appendix A among them — are read as the RFC prints them (the explanatory text of figure 7 included), give the type
   and the bytes Go's `pem.Decode` gives, are each one DER value of its own length, and write back as the RFC wrote

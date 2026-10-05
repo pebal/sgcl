@@ -10,6 +10,8 @@ namespace sgcl::io {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `io::flags` is the command line of a program, as Go's `flag` package takes it. [add](add.md) names the flags,
 each with the variable it sets and a line of help, [positional](positional.md) the list the arguments after
 the flags go to, and [parse](parse.md) reads the arguments into the variables. The syntax, the reading of the
@@ -37,9 +39,6 @@ for a `flag.Value`.
 - **The variables** are held by their addresses: they outlive the parse, which is the program's to keep, as in Go.
 - **A copy** of a `flags` has the flags added so far, and a flag added to it afterwards is its own: a common set is
   copied and extended per command. The flags are a list on the managed heap that the copies share, the newest first.
-- A `flags` holds tracked pointers, so it lives where one may: on a stack or inside a managed object
-  ([The rules](../../core/README.md#the-rules), 1).
-
 ## Member functions
 
 | Function | Description |

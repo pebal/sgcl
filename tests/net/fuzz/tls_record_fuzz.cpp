@@ -18,7 +18,9 @@
 //     keys, a flipped one must fail as bad_record_mac.
 //
 // Every fragment and message must lie within its bounds (ASan checks the
-// reads) and within the limits of the RFC and the assembler.
+// reads) and within the limits of the RFC and the assembler. Bit 6 of the
+// first byte makes both modes the client's TLS 1.2 (install12: a 1.2 suite,
+// AES-GCM's explicit nonce, no padding, no key update).
 #include "sgcl/net/tls/detail/record.h"
 
 #include <cstring>
@@ -55,6 +57,28 @@ namespace {
         s.size = uint8_t(tls::hash_size(tls::hash_of(c)));
         std::memcpy(s.bytes, secret_bytes, s.size);
         return s;
+    }
+
+    tls::Cipher cipher12_of(uint8_t b) {
+        static const tls::Cipher all[] = {tls::Cipher::ecdhe_ecdsa_aes_128_gcm_sha256, tls::Cipher::ecdhe_ecdsa_aes_256_gcm_sha384, tls::Cipher::ecdhe_rsa_aes_128_gcm_sha256,
+                                          tls::Cipher::ecdhe_rsa_aes_256_gcm_sha384, tls::Cipher::ecdhe_rsa_chacha20_poly1305_sha256, tls::Cipher::ecdhe_ecdsa_chacha20_poly1305_sha256};
+        return all[b % 6];
+    }
+
+    // TLS 1.2's key and IV of the suite
+    tls::Secret key_iv_for(tls::Cipher c) {
+        tls::Secret s;
+        s.size = uint8_t(tls::key_size(c) + tls::iv_size12(c));
+        std::memcpy(s.bytes, secret_bytes, s.size);
+        return s;
+    }
+
+    void install(tls::RecordProtection& p, bool tls12, tls::Cipher c) {
+        if (tls12) {
+            p.install12(c, key_iv_for(c));
+        } else {
+            p.install(c, secret_for(c));
+        }
     }
 
     struct Expected {
@@ -105,8 +129,8 @@ namespace {
                         return;   // the connection is over
                     }
                     check(o.has_value());
-                    check(o->type == e.type || (e.type == tls::ContentType::change_cipher_spec && o->type == tls::ContentType::invalid));
-                    if (o->type != tls::ContentType::invalid) {
+                    check(o->type == e.type);
+                    if (o->type != tls::ContentType::change_cipher_spec) {
                         check(o->fragment.size() == e.fragment.size());
                         check(o->fragment.empty() || std::memcmp(o->fragment.data(), e.fragment.data(), e.fragment.size()) == 0);
                     }
@@ -149,12 +173,12 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     const size_t step = 1 + size_t(data[1]) * 67;
     data += 2;
     size -= 2;
-    const tls::Cipher cipher = cipher_of(mode >> 1);
-    const tls::Secret secret = secret_for(cipher);
+    const bool tls12 = (mode & 64) != 0;
+    const tls::Cipher cipher = tls12 ? cipher12_of(mode >> 1) : cipher_of(mode >> 1);
     if ((mode & 1) == 0) {
         tls::RecordProtection reader;
         if (mode & 8) {
-            reader.install(cipher, secret);
+            install(reader, tls12, cipher);
         }
         reader.accept_ccs((mode & 16) != 0);
         if (mode & 32) {
@@ -165,8 +189,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     }
     // the round trip
     tls::RecordProtection writer, reader;
-    writer.install(cipher, secret);
-    reader.install(cipher, secret);
+    install(writer, tls12, cipher);
+    install(reader, tls12, cipher);
     reader.accept_ccs(true);
     std::vector<uint8_t> stream;
     std::vector<Expected> script;
@@ -176,7 +200,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         size_t length = (size_t(data[at + 1]) << 8 | data[at + 2]) % (tls::MaxPlaintext + 1);
         size_t padding = data[at + 3];
         at += 4;
-        if (c & 0x40) {
+        if ((c & 0x40) && !tls12) {
             writer.update();
             script.push_back({true});
             continue;
@@ -200,7 +224,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             if (c & 0x20) {
                 padding *= 61;   // up to the RFC's limit, past it clipped
             }
-            padding = std::min(padding, tls::MaxPlaintext - e.fragment.size());
+            padding = tls12 ? 0 : std::min(padding, tls::MaxPlaintext - e.fragment.size());
         }
         size_t before = stream.size();
         stream.resize(before + writer.sealed_size(e.type, e.fragment.size(), padding));

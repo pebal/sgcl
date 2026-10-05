@@ -11,6 +11,8 @@ namespace sgcl::immutable {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::immutable::list<T>` is the immutable list, the list of Lisp, ML and Elm: a sequence read from the front,
 every change of which returns a new list and leaves the old one as it was. It is a chain of cells, each holding
 an element and the rest. `push_front` is one new cell in front of the old chain, which the new list shares with
@@ -31,8 +33,6 @@ rest of the arguments"; for a sequence read by position, [vector](../vector/READ
 
 ## Rules
 
-- A list holds its first cell by `tracked_ptr`, so it lives where one may: on a thread's stack or inside a managed
-  object ([The rules](../../core/README.md#the-rules), 1).
 - Every member but the assignment is `const`. `push_front`, `emplace_front`, `pop_front` and `reverse` return
   the new list; the one they were called on is unchanged, and stays so for as long as it is held. The elements
   are reached as `const`.

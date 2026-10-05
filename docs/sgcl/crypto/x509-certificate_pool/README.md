@@ -10,6 +10,8 @@ namespace sgcl::crypto::x509 {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::crypto::x509::certificate_pool` is a set of [certificates](../x509-certificate/README.md): the roots a chain must end in,
 or the intermediates it may pass through, as [verify_options](../x509-verify_options.md) takes them. Go's
 `x509.CertPool`: the system's roots ([system](system.md)), the certificates of a PEM text or
@@ -18,10 +20,8 @@ certificate by the bytes of its issuer's name.
 
 ## Rules
 
-- **A handle**, as Go's `*CertPool`: a copy shares the certificates, and [add](add.md) through
-  one is seen through every copy; [clone](clone.md) makes a pool of its own. A pool
-  holds a `tracked_ptr`, so it lives where one may: on a stack, in a managed object, in a container of the
-  library ([The rules](../../core/README.md#the-rules) of core).
+- **A handle**, as Go's `*CertPool`: a copy shares the certificates, and [add](add.md) through one is seen through every
+  copy; [clone](clone.md) makes a pool of its own.
 - **Reading from many threads at once is safe**; adding while another thread verifies is not.
 - **Once.** A certificate of the same bytes as one in the pool is not added again: the pool keeps the SHA-256 of
   each certificate's bytes, and its certificates by their subject's name, which is what a chain is built by.

@@ -10,6 +10,8 @@ namespace sgcl::txt {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 The functions a pipeline of a [stencil](../stencil/README.md) may call, by name: a table made with no arguments holds the six
 that are always there, and [add](add.md) joins one of the program's to them or replaces one of the
 same name. It is handed to [parse](../stencil/parse.md), which resolves every name written in the source against it, so a
@@ -28,9 +30,8 @@ is its digits.
 
 ## Rules
 
-- A table holds its functions, which are tracked: it lives where a `tracked_ptr` may, on a stack or inside a managed
-  object ([the rules of core](../../core/README.md#the-rules), 1). A template keeps the functions it calls, copied at
-  [parse](../stencil/parse.md), so the table need not outlive the templates parsed with it.
+- A template keeps the functions it calls, copied at [parse](../stencil/parse.md), so the table need not outlive the
+  templates parsed with it.
 
 ## Member functions
 

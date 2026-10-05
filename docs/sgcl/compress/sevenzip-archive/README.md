@@ -10,6 +10,8 @@ namespace sgcl::compress::sevenzip {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::compress::sevenzip::archive` is a 7z archive to read: its header read when it is opened, the entries then open in
 any order and any number of times at once, or all of them in the archive's order. [open](open.md) reads
 the signature header and the header at the end — decoding it first when it is packed, as 7-Zip packs it by default — and
@@ -24,8 +26,7 @@ archive's order with one decoder a folder.
 
 ## Rules
 
-- A value, copied cheaply: the entries and the source are shared by the copies. It lives where a `tracked_ptr` may:
-  a stack, a task's frame, a managed object.
+- A value, copied cheaply: the entries and the source are shared by the copies.
 - What the archive checks and what it refuses before anything is allocated are the format's
   ([sevenzip](../sevenzip.md#rules)); the bounds are the [limits](../limits.md) given to `open`, `from` or a read.
 - **No password:** an encrypted entry is listed, with `encrypted`, and reading it is `errc::password_required`

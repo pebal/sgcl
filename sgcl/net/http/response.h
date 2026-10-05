@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "cookie.h"
 #include "headers.h"
 #include "status.h"
 #include "detail/wire.h"
@@ -73,6 +74,20 @@ namespace sgcl::net::http {
 
         SGCL_INLINE_HOT optional<uint64_t> content_length() const noexcept {
             return _impl->content_length;
+        }
+
+        // The cookies of the Set-Cookie fields, in their order (Go's
+        // Response.Cookies); a field that holds no cookie is passed over
+        vector<http::cookie> cookies() const noexcept {
+            vector<http::cookie> out;
+            for (auto& f : detail::HeadersAccess::fields(_impl->fields)) {
+                if (detail::iequal(f.first.view(), "set-cookie")) {
+                    if (auto c = detail::parse_cookie(string(f.second.view()))) {
+                        out.push_back(std::move(*c));
+                    }
+                }
+            }
+            return out;
         }
 
         // The URL the response came from: the last of the redirects

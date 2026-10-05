@@ -14,7 +14,10 @@ set -e
 BIN=${1:-build-release}/benchmarks
 JBIN=${2:-/opt/homebrew/opt/openjdk/bin}
 T=$(mktemp -d)
-(cd benchmarks/go && go build -o "$T/" ./...)
+# every Go benchmark but codec, ssh, ocsp and acme, which are modules of their own (golang.org/x/image,
+# built by benchmarks/codec/run.sh; golang.org/x/crypto, built by the ssh and acme cases and for CASES=net below): in
+# ./... their imports stopped the whole build
+(cd benchmarks/go && go build -o "$T/" $(ls -d */ | grep -v -e '^codec/$' -e '^ssh/$' -e '^ocsp/$' -e '^acme/$' | sed 's|^|./|'))
 "$JBIN/javac" -d "$T/jout" benchmarks/java/*.java
 # OnSpinWaitInst=isb: Thread.onSpinWait as the pause instruction (HotSpot's
 # default on arm64 is yield, a no-op on Apple silicon), for the backoff of
@@ -22,7 +25,7 @@ T=$(mktemp -d)
 JAVA=("$JBIN/java" -XX:+UseZGC -XX:+UnlockDiagnosticVMOptions -XX:OnSpinWaitInst=isb -Duser.language=en -Duser.country=US -cp "$T/jout")
 CORES=$(getconf _NPROCESSORS_ONLN)
 VARIANTS=${VARIANTS:-sgcl unique shared std go java-zgc}
-CASES=${CASES:-alloc copy weak stack queue cstack cmap umap set cow chan bqueue pqueue intern wmap spsc cache im bcast async io math net hash compress json xml time bt graph lt string}
+CASES=${CASES:-alloc copy weak stack queue cstack cmap umap set cow chan bqueue pqueue intern wmap spsc cache im bcast async io math net imap ssh sftp mail acme hash compress json xml time bt graph lt string}
 want() { [[ " $VARIANTS " == *" $1 "* ]]; }
 want_im() { case "$1" in sgcl|std) want "$1";; *) "$BIN/bench_immutable" vector "$1" 1 > /dev/null 2>&1;; esac; }   # an immer variant when the binary has it (-DSGCL_IMMER_INCLUDE)
 case_() { [[ " $CASES " == *" $1 "* ]]; }
@@ -260,11 +263,83 @@ fi
 
 if case_ net; then
 KEY=ns/op
-echo "# the net module: net|case|variant|ns per operation (pingpong: 64 B there and back over one TCP connection, per round trip; stream: 1 GB one way, 32 KB writes, per byte; connect: connect and accept on the loopback, per connection; parse, format: ip_address against netip.Addr, per address; url: net::url::parse against net/url; http_parse: a request head parsed; http_hello: a GET and its response over one kept connection)"
-for c in pingpong stream connect parse format url http_parse http_hello; do
+echo "# the net module: net|case|variant|ns per operation (pingpong: 64 B there and back over one TCP connection, per round trip; stream: 1 GB one way, 32 KB writes, per byte; connect: connect and accept on the loopback, per connection; parse, format: ip_address against netip.Addr, per address; url: net::url::parse against net/url; http_parse: a request head parsed; http_hello: a GET and its response over one kept connection; dns_parse: a DNS response of MX, TXT or SRV read as a stub resolver reads it, per message; dns_lookup: a lookup of five MX records against a server on the loopback answering from memory, per lookup; socks5_connect: a connection through a SOCKS5 server on the loopback, per connection; proxy_get: http_hello through a minimal HTTP forward proxy, per request; reverse_proxy_get: http_hello through the reverse proxy (http::reverse_proxy, Go's httputil.ReverseProxy), per request; reverse_proxy_stream: 1 MB in 16 flushed pieces through it, per request;multipart_parse, multipart_write: a form of 20 fields and a file of 1 MB read or written, per body; udp_multicast: 64 B through a group joined on the loopback interface, sent and received in turn, per datagram; tls_handshake: a TCP connection and a full TLS 1.3 handshake, X25519 and an ECDSA P-256 leaf, per connection; tls_resume: the same resumed from the session before; tls_mtls: a full handshake with a client certificate; tls_stream: 1 GB one way over one TLS 1.3 connection, 32 KB writes and reads, per byte; ws_echo: a WebSocket message of 64 B there and back, per round trip; ws_throughput: WebSocket messages of 1 MB one way, per message; sse_events: Server-Sent Events through one stream, per event; tls12_handshake: a full TLS 1.2 handshake to Go's server of 1.2 alone, both clients against the one server; tls12_resume: the same resumed from the session before, by the server's ticket; cookie_jar: two Set-Cookie put in a jar of 20 cookies and the Cookie field of the same URL read, per request (Go: net/http/cookiejar with a nil PublicSuffixList, this jar with its embedded list); public_suffix: registrable_domain of a mix of eight hosts, per host, no Go side: x/net/publicsuffix is not in the module cache; ocsp_verify: an OCSP response of a delegated responder parsed and verified, per response; crl_1k, crl_100k: a CRL of 1000 or 100000 entries parsed, its signature checked, its last serial looked up, per list; tls_staple: tls_handshake with the server's OCSP staple verified by the client; tls_nostaple: the same handshake without; dot_lookup, doh_lookup: dns_lookup over DNS over TLS and over HTTPS (HTTP/2) to a server on the loopback, one kept connection, per lookup (Go: clients written by hand over crypto/tls and net/http); mdns_parse, mdns_build: an mDNS response of a PTR, SRV, TXT, A and AAAA read and written, per message (Go: a codec written by hand); mdns_roundtrip: a legacy unicast query to the loopback group answered by the responder, per round trip (Go: a minimal responder written by hand))"
+# tls12_handshake, tls12_resume: one Go server of TLS 1.2 alone for both clients (the module's server speaks 1.3 alone)
+"$T/net" tls12_server > "$T/tls12_server.out" & TLS12=$!
+for i in $(seq 1 100); do grep -q port "$T/tls12_server.out" 2>/dev/null && break; sleep 0.05; done
+export SGCL_TLS12_SERVER="127.0.0.1:$(awk '/port/{print $2}' "$T/tls12_server.out")"
+for c in pingpong stream connect parse format url http_parse http_hello dns_parse dns_lookup socks5_connect proxy_get reverse_proxy_get reverse_proxy_stream multipart_parse multipart_write udp_multicast tls_handshake tls_resume tls_mtls tls_stream ws_echo ws_throughput sse_events tls12_handshake tls12_resume cookie_jar public_suffix dot_lookup doh_lookup mdns_parse mdns_build mdns_roundtrip; do
     want sgcl && { run "$BIN/bench_net" $c sgcl; echo "net|$c|sgcl|$(field ns/op)"; }
+    [ $c = public_suffix ] && continue   # no Go side
     want go && { run "$T/net" $c; echo "net|$c|go|$(field ns/op)"; }
 done
+kill $TLS12 2>/dev/null
+# revocation: the Go side is benchmarks/go/ocsp, a module of its own (golang.org/x/crypto/ocsp; its go.mod
+# written when missing, built from the module cache: GOFLAGS=-mod=mod, GOPROXY=off works offline); the CRLs
+# of both sides made by it
+[ -f benchmarks/go/ocsp/go.mod ] || printf 'module ocspbench\n\ngo 1.26\n\nrequire golang.org/x/crypto v0.31.0\n' > benchmarks/go/ocsp/go.mod
+(cd benchmarks/go/ocsp && GOFLAGS="${GOFLAGS:--mod=mod}" go build -o "$T/ocsp" .)
+mkdir -p "$T/crl" && "$T/ocsp" crl_make "$T/crl"
+export SGCL_CRL_DIR="$T/crl"
+for c in ocsp_verify crl_1k crl_100k tls_staple tls_nostaple; do
+    want sgcl && { run "$BIN/bench_net" $c sgcl; echo "net|$c|sgcl|$(field ns/op)"; }
+    want go && { run "$T/ocsp" $c; echo "net|$c|go|$(field ns/op)"; }
+done
+fi
+
+if case_ imap; then
+KEY=ns/op
+echo "# the net module's IMAP: imap|case|variant|ns per operation, both clients against the one server of the module (bench_imap server: INBOX of 1000 messages of 1 KB, Big of 100 of 10 KB); Go's standard library has no IMAP: its side is a minimal client by hand from RFC 9051, the standard library alone (imap_noop: NOOP there and back; imap_fetch_flags, imap_fetch_envelope: UID FETCH 1:* of INBOX, per message; imap_fetch_body: UID FETCH 1:* BODY.PEEK[] of Big, per message; imap_search: UID SEARCH FROM, per message searched; imap_append: APPEND of 2 KB, per message; imap_pipeline: 1000 NOOPs at once, per command, the server's rate)"
+"$BIN/bench_imap" server > "$T/imap_server.out" & IMAPSRV=$!
+for i in $(seq 1 100); do grep -q port "$T/imap_server.out" 2>/dev/null && break; sleep 0.05; done
+export SGCL_IMAP_SERVER="127.0.0.1:$(awk '/port/{print $2}' "$T/imap_server.out")"
+for c in imap_noop imap_fetch_flags imap_fetch_envelope imap_fetch_body imap_search imap_append imap_pipeline; do
+    want sgcl && { run "$BIN/bench_imap" $c sgcl; echo "imap|$c|sgcl|$(field ns/op)"; }
+    want go && { run "$T/net" $c; echo "imap|$c|go|$(field ns/op)"; }
+done
+kill $IMAPSRV 2>/dev/null
+fi
+
+if case_ mail; then
+KEY=ns/op
+echo "# encoding::email and net::smtp: mail|case|variant|ns per operation (mime_build: a message of a text of 2 KB, an HTML of 4 KB and an attachment of 1 MB written, per message; mime_parse: that message parsed, its text, HTML and attachment decoded, per message; smtp_client: messages of 4 KB over one session to one minimal Go server on the loopback, our client against net/smtp's, per message; smtp_server: the same messages from net/smtp's client, our server against a minimal Go server, per message)"
+for c in mime_build mime_parse; do
+    want sgcl && { run "$BIN/bench_mail" $c sgcl; echo "mail|$c|sgcl|$(field ns/op)"; }
+    want go && { run "$T/mail" $c; echo "mail|$c|go|$(field ns/op)"; }
+done
+# smtp_client: one minimal Go server for both clients
+"$T/mail" smtp_serve > "$T/mail_server.out" & MAILG=$!
+for i in $(seq 1 100); do grep -q port "$T/mail_server.out" 2>/dev/null && break; sleep 0.05; done
+MAILA="127.0.0.1:$(awk '/port/{print $2}' "$T/mail_server.out")"
+want sgcl && { run "$BIN/bench_mail" smtp_client sgcl "$MAILA"; echo "mail|smtp_client|sgcl|$(field ns/op)"; }
+want go && { run "$T/mail" smtp_client "$MAILA"; echo "mail|smtp_client|go|$(field ns/op)"; }
+# smtp_server: net/smtp's client feeds each side's server
+"$BIN/bench_mail" smtp_serve sgcl > "$T/mail_sgcl.out" & MAILS=$!
+for i in $(seq 1 100); do grep -q port "$T/mail_sgcl.out" 2>/dev/null && break; sleep 0.05; done
+want sgcl && { run "$T/mail" smtp_send "127.0.0.1:$(awk '/port/{print $2}' "$T/mail_sgcl.out")"; echo "mail|smtp_server|sgcl|$(field ns/op)"; }
+want go && { run "$T/mail" smtp_send "$MAILA"; echo "mail|smtp_server|go|$(field ns/op)"; }
+kill $MAILG $MAILS 2>/dev/null
+fi
+
+if case_ acme; then
+KEY=ns/op
+echo "# the ACME client: acme|case|variant|ns per operation (acme_order: a full order of one name against one acme::test_server for both clients, newOrder to the chain downloaded, a P-256 key and CSR made, per order; acme_jws: one request's JWS, ES256, per request; Go: golang.org/x/crypto/acme v0.31.0, a module of its own built from the module cache)"
+# the Go side's module file, written when missing (go.mod and go.sum are not kept in the tree)
+[ -f benchmarks/go/acme/go.mod ] || printf 'module acmebench\n\ngo 1.23\n\nrequire golang.org/x/crypto v0.31.0\n' > benchmarks/go/acme/go.mod
+GO_ACME=1
+(cd benchmarks/go/acme && GOFLAGS="${GOFLAGS:--mod=mod}" GOPROXY="${GOPROXY:-off}" GOSUMDB="${GOSUMDB:-off}" go build -o "$T/acme" .) || GO_ACME=
+# one server for both clients: its directory URL in SGCL_ACME_DIRECTORY
+mkfifo "$T/acme_in"
+"$BIN/bench_net" acme_server sgcl < "$T/acme_in" > "$T/acme_server.out" & ACME_SERVER=$!
+exec 3> "$T/acme_in"
+for i in $(seq 1 100); do grep -q directory "$T/acme_server.out" 2>/dev/null && break; sleep 0.05; done
+export SGCL_ACME_DIRECTORY="$(awk '/directory/{print $2}' "$T/acme_server.out")"
+for c in acme_order acme_jws; do
+    want sgcl && { run "$BIN/bench_net" $c sgcl; echo "acme|$c|sgcl|$(field ns/op)"; }
+    want go && [ -n "$GO_ACME" ] && { run "$T/acme" $c; echo "acme|$c|go|$(field ns/op)"; }
+done
+exec 3>&-
+wait $ACME_SERVER 2>/dev/null || true
 fi
 
 if case_ json; then
@@ -295,6 +370,32 @@ for c in now fields_utc fields_local offset_now offset_random local_to_instant f
 done
 want sgcl && { run1 "$BIN/bench_time" load_cold sgcl; echo "time|load_cold|sgcl|$(field ns/op)"; }
 want go && { run1 "$T/time" load_cold; echo "time|load_cold|go|$(field ns/op)"; }
+fi
+
+if case_ ssh; then
+KEY=ns/op
+echo "# the net module's SSH: ssh|case|variant|ns per operation|MB/s (Go: golang.org/x/crypto/ssh from the module cache, both sides in one process on the loopback; handshake: a TCP connection, curve25519-sha256, Ed25519 host and user keys, the authentication, per connection; handshake_mlkem: the module's default mlkem768x25519-sha256, no Go side; exec: a session running true on a kept connection, per session; throughput_gcm, throughput_chacha: 1 GB into a session's input in writes of 32 KB, aes128-gcm@openssh.com or chacha20-poly1305@openssh.com, per write)"
+# the Go side: a module of its own (golang.org/x/crypto), its go.mod written when missing
+# (go.mod and go.sum are not kept in the tree), built from the module cache without the network
+[ -f benchmarks/go/ssh/go.mod ] || printf 'module sshbench\n\ngo 1.26\n\nrequire golang.org/x/crypto v0.31.0\n' > benchmarks/go/ssh/go.mod
+(cd benchmarks/go/ssh && GOFLAGS=-mod=mod GOPROXY=off GOSUMDB=off go build -o "$T/ssh" .) || echo "# ssh: golang.org/x/crypto v0.31.0 is not in the module cache: no Go side"
+for c in handshake handshake_mlkem exec throughput_gcm throughput_chacha; do
+    want sgcl && { run "$BIN/bench_ssh" $c sgcl; echo "ssh|$c|sgcl|$(field ns/op)|$(field MB/s)"; }
+    [ $c != handshake_mlkem ] && [ -x "$T/ssh" ] && want go && { run "$T/ssh" $c; echo "ssh|$c|go|$(field ns/op)|$(field MB/s)"; }
+done
+fi
+
+if case_ sftp; then
+KEY=MB/s
+echo "# the net module's SFTP: sftp|case|client-server|MB/s|ns per file (a file of 512 MB through SFTP, the connection included; client sgcl: net::sftp::client upload or download, openssh: /usr/bin/sftp -b; server sgcl: net::sftp::serve in the benchmark's process, openssh: /usr/sbin/sshd run unprivileged on a loopback port with /usr/libexec/sftp-server; curve25519-sha256, aes128-gcm@openssh.com, Ed25519 keys; no Go side: no SFTP package in the module cache)"
+if [ -x /usr/sbin/sshd ] && [ -x /usr/bin/sftp ] && [ -x /usr/libexec/sftp-server ]; then
+for c in upload download; do for pair in "sgcl sgcl" "sgcl openssh" "openssh sgcl" "openssh openssh"; do
+    p=(${=pair})
+    want sgcl && { run "$BIN/bench_ssh" sftp_$c sgcl $p[1] $p[2]; echo "sftp|$c|$p[1]-$p[2]|$(field MB/s)|$(field ns/op)"; }
+done; done
+else
+echo "# sftp: OpenSSH (sshd, sftp, sftp-server) not installed"
+fi
 fi
 
 if case_ hash; then

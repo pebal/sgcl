@@ -10,6 +10,8 @@ namespace sgcl::math {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::math::rational` is a fraction of two [big_integer](../big_integer/README.md)s, always in lowest terms: what Go's `math/big.Rat`
 is, with the manners of a number. The arithmetic is exact — a third three times is one, and no sum of fractions ever
 loses a digit — and a `big_integer` or any whole number of the language goes where a `rational` is wanted, so
@@ -27,9 +29,7 @@ and its operators make a new one: `third * 2 + 1`. Go's `SetString` is [parse](p
 - **Lowest terms, always.** The numerator carries the sign, the denominator is above zero and has no factor in
   common with it — `rational(6, -4)` is `-3/2` — so each value has one form, equality compares the parts and the
   hash is the parts'.
-- **A value, like `big_integer`.** Two `big_integer`s: a copy is four words, the objects are shared and never
-  changed, and a `rational` lives where a `tracked_ptr` may — on a stack, in a managed object, in a container of
-  the library.
+- **A value, like `big_integer`.** Two `big_integer`s: a copy is four words, the objects are shared and never changed.
 - **Exact from a double.** Every finite `double` is a fraction whose denominator is a power of two, and
   `rational(double)` is that fraction: `rational(0.1)` is `3602879701896397/36028797018963968`. The text `"0.1"` is
   a tenth. The constructor from a `double` is `explicit`; `long double` and `bool` are refused, as for

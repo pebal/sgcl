@@ -13,6 +13,8 @@ namespace sgcl::encoding {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::encoding::hex::encoder` is a writer whose bytes go out as lower-case hexadecimal digits to another
 writer: Go's `hex.NewEncoder`, made by [hex::encoder_to](../hex/encoder_to.md). A byte is a whole group, so a
 [write](write.md) writes the digits of every byte it is given to the writer under it, and nothing
@@ -28,9 +30,7 @@ has no `Close`.
   `hex::encoder_to` (`encoding::hex::encoder digits = encoding::hex::encoder_to(w);`) and shared by its copies
   ([operator==](operator_cmp.md) says whether two are the same). A default-constructed one holds
   none (`!digits`), and an operation on it is a contract violation, checked by `assert`.
-- It lies on a stack, in a task, in a managed object; in a global or a `std` container, a
-  [rooted](../../core/rooted/README.md) of it. A stream made of one (`io::writer w = digits;`, `io::copy`) binds the
-  state, so the handle may go first.
+- A stream made of one (`io::writer w = digits;`, `io::copy`) binds the state, so the handle may go first.
 - The state is a managed object that holds its block, 8 KB of `array<byte, N>` as io's buffers are, and the
   writer under it.
 - A failure of the writer under it is kept for good: the digits being written went with it, so every later

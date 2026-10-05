@@ -11,6 +11,8 @@ namespace sgcl::concurrent {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::concurrent::map<Key, T, Hash, KeyEqual>` is a lock-free hash map shared by any number of threads: the
 split-ordered list of Shalev and Shavit (*Split-Ordered Lists: Lock-Free Extensible Hash Tables*, 2006), the
 structure that makes a resizable lock-free hash table possible, and the one whose resize is the reason for a
@@ -35,10 +37,8 @@ there is no `compute`. What differs from Go's `sync.Map`: the map is typed, and 
 
 ## Rules
 
-- The container holds its bucket array and its head node by `tracked_ptr`s, and its counters by a
-  `std::unique_ptr` (plain memory of numbers alone, freed with the map), so it lives where a `tracked_ptr` may: on a
-  thread's stack or inside a managed object ([The rules](../../core/README.md#the-rules), 1). Its iterators hold
-  their node by a `tracked_ptr` and live where it may.
+- The container holds its bucket array and its head node by `tracked_ptr`s, and its counters by a `std::unique_ptr`
+  (plain memory of numbers alone, freed with the map). Its iterators hold their node by a `tracked_ptr`.
 - Every member function may be called from any thread at any time, concurrently with any other. `find`,
   `contains`, `count` and `value_or` are wait-free once the key's bucket has its dummy node; `insert`, `emplace`,
   `try_emplace` and `erase` are lock-free and linearizable, an insertion at the compare-exchange that links its node

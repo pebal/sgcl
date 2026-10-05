@@ -13,6 +13,8 @@ namespace sgcl::encoding {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::encoding::json::builder` makes an array or an object in a loop without copying it at every step:
 [push_back](push_back.md) gathers the elements of an array, [set](set.md) the members of
 an object, and [build](build.md) hands out the [json](../json/README.md) and leaves the builder empty for the
@@ -25,10 +27,8 @@ one member at a time, with conditions between.
 
 ## Rules
 
-- A builder holds its elements and members by tracked pointers, so it lives where one may: on a stack or inside a
-  managed object ([the rules of core](../../core/README.md#the-rules), 1). It is a value of its own, for one thread
-  at a time; a copy is a builder of its own with the same elements, and a builder moved from is empty, as
-  `build` leaves it.
+- A builder is a value of its own, for one thread at a time; a copy is a builder of its own with the same elements, and
+  a builder moved from is empty, as `build` leaves it.
 - One builder makes one kind at a time: the first `push_back` or `set` decides, and the other one on the same
   builder is `logic_error` until `build` empties it. An empty builder builds `[]`.
 - A key set twice keeps its last value, in the place of its last `set`, as [object](../json/object.md) does.

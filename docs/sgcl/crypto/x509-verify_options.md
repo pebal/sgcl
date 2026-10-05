@@ -17,6 +17,8 @@ namespace sgcl::crypto::x509 {
 }
 ```
 
+**Requires [rooted](../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::crypto::x509::verify_options` is what [certificate::verify](x509-certificate/verify.md) checks against, Go's
 `x509.VerifyOptions`: the roots and the intermediates of the chain, the name or the address the certificate must be
 for, the time, and the extended key usages. Every field has a default, and a call names the fields it sets, in their
@@ -24,8 +26,6 @@ order: `cert.verify({.roots = pool, .dns_name = "example.com"})`.
 
 ## Rules
 
-- The options hold [certificate_pool](x509-certificate_pool/README.md)s, so they live where a `tracked_ptr` may: on a stack,
-  in a managed object, in a container of the library.
 - `ip` is a view of the program's bytes, read during the call.
 
 ## Member objects

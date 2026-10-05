@@ -12,6 +12,8 @@ namespace sgcl::net::http {
 }
 ```
 
+**Requires [rooted](../../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::net::http::client` is Go's `http.Client` and `http.Transport` in one: HTTP/1.1 and HTTP/2 with a pool of
 connections. A request is sent, redirects are followed, and the [response](../response/README.md) comes back with its head read
 and its body still on the connection; reading the body to its end gives the connection back to the pool by itself,
@@ -26,13 +28,14 @@ stream each, with nothing of the program's code changed but what [proto](../resp
 [download](download.md) is curl's `-fo path url`; the free [download](../download.md) does the same through a
 client of the process's, with the default settings.
 
-There is no gzip and no proxy in this version: the client sends no `Accept-Encoding`, so servers do not compress.
+A request goes through the proxy the environment names (`http_proxy`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY`, read when
+the client is made), or the one in its member `proxy`: an HTTP proxy, one over TLS, or SOCKS5
+([proxy](../proxy/README.md)). Cookies are kept when the member `jar` holds a [cookie_jar](../cookie_jar/README.md),
+none by default as in Go's `Client.Jar`. There is no gzip in this version: the client sends no `Accept-Encoding`, so servers do
+not compress.
 
 ## Rules
 
-- A client holds a `tracked_ptr` (its pool), so it lives where one may: on a stack, in a task, in a managed object;
-  in a global or a `std` container, a [rooted](../../../core/rooted/README.md) of it
-  ([The rules](../../../core/README.md#the-rules), 1).
 - **Two forms.** [get](get.md), [head](head.md), [post](post.md), [send](send.md) and
   [download](download.md) block the calling thread: the exchange runs on the scheduler and the thread waits
   for it, so they are for a thread of the program, never a worker. A task writes `co_await web.async_get(url)`, and
@@ -55,12 +58,19 @@ There is no gzip and no proxy in this version: the client sends no `Accept-Encod
   body is a stream (the 307 is then the response). `Authorization`, `Cookie`, `Proxy-Authorization` and
   `WWW-Authenticate` do not follow to a host that is neither the same nor under it. A redirect may go from `http` to
   `https` and back, as in Go. The response's [url](../response/url.md) is the last URL.
+- **Cookies**: with a `jar`, the `Set-Cookie` of every response, each redirect's among them, goes into the jar
+  ([set_cookies](../cookie_jar/set_cookies.md)), and every request, each redirect's among them, carries the jar's
+  cookies for its URL ([header](../cookie_jar/header.md)) in one `Cookie` field after the request's own pairs, as
+  Go's client merges them; a pair of the request's own whose name a response of the same exchange set again is left
+  out after it, the jar's being the one sent. The same over HTTP/2, and for the handshake of
+  [websocket](websocket.md). Without a jar (the default) nothing is kept, and a request's own `Cookie` goes as it is.
+  A copy of a client carries the same jar; one jar may serve many clients at once.
 - **Timeouts**: `timeout` bounds the whole exchange, the reading of the body included; `connect_timeout` the dial;
   `response_header_timeout` the wait for the head after the request went out. Each is `ETIMEDOUT`
   ([is_timeout](../../../io/error/is_timeout.md)). Over HTTP/2 they hold for the request's stream alone: past one the
   stream is reset (`CANCEL`) and the connection goes on carrying the other requests.
 - **What is sent**: `Host` from the URL (unless the request sets one), the program's fields, a `Content-Length` for a
-  body in memory or a stream of a known length, chunked for a stream without one, `Content-Length: 0` for a POST, PUT
+  body in memory, a [form](../form/README.md) (its files' sizes taken when the send begins) or a stream of a known length, chunked for a stream without one, `Content-Length: 0` for a POST, PUT
   or PATCH without a body. No `Accept-Encoding` and no `User-Agent` unless the program sets one.
 - **What cannot be sent** is refused before a connection is dialed: a method that is not a token, a field name that is
   not one, a value with CR, LF, NUL or another control (obs-fold among them), a target or a `Host` with a space or a
@@ -71,7 +81,9 @@ There is no gzip and no proxy in this version: the client sends no `Accept-Encod
   responses before the final one are skipped (100 Continue, 103 Early Hints); a response to HEAD, a 204 and a 304 have
   no body; one with neither a length nor chunked lasts to the close, and its connection is not kept. A head past
   `max_response_header_bytes` (1 MB) is `net::errc::header_too_large`.
-- **https://** is over [TLS 1.3](../../tls/README.md): the connection is made by [net::tls::connect](../../tls/connect.md)
+- **https://** is over [TLS 1.3, or TLS 1.2 to a server without 1.3](../../tls/README.md) (`tls.min_version` set to
+  `tls13` requires 1.3; HTTP/2 goes over either, every suite being ECDHE and an AEAD, RFC 7540 §9.2): the connection is
+  made by [net::tls::connect](../../tls/connect.md)
   with the `tls` settings (the system's roots unless `tls.roots` names others), port 443 unless the URL gives one.
   ALPN offers `h2` first and then what `tls.alpn` holds (`http/1.1`); `http2 = false` leaves `h2` out. The server's
   name is the URL's host, an IP address checked against the certificate's addresses; `tls.server_name` overrides it.
@@ -79,6 +91,12 @@ There is no gzip and no proxy in this version: the client sends no `Accept-Encod
   authority`, [certificate_reason](../../tls/certificate_reason.md)). A `dial` function given makes the transport and
   TLS goes over it, as over Go's `DialContext`. The pool keeps https and http connections apart (the origin includes
   the scheme).
+- **Proxies**: `proxy` is the environment's when the client is made ([from_environment](../proxy/from_environment.md));
+  `web.proxy = net::http::proxy(url)` sends every request through one, `net::http::proxy()` none. An `http://` request
+  goes to an HTTP proxy in absolute-form, an `https://` one through a `CONNECT` tunnel with TLS and HTTP/2 to the origin
+  over it, every request through a SOCKS5 proxy's tunnel; the pool keeps each route's connections apart, and the
+  errors of the way through name the proxy ([the rules](../proxy/README.md#rules)). The `dial` function, when there is
+  one, dials the proxy, given its URL.
 - **HTTP/2** comes when the server chooses `h2` by ALPN, or on `http://` by prior knowledge when `h2c` is on (the
   preface sent at once, no Upgrade: for a server known to speak it, such as a service behind the program's own
   proxy). The origin gets one connection, shared by every request to it, each on a stream of its own; a second one is
@@ -114,9 +132,11 @@ There is no gzip and no proxy in this version: the client sends no `Accept-Encod
 | `int max_redirects` | the most redirects followed before `net::errc::too_many_redirects`; 10 by default |
 | `size_t max_response_header_bytes` | the most bytes of a response's head, past which it is `net::errc::header_too_large`; 1 MB by default, zero taken as 1 |
 | `dial_function dial` | how a connection is made, given the URL and a stop token stopped at the connect's timeout (Go's `DialContext`): a unix socket, a connection in memory; for https the transport under TLS. Empty, the default, is [tcp::connect](../../tcp/connect.md) |
-| `net::tls::config tls` | the [TLS settings](../../tls/config.md) of https: roots, groups, cipher suites, `insecure_skip_verify`, `handshake_timeout`; the server name is the URL's host when none is set. By default the default config with ALPN `http/1.1` |
+| `net::tls::config tls` | the [TLS settings](../../tls/config.md) of https: roots, groups, cipher suites, `insecure_skip_verify`, `handshake_timeout`, a client certificate in `identities`; the server name is the URL's host when none is set. By default the default config with ALPN `http/1.1` and a [session_cache](../../tls/session_cache/README.md) of the client's own, so that its connections to a server resume each other's sessions, over 1.3 or 1.2; `tls.session_cache = nullopt` turns resumption off, and one cache given to several clients shares their sessions |
 | `bool http2` | for https, `h2` offered first by ALPN; `true` by default |
 | `bool h2c` | `http://` sent as HTTP/2 by prior knowledge; `false` by default. Read when a connection is dialed: an idle HTTP/1.1 connection of the pool is still taken as it is |
+| `http::proxy proxy` | the [proxy](../proxy/README.md) of each request: `http`, `https` and `no_proxy`; by default the environment's as the client is made ([from_environment](../proxy/from_environment.md)) |
+| `optional<cookie_jar> jar` | the [cookie_jar](../cookie_jar/README.md) that keeps the responses' cookies and gives the requests theirs (Go's `Client.Jar`); `nullopt`, the default, keeps none |
 
 ## Member functions
 
@@ -133,8 +153,9 @@ There is no gzip and no proxy in this version: the client sends no `Accept-Encod
 | [send, async_send](send.md) | sends a request and returns the response |
 | [get, async_get](get.md) | sends a GET |
 | [head, async_head](head.md) | sends a HEAD |
-| [post, async_post](post.md) | sends a POST with a body |
+| [post, async_post](post.md) | sends a POST with a body, or a form with its files |
 | [download, async_download](download.md) | sends a GET and saves a 2xx body to a file |
+| [websocket, async_websocket](websocket.md) | a WebSocket through this client's proxy, TLS settings and dial |
 
 #### Pool
 
@@ -270,10 +291,13 @@ asked over HTTP/2.0
 - [download](../download.md): a file in one line, through a client of the process's
 - [url](../../url/README.md): how the URL is read; [connection](../../connection/README.md): what `dial` returns
 - [tls](../../tls/README.md): the connection under https and its errors
+- [proxy](../proxy/README.md): the proxies, from the environment or given
+- [cookie_jar](../cookie_jar/README.md): the cookies, kept when `jar` holds one
+- [test_server](../test_server/README.md): a server for a test, and a client made for it
 - `tests/net/http/client.cpp` (a scripted server in memory: the pool, the retry, every framing, redirects, errors),
   `tests/net/http/download.cpp` (`download` through the part file, a cut body, a status but 2xx, `save`,
   `json<T>`), `tests/net/http/go.cpp` (against Go's server), `tests/net/http/https.cpp` (https: against this
   module's server, Go's net/http over TLS and curl), `tests/net/http/h2_client.cpp` (HTTP/2 against Go's server by
   `tools/h2_oracle.go`, and a scripted server for REFUSED_STREAM, GOAWAY and a connection cut),
   `tests/net/http/h2_client_connection.cpp` (the client's side of the HTTP/2 machine, frame by frame, by the sections
-  of RFC 9113)
+  of RFC 9113), `tests/net/http/proxy.cpp` (the proxies)

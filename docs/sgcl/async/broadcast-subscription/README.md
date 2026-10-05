@@ -14,6 +14,8 @@ namespace sgcl::async {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::async::broadcast<T>::subscription` is the receiving side of a [broadcast](../broadcast/README.md): a cursor of its own
 into the broadcast's ring, made by [subscribe](../broadcast/subscribe.md) at the position of the next value sent. Each
 receive copies the value at the cursor out of the ring and moves the cursor on; a subscription that falls more than
@@ -31,8 +33,6 @@ the ring lets them go once every other subscription has passed them too.
 
 ## Rules
 
-- A subscription holds tracked pointers, so it lives where a `tracked_ptr` may: a task's parameter or local, a
-  stack, a member of a managed object ([The rules](../../core/README.md#the-rules), 1).
 - Move-only. A default-constructed or a moved-from subscription is empty: it is only assigned to, destroyed or asked
   whether it is empty ([operator bool](operator_bool.md)).
 - A subscription is read by one thread or task at a time: the cursor is its own. Any number of subscriptions of one

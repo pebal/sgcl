@@ -10,6 +10,8 @@ namespace sgcl::txt {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `txt::line_breaks` is the text cut at every place a line may be broken, by [UAX
 #14](https://www.unicode.org/reports/tr14/): after a space or a hyphen and between two ideographs, never between a
 number and its decimal mark, inside `"(a)"` or at a no-break space. Every element is a piece that must stay together,
@@ -24,9 +26,8 @@ goes back to the bytes. It is a range of the library ([mixin::enumerable](../../
 
 ## Rules
 
-- A `line_breaks` holds a slice of the text, so it lives where a `tracked_ptr` may: on a stack or inside a managed
-  object ([the rules of core](../../core/README.md#the-rules), 1). A range over a temporary string is safe: the slice
-  keeps the string's object.
+- A `line_breaks` holds a slice of the text. A range over a temporary string is safe: the slice keeps the string's
+  object.
 - Nothing is copied and nothing is allocated per element: an element is a [slice](../../core/slice/README.md) of the text, found
   as the walk reaches it. An invalid byte of UTF-8 is one code point, `U+FFFD`.
 - An iterator refers to the text, not to the range: it is valid while the text's object lives.

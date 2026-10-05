@@ -10,6 +10,8 @@ namespace sgcl::async {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::async::task_group` is structured concurrency, the way Go's `errgroup` and Kotlin's `coroutineScope` have it,
 and Java's `StructuredTaskScope`: a scope that owns the tasks it starts. A group is made under a
 [stop_token](../stop_token/README.md), `async::task_group g(token)`, and its own [stop_source](../stop_source/README.md) is a child of
@@ -33,8 +35,7 @@ children, a [stop_source](../stop_source/README.md) stops them, and one word cla
 
 ## Rules
 
-- A group is an object, not a handle: it lives where a `tracked_ptr` may, on a stack or inside a managed object
-  ([The rules](../../core/README.md#the-rules), 1), and is neither copied nor moved.
+- A group is an object, not a handle: it is neither copied nor moved.
 - A child is a task nobody spawned, or one spawned already; `go` starts it and the group owns it from then on: the
   `task` object is consumed, its result, if any, dropped, its exception the group's. A child inherits the
   [task-locals](../task_local/README.md) and the [executor](../executor/README.md) of the task that starts it, as a task started by a

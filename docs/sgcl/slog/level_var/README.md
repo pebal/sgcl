@@ -10,6 +10,8 @@ namespace sgcl::slog {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::slog::level_var` is one level for many loggers, changed while the program runs: slog's `LevelVar`. A logger
 made with one, [options](../options.md)`{.level_var = v}`, reads its least level from it at every record, in place of
 `options::level`; a [set](set.md) is seen by the next record of every such logger, on any thread.
@@ -18,9 +20,6 @@ made with one, [options](../options.md)`{.level_var = v}`, reads its least level
 
 - A handle of one word, made at its level by the constructor; the copies share the level.
 - A relaxed atomic: a record in flight on another thread may still be judged by the level before.
-- It holds a `tracked_ptr`, so it lives where one may: on a stack, in a task, in a managed object; in a global or a
-  `std` container, a [rooted](../../core/rooted/README.md) of it.
-
 ## Member functions
 
 | Function | Description |

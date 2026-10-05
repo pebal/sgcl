@@ -10,11 +10,14 @@ namespace sgcl::net::tls {
 }
 ```
 
-`net::tls::identity` is a server's certificate chain with its private key, Go's `tls.Certificate` as
+**Requires [rooted](../../../core/rooted/README.md) outside a stack or a managed object.**
+
+`net::tls::identity` is a certificate chain with its private key, Go's `tls.Certificate` as
 `tls.LoadX509KeyPair` and `tls.X509KeyPair` make it: `net::tls::identity(io::read_text(chain_file),
 crypto::read_secret(key_file))` is the first. A server's [config](../config.md) holds one or more, and the handshake
-chooses the one whose leaf is for the name the client sent, else the first. It is the server's: the client of v1
-sends no certificate.
+chooses the one whose leaf is for the name the client sent, else the first. A client's config holds the ones it
+sends to a server that asks for a certificate ([client_auth](../client_auth.md)): the first whose key signs a scheme
+the server takes and whose chain one of the authorities it names issued.
 
 It is a handle of one word whose state is made in the constructor, as a [string](../../../core/string/README.md) is: copies
 share one chain and one key. The private key sits in an unmanaged block of its own, never copied (copies of the
@@ -33,9 +36,10 @@ under the leaf's public key, before the identity exists.
   its bytes are managed; that is the caller's choice.
 - There is no empty identity: an object holds a chain and a key from its constructor on, and a moved-from one still
   holds them, as a moved-from [tracked_ptr](../../../core/tracked_ptr/README.md) still points.
-- It lives where a `tracked_ptr` may: on a stack, in a task, in a managed object, in a [config](../config.md); in a
-  global under a [rooted](../../../core/rooted/README.md).
-
+- The OCSP response a server staples for the leaf (RFC 6066) is the identity's too, shared by its copies: set by the
+  program ([set_ocsp_staple](set_ocsp_staple.md), Go's `Certificate.OCSPStaple`), or fetched and refreshed by a
+  server whose config has `ocsp_stapling`. It is sent to a client that asks for it (`status_request`), never past its
+  `nextUpdate`.
 ## Member functions
 
 | Function | Description |
@@ -49,6 +53,13 @@ under the leaf's public key, before the identity exists.
 | Function | Description |
 |---|---|
 | [certificates](certificates.md) | the chain, the leaf first |
+
+#### OCSP stapling
+
+| Function | Description |
+|---|---|
+| [ocsp_staple](ocsp_staple.md) | the OCSP response a server staples for the leaf now |
+| [set_ocsp_staple](set_ocsp_staple.md) | sets the OCSP response a server staples, checked against the leaf, or clears it |
 
 ## Example
 
@@ -90,7 +101,7 @@ true
 
 ## See also
 
-- [config](../config.md): where a server's identities stand
+- [config](../config.md): where a server's and a client's identities stand
 - [crypto::x509](../../../crypto/x509.md): the certificates; [crypto::secret](../../../crypto/secret/README.md): the key's bytes
 - [listen](../listen.md), [server](../server.md): the servers that present it
 - [net::tls](../README.md)

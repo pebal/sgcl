@@ -1,0 +1,28 @@
+From: a@example.com
+To: b@example.com
+Subject: Forward
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="===============5060668069857534842=="
+
+--===============5060668069857534842==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+Forwarding.
+
+--===============5060668069857534842==
+Content-Type: message/rfc822
+Content-Transfer-Encoding: 8bit
+MIME-Version: 1.0
+Content-Disposition: attachment
+
+From: inner@example.com
+To: outer@example.com
+Subject: The forwarded one
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+MIME-Version: 1.0
+
+Inner body.
+
+--===============5060668069857534842==--

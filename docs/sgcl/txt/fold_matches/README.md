@@ -11,6 +11,8 @@ namespace sgcl::txt {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::txt::fold_matches` is every occurrence of a pattern in a text without regard to case, the text folded a
 single time for all of them; `sgcl::txt::normalized_matches` is the same without regard to the way either side was
 written, the text decomposed once. The two are one class over two mappings, with one interface. They are ranges of
@@ -28,9 +30,9 @@ slice with something in it.
 
 ## Rules
 
-- The mapped text is too large to copy into an iterator, so the range holds it, the text and the pattern in one
-  tracked object, and the iterator points at that. A range lives where a `tracked_ptr` may: on a stack or inside a
-  managed object. A loop over a temporary is safe, and so is an iterator that outlives the range it came from.
+- The mapped text is too large to copy into an iterator, so the range holds it, the text and the pattern in one tracked
+  object, and the iterator points at that. A loop over a temporary is safe, and so is an iterator that outlives the
+  range it came from.
 - An empty pattern matches nowhere: a range of every position is not what anyone asking this question wants, and it
   would not end.
 - Nothing in a range changes after it is built: it may be walked by any number of threads at once.

@@ -11,6 +11,8 @@ namespace sgcl::concurrent {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::concurrent::intern<T, Hash, KeyEqual>` is a pool where equal values share one managed object, shared by any
 number of threads: Go's `unique` package, Java's `String.intern`. [of](of.md) is the canonical object of a
 value, the one the pool holds when it is alive, or a new one made from the value and entered; so a program holds
@@ -43,9 +45,8 @@ strings.
 
 ## Rules
 
-- A pool holds tracked pointers (the table's array, head and counters), so it lives on a thread's stack or inside a
-  managed object ([The rules](../../core/README.md#the-rules), 1). The default pool of a type, [pool](pool.md),
-  is a managed object under a [root_ptr](../../core/root_ptr/README.md), made on first use: what a global may hold.
+- The default pool of a type, [pool](pool.md), is a managed object under a [root_ptr](../../core/root_ptr/README.md),
+  made on first use: what a global may hold.
 - Every member function may be called from any thread at any time. `find` is wait-free and writes nothing once the
   value's bucket has its dummy node (the first lookup in a bucket makes it, as in [set](../set/README.md)); `of` and `make`
   are lock-free: an `of` that finds no live object makes one and enters its entry with the table's

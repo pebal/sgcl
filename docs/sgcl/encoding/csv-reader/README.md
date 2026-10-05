@@ -13,6 +13,8 @@ namespace sgcl::encoding {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::encoding::csv::reader` reads CSV a record at a time, from a [string](../../core/string/README.md) or from an
 [io::reader](../../io/reader/README.md), as Go's `csv.Reader` reads it: [next](next.md) gives the next
 [row](../csv-row/README.md), [rows](rows.md) all of them in a range-for, and [read\<T\>](read.md) the
@@ -32,9 +34,8 @@ record is handed out as soon as its line has ended.
   is read twice, so a field of a megabyte trickling in a byte at a time costs what the megabyte costs.
 - **Every method that may reach into the stream does it on the thread that calls it**; a task uses the `async_`
   forms, `co_await r.async_next()`, which wait for the stream without holding the worker.
-- A reader is one thread's at a time, and it is neither copied nor moved: it holds the stream, the record being
-  read and the header. It holds a `tracked_ptr`, so it lives where one may: on a stack, in a task, in a managed
-  object.
+- A reader is one thread's at a time, and it is neither copied nor moved: it holds the stream, the record being read and
+  the header.
 - A reader of a text keeps the text alive while it reads; the rows it returns are their own and outlive it.
 
 ### From code written for Go

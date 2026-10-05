@@ -10,6 +10,8 @@ namespace sgcl::compress::sevenzip {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::compress::sevenzip::writer` writes a 7z archive entry after entry, as 7-Zip writes it: the data of entries
 into folders (solid by default, a new folder at a new filter or past the block), encoded as it comes and never held
 whole. [create](create.md) gives an [io writer](../../io/writer/README.md) of an entry's data; the next
@@ -23,8 +25,7 @@ archive needs an output that seeks back: a file (its start rewritten with `pwrit
 
 ## Rules
 
-- The writer holds its state as a tracked word, so it lives where a `tracked_ptr` may. It is moved, not copied, and
-  written by one thread or task at a time.
+- The writer is moved, not copied, and written by one thread or task at a time.
 - A writer moved from is closed, with no archive: its [create](create.md),
   [add](add.md) and [add_directory](add_directory.md) are refused as after the close
   (kept as its first error), and its [close](close.md) does nothing. A writer moved onto itself is

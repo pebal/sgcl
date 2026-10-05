@@ -12,6 +12,8 @@ namespace sgcl {
 }
 ```
 
+**Requires [rooted](../rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::any` is `std::any` for values that hold tracked pointers. `std::any` keeps a small value in a buffer inside
 itself, where a `tracked_ptr` would share its word with the data of other values (the offset leaves the pointer map
 by elimination: [Pointer maps](../../../garbage_collector/overview.md#pointer-maps)), and a large one on the unmanaged
@@ -37,9 +39,8 @@ page is not supported. Go has no counterpart but the empty interface, `interface
 
 ## Rules
 
-- The `any`'s word is a `tracked_ptr`, so an `any` lives where one may, as the containers do: on a stack or inside
-  a managed object ([The rules](../README.md#the-rules), 1). What it holds follows the rules of its type where the
-  `any` lives, as a member would; a value in a node is fine anywhere.
+- What an `any` holds follows the rules of its type where the `any` lives, as a member would; a value in a node is fine
+  anywhere.
 - A pointer in the word is destroyed by `reset`, an assignment or the destructor: its object is unreferenced from
   then on. A value in a node is destroyed at the same moment, its destructor on the calling thread; the node goes
   back with the next sweep.

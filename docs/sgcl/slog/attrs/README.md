@@ -10,6 +10,8 @@ namespace sgcl::slog {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::slog::attrs` is the attributes of a group, in order, as a range of [attr](../attr/README.md): what
 [value::as_group](../value/as_group.md) returns, slog's `[]Attr` of `Value.Group`. A [record](../record/README.md) walks its
 own attributes with the same [iterator](../attrs-iterator.md). The attributes a call wrote stand in the list in the
@@ -20,7 +22,6 @@ place a logger's [group](../logger/group.md) left for them, so a walk goes throu
 - A view of the record's, valid while the record is: in the record a handler is given, while `handle` runs; in a
   [clone](../record/clone.md), while the clone is. The attributes of a type described by its fields are a copy of their
   own, which the range holds, so they are valid while the range is.
-- A range lives where a `tracked_ptr` may: it holds one to what keeps a copy.
 - The attributes are given by value, each an `attr`; nothing in the range changes.
 
 ## Member types

@@ -14,6 +14,8 @@ namespace sgcl {
 }
 ```
 
+**Requires [rooted](../rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::forward_list<T>` is `std::forward_list` over managed nodes: singly linked nodes behind a sentinel, the one
 `before_begin()` addresses. The interface is the one of `std::forward_list` (constructors, `assign`, `front`,
 forward iterators, `insert_after`, `emplace_after`, `erase_after`, `push_front`, `merge`, `splice_after`, `remove`,
@@ -36,9 +38,6 @@ and `l.min()` read as `l.push_front(x)` does.
 
 ## Rules
 
-- A forward_list holds a `tracked_ptr` (the sentinel), so it lives where one may: on a stack or inside a managed
-  object, never in `new`/`malloc` memory, a `std` container, a global or a plain coroutine frame
-  ([The rules](../README.md#the-rules), 1).
 - The list destroys an element the moment it is erased, popped, cleared, assigned over or the list is destroyed,
   exactly like `std::forward_list`. The one exception is a list dying in a sweep, inside a managed object nobody
   refers to any more: its nodes are garbage of the same sweep, and each destroys its element when the sweep reaches

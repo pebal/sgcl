@@ -10,6 +10,8 @@ namespace sgcl::slog {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::slog::record` is a record as a [handler](../handler/README.md) of the program gets it, slog's `Record`: the time, the
 level, the message, where it was written, and the attributes as a range of [attr](../attr/README.md) — the logger's (from
 [with](../logger/with.md), inside its groups) and the call's, as a tree in which a logger's
@@ -24,8 +26,6 @@ logger's attributes apart, through `WithAttrs` and `WithGroup`; here the record 
   described type made a group of copies, a container of the program its two texts. [memory](../memory/README.md) keeps those.
 - **The tree.** The attributes at the top are `with`'s before a `group`, then the group, an attribute of kind group
   named after it holding what came after it; the call's own attributes are inside the innermost group.
-- A record lives where a `tracked_ptr` may: a clone holds one to what it owns.
-
 ## Member functions
 
 | Function | Description |

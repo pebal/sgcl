@@ -11,6 +11,8 @@ namespace sgcl::txt {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::txt::fold_searcher` is a pattern folded once ([fold_case](../fold_case.md)), for the loop that asks the same
 question of many texts without regard to case; `sgcl::txt::normalized_searcher` is a pattern decomposed and put in
 canonical order once, for the same loop without regard to the way a text was written. The two are one class over
@@ -27,8 +29,6 @@ say: the one-shot functions, the prepared text, the prepared pattern and the ran
 
 ## Rules
 
-- A searcher holds a [string](../../core/string/README.md) and a [vector](../../core/vector/README.md), so it lives where those may: on
-  a stack or inside a managed object.
 - Nothing in it changes after it is built: one searcher may be used by any number of threads at once.
 - A copy is the same pattern. A searcher moved from is the searcher of the empty pattern, its `pattern()` empty
   too, and answers as one built from `""`; assigned to, it is the new one.

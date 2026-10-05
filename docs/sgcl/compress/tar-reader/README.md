@@ -10,6 +10,8 @@ namespace sgcl::compress::tar {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::compress::tar::reader` reads a tar archive entry by entry from another reader, `in`, as Go's `tar.Reader`:
 [next](next.md) goes to the next entry's header, past whatever of the current one's data was not read,
 and the reads give that entry's data, exactly its size, then 0. It is an [io reader](../../io/reader/README.md) of the current
@@ -23,8 +25,7 @@ start; a block of zeros followed by anything else is `errc::invalid_header`.
 
 ## Rules
 
-- The reader holds `in`, a handle of a tracked word, so it lives where a `tracked_ptr` may: a stack, a task's frame,
-  a managed object. It is move-only, and read by one thread or task at a time.
+- The reader is move-only, and read by one thread or task at a time.
 - A reader moved from has no stream, it went with the move: [next](next.md) gives `errc::io` with
   `io::errc::closed`, a read gives `io::errc::closed`, and its [close](close.md) closes nothing. A reader
   moved onto itself is unchanged.

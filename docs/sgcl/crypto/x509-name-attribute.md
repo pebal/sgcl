@@ -17,13 +17,11 @@ namespace sgcl::crypto::x509 {
 }
 ```
 
+**Requires [rooted](../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::crypto::x509::name::attribute` is one attribute of a distinguished [name](x509-name/README.md): its type as a dotted
 OID (`"2.5.4.3"` for CN) and its value, as text when it is one of the six string types of RFC 5280, else `#` and the
 hex of its DER (RFC 4514 §2.4).
-
-## Rules
-
-- A struct of two [strings](../core/string/README.md) and a flag: it lives where a `tracked_ptr` may.
 
 ## Member objects
 

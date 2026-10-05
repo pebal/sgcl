@@ -11,6 +11,8 @@ namespace sgcl {
 }
 ```
 
+**Requires [rooted](../rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::multimap<Key, T, Hash, KeyEqual>` is `std::unordered_multimap` over managed nodes: the same hash table as
 [map](../map/README.md), with equivalent keys allowed. The interface is the one of `std::unordered_multimap` — the
 constructors, `insert`, `emplace`, `erase`, `extract`, `merge`, node handles, the lookups with a transparent hash
@@ -35,9 +37,6 @@ multimap does with one node per element and no slice to grow.
 
 ## Rules
 
-- A multimap holds tracked pointers, so it lives on a stack or inside a managed object: never in
-  `new`/`malloc` memory, a `std` container, a global, a `thread_local` or a plain coroutine frame
-  ([The rules](../README.md#the-rules), 1). The same holds for a node handle ([node_type](../map-node_type/README.md)).
 - The elements may hold tracked pointers (a `tracked_ptr` key hashes by address through
   `std::hash<sgcl::tracked_ptr<T>>`): the nodes are managed objects, so those pointers are traced.
 - An element is destroyed the moment it is erased, cleared, assigned over, or the container is destroyed, exactly

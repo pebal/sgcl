@@ -10,6 +10,8 @@ namespace sgcl::crypto::x509 {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::crypto::x509::certificate` is an X.509 certificate (RFC 5280) read from DER or PEM: its names, its validity,
 its key and its extensions, each read once into a field of its own, and the verification of the chain from it to a
 trusted root, with the host name or the IP address it must be for. Go's `x509.Certificate`.
@@ -21,9 +23,7 @@ certificate may be used for is not a field to be read and trusted but the questi
 ## Rules
 
 - **A value that costs a pointer.** The parse is one managed object, shared by every copy and never changed: a
-  certificate is copied, compared and read from many threads at once without a lock. It holds a `tracked_ptr`, so
-  it lives where one may: on a stack, in a managed object, in a container of the library
-  ([The rules](../../core/README.md#the-rules) of core).
+  certificate is copied, compared and read from many threads at once without a lock.
 - **Made by [parse](parse.md) or [from_pem](from_pem.md)**, which return an
   [expected](../../core/expected/README.md): a certificate that cannot be read is `errc::malformed` with the offset of the
   byte, never an exception. There is no default constructor.
@@ -116,7 +116,16 @@ certificate may be used for is not a field to be read and trusted but the questi
 | Function | Description |
 |---|---|
 | [policies](policies.md) | the OIDs of certificatePolicies |
+| [must_staple](must_staple.md) | checks whether the TLS feature extension asks for an OCSP staple (Must-Staple) |
 | [unhandled_critical_extensions](unhandled_critical_extensions.md) | the OIDs of the critical extensions not handled |
+
+#### Revocation
+
+| Function | Description |
+|---|---|
+| [ocsp_servers](ocsp_servers.md) | the URIs of its OCSP responders (authorityInfoAccess) |
+| [issuing_certificate_urls](issuing_certificate_urls.md) | the URIs of its issuer's certificate (authorityInfoAccess) |
+| [crl_distribution_points](crl_distribution_points.md) | the URIs of its CRL distribution points |
 
 #### Verification
 

@@ -172,6 +172,9 @@ namespace {
                 case Action::Kind::skip_early_data:   // the server's alone
                     kinds.push_back("skip early data");
                     break;
+                case Action::Kind::new_ticket:        // with a cache only (tls_resumption.cpp)
+                    kinds.push_back("new ticket");
+                    break;
                 }
             }
         }

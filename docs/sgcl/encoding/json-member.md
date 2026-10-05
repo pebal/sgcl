@@ -18,14 +18,14 @@ namespace sgcl::encoding {
 }
 ```
 
+**Requires [rooted](../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::encoding::json::member` is a member of a JSON object: its key and its value. An aggregate of two fields, it
 is what [members](json/members.md) gives a slice of, taken apart as `[key, value]`, and what
 [object](json/object.md) takes a list of, `{"name", "Ala"}`.
 
 ## Rules
 
-- A member holds a [string](../core/string/README.md) and a [json](json/README.md), so it lives where they may: on a stack or
-  inside a managed object.
 - The members of a value never change: a member of [members](json/members.md) is `const`.
 
 ## Member objects

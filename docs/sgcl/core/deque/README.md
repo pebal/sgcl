@@ -14,6 +14,8 @@ namespace sgcl {
 }
 ```
 
+**Requires [rooted](../rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::deque<T>` is `std::deque` over managed memory. The interface is the one of `std::deque` (constructors,
 `assign`, element access, random-access iterators, `shrink_to_fit`, modifiers at both ends and in the middle,
 three-way comparison, `std::erase` and `std::erase_if`), and so is the behaviour: elements are constructed at
@@ -31,9 +33,6 @@ object.
 
 ## Rules
 
-- A deque holds a `tracked_ptr` (the map), so it lives where one may: on a stack or inside a managed object, never
-  in `new`/`malloc` memory, a `std` container, a global or a plain coroutine frame
-  ([The rules](../README.md#the-rules), 1).
 - The deque destroys its elements itself, exactly when `std::deque` does: on removal (`erase`, `pop_back`,
   `pop_front`, `clear`, `resize`, `assign`) and in the destructor. The one exception is a deque dying in a sweep,
   inside a managed object nobody refers to any more: its blocks are garbage of the same sweep, and each destroys

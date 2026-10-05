@@ -26,8 +26,8 @@
 namespace sgcl::net::http {
     // A cookie as a server sets it (Set-Cookie, RFC 6265 §4.1) and as a
     // client reads one back (§5.2): a value type with its attributes as
-    // fields, Go's http.Cookie. No jar: which cookies go to which request
-    // needs the public suffix list, which is not in the library yet.
+    // fields, Go's http.Cookie. Which cookies go to which request is the
+    // jar's (cookie_jar.h), which a client takes in its `jar`.
     //
     // to_string writes a Set-Cookie value; a name that is not a token is
     // a broken contract (invalid_argument), a byte of the value no cookie

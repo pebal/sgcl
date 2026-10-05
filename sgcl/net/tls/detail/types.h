@@ -11,30 +11,82 @@
 #include <cstdint>
 
 // The code points of TLS 1.3 the layers share (RFC 8446 §4, §5, §6, and
-// the registries it points to): cipher suites, groups, signature schemes,
+// the registries it points to), and of the client's TLS 1.2 (RFC 5246,
+// RFC 8422, RFC 5289, RFC 7905): cipher suites, groups, signature schemes,
 // handshake and content types, extensions and alerts, each with its
 // number on the wire. The public types of tls.h carry the same numbers.
 namespace sgcl::net::tls::detail {
     inline constexpr uint16_t Tls12 = 0x0303;   // legacy_version and legacy_record_version
     inline constexpr uint16_t Tls13 = 0x0304;   // supported_versions
 
-    // The cipher suites of v1 (§B.4)
+    // The last 8 bytes of a TLS 1.3 server's random when it negotiates TLS
+    // 1.2 (RFC 8446 §4.1.3): a client that offered 1.3 and reads them was
+    // downgraded by something between
+    inline constexpr uint8_t Downgrade12[8] = {0x44, 0x4F, 0x57, 0x4E, 0x47, 0x52, 0x44, 0x01};
+
+    // The cipher suites: TLS 1.3's (§B.4), and the client's TLS 1.2 ones,
+    // ECDHE with an AEAD alone (RFC 5289, RFC 7905)
     enum class Cipher : uint16_t {
         aes_128_gcm_sha256 = 0x1301,
         aes_256_gcm_sha384 = 0x1302,
         chacha20_poly1305_sha256 = 0x1303,
+        ecdhe_ecdsa_aes_128_gcm_sha256 = 0xC02B,
+        ecdhe_ecdsa_aes_256_gcm_sha384 = 0xC02C,
+        ecdhe_rsa_aes_128_gcm_sha256 = 0xC02F,
+        ecdhe_rsa_aes_256_gcm_sha384 = 0xC030,
+        ecdhe_rsa_chacha20_poly1305_sha256 = 0xCCA8,
+        ecdhe_ecdsa_chacha20_poly1305_sha256 = 0xCCA9,
     };
 
+    // The hash of the suite: of the key schedule (1.3), of the PRF (1.2)
     SGCL_INLINE_HOT constexpr Hash hash_of(Cipher c) noexcept {
-        return c == Cipher::aes_256_gcm_sha384 ? Hash::sha384 : Hash::sha256;
+        return c == Cipher::aes_256_gcm_sha384 || c == Cipher::ecdhe_ecdsa_aes_256_gcm_sha384 || c == Cipher::ecdhe_rsa_aes_256_gcm_sha384 ? Hash::sha384 : Hash::sha256;
+    }
+
+    // Whether the AEAD is ChaCha20-Poly1305 (else AES-GCM)
+    SGCL_INLINE_HOT constexpr bool chacha(Cipher c) noexcept {
+        return c == Cipher::chacha20_poly1305_sha256 || c == Cipher::ecdhe_rsa_chacha20_poly1305_sha256 || c == Cipher::ecdhe_ecdsa_chacha20_poly1305_sha256;
     }
 
     SGCL_INLINE_HOT constexpr size_t key_size(Cipher c) noexcept {
-        return c == Cipher::aes_128_gcm_sha256 ? 16 : 32;
+        return c == Cipher::aes_128_gcm_sha256 || c == Cipher::ecdhe_ecdsa_aes_128_gcm_sha256 || c == Cipher::ecdhe_rsa_aes_128_gcm_sha256 ? 16 : 32;
     }
 
+    // A suite of TLS 1.3
     SGCL_INLINE_HOT constexpr bool known(Cipher c) noexcept {
         return c == Cipher::aes_128_gcm_sha256 || c == Cipher::aes_256_gcm_sha384 || c == Cipher::chacha20_poly1305_sha256;
+    }
+
+    // A suite of TLS 1.2 the client speaks
+    SGCL_INLINE_HOT constexpr bool known12(Cipher c) noexcept {
+        switch (c) {
+            case Cipher::ecdhe_ecdsa_aes_128_gcm_sha256:
+            case Cipher::ecdhe_ecdsa_aes_256_gcm_sha384:
+            case Cipher::ecdhe_rsa_aes_128_gcm_sha256:
+            case Cipher::ecdhe_rsa_aes_256_gcm_sha384:
+            case Cipher::ecdhe_rsa_chacha20_poly1305_sha256:
+            case Cipher::ecdhe_ecdsa_chacha20_poly1305_sha256:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    // A TLS 1.2 suite authenticated by an RSA certificate (else ECDSA or
+    // Ed25519, RFC 8422)
+    SGCL_INLINE_HOT constexpr bool rsa_suite(Cipher c) noexcept {
+        return c == Cipher::ecdhe_rsa_aes_128_gcm_sha256 || c == Cipher::ecdhe_rsa_aes_256_gcm_sha384 || c == Cipher::ecdhe_rsa_chacha20_poly1305_sha256;
+    }
+
+    // The fixed part of a TLS 1.2 AEAD's nonce (RFC 5288 §3: the salt of
+    // AES-GCM, 4 bytes; RFC 7905 §2: ChaCha20-Poly1305's IV, 12) and the
+    // explicit part each record carries (AES-GCM's 8 bytes)
+    SGCL_INLINE_HOT constexpr size_t iv_size12(Cipher c) noexcept {
+        return chacha(c) ? 12 : 4;
+    }
+
+    SGCL_INLINE_HOT constexpr size_t explicit_nonce12(Cipher c) noexcept {
+        return chacha(c) ? 0 : 8;
     }
 
     // The groups of v1 (§4.2.7; X25519MLKEM768: draft-ietf-tls-ecdhe-mlkem)
@@ -70,15 +122,20 @@ namespace sgcl::net::tls::detail {
 
     // §4
     enum class HandshakeType : uint8_t {
+        hello_request = 0,
         client_hello = 1,
         server_hello = 2,
         new_session_ticket = 4,
         end_of_early_data = 5,
         encrypted_extensions = 8,
         certificate = 11,
+        server_key_exchange = 12,       // TLS 1.2
         certificate_request = 13,
+        server_hello_done = 14,         // TLS 1.2
         certificate_verify = 15,
+        client_key_exchange = 16,       // TLS 1.2
         finished = 20,
+        certificate_status = 22,        // TLS 1.2 (RFC 6066 §8)
         key_update = 24,
         message_hash = 254,
     };
@@ -88,9 +145,11 @@ namespace sgcl::net::tls::detail {
         server_name = 0,
         status_request = 5,
         supported_groups = 10,
+        ec_point_formats = 11,          // TLS 1.2 (RFC 8422 §5.1.2)
         signature_algorithms = 13,
         application_layer_protocol_negotiation = 16,
         signed_certificate_timestamp = 18,
+        extended_master_secret = 23,    // TLS 1.2 (RFC 7627)
         record_size_limit = 28,
         pre_shared_key = 41,
         early_data = 42,

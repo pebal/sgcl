@@ -11,6 +11,8 @@ namespace sgcl {
 }
 ```
 
+**Requires [rooted](../rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::stack<T, Container>` is `std::stack` over a managed container: a LIFO adapter with `top`, `push`,
 `emplace`, `pop`, `empty`, `size`, `swap` and the comparisons of the container. The container is
 `sgcl::deque<T>` by default; `sgcl::vector<T>` and `sgcl::list<T>` work as well, as does any container with
@@ -20,9 +22,6 @@ everything about where the elements live, when they are destroyed and what a pus
 
 ## Rules
 
-- The container holds tracked pointers, so a stack lives where a `tracked_ptr` may: on a thread's stack or inside
-  a managed object, never in `new`/`malloc` memory, a `std` container, a global or a plain coroutine frame
-  ([The rules](../README.md#the-rules), 1).
 - An element is destroyed by `pop()` and in the destructor, exactly as with `std::stack` over the same `std`
   container; the container's memory is the collector's ([Containers](../README.md#containers)).
 - A `tracked_ptr` may not address an element ([The rules](../README.md#the-rules), 4); `top()` is a reference,

@@ -648,6 +648,21 @@ namespace sgcl::net::http::detail {
             return _state == State::done;
         }
 
+        // The data of the current chunk still to come past the bytes given
+        // so far: a reader whose buffer is empty takes it straight from its
+        // source into the caller's memory, then tells data_taken (no copy
+        // through the buffer, reads of the caller's size)
+        SGCL_INLINE_HOT uint64_t data_left() const noexcept {
+            return _state == State::data ? _remaining : 0;
+        }
+
+        SGCL_INLINE_HOT void data_taken(size_t n) noexcept {
+            _remaining -= n;
+            if (_remaining == 0) {
+                _state = State::data_cr;
+            }
+        }
+
         SGCL_INLINE_HOT const headers& trailers() const noexcept {
             return _trailers;
         }

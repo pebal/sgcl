@@ -11,6 +11,8 @@ namespace sgcl::concurrent {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::concurrent::queue<T>` is an unbounded lock-free FIFO queue shared by any number of producers and
 consumers: the Michael–Scott queue in the form Java's `ConcurrentLinkedQueue` gives it, written as it is written
 for a runtime with a collector. The nodes form a singly linked list; the head addresses a node at or before the
@@ -34,10 +36,8 @@ movable `T`, a `tracked_ptr` included.
 
 ## Rules
 
-- The container is two atomic words, the head and the tail, kept a cache line apart (`config::cache_line_size`)
-  so that the consumers' line and the producers' line do not bounce for each other's traffic. The queue lives
-  where a `tracked_ptr` may: on a thread's stack or inside a managed object
-  ([The rules](../../core/README.md#the-rules), 1).
+- The container is two atomic words, the head and the tail, kept a cache line apart (`config::cache_line_size`) so that
+  the consumers' line and the producers' line do not bounce for each other's traffic.
 - Every member function may be called from any thread at any time. `push`, `emplace`, `push_range`, `try_pop`,
   `empty`, `size` and `clear` are lock-free; `push` and `try_pop` are linearizable at their compare-exchange on a
   link and on a node's flag. `pop` waits while the queue is empty.

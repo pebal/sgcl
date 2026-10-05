@@ -14,6 +14,8 @@ namespace sgcl::async {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::async::promise<T>` is a one-shot completion: a value, or an exception, that one side sets once and any number
 of others wait for. It is the adapter between the callback APIs of a platform and `co_await`: an I/O completion
 port, a dispatch queue, JNI, a driver's completion routine, a C library that takes a callback and a `void*` context,
@@ -33,13 +35,9 @@ builds and ignored in release builds, where the first value stands.
 
 ## Rules
 
-- A promise is a handle: one word, a tracked word to the state, which copies share; `==` says whether two are the
-  same promise. It is made by the constructor, not set; there is no empty promise. It lives where a `tracked_ptr`
-  may: on a stack, in a task (a parameter by value), in a managed object; in a global, a `std` container or the
-  context a C library hands back, as a `rooted<async::promise<T>>` ([rooted](../../core/rooted/README.md)), the same promise
-  reached with `->` (the example below). Never a raw pointer kept in unmanaged memory alone, which keeps nothing
-  alive; and a root is never part of a cycle: never a `rooted` in a managed object or a task's frame
-  ([README: Handles](../README.md#handles)).
+- A promise is a handle: one word, a tracked word to the state, which copies share; `==` says whether two are the same
+  promise. It is made by the constructor, not set; there is no empty promise. A raw pointer to it kept in unmanaged
+  memory alone, such as the context a C library hands back, keeps nothing alive.
 - The value is set once; `set_value` and `set_exception` may be called from any thread, at any time, before or after
   the waits begin. A wait after the set does not wait. A value whose move into the promise throws sets the promise
   all the same, with that exception.

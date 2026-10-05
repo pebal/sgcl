@@ -13,6 +13,8 @@ namespace sgcl::txt {
 }
 ```
 
+**Requires [rooted](../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::txt::mapped_text` is a text as a search without regard to case, or to the way it was written, sees it: its
 code points folded by the full folding ([fold_case](fold_case.md)) or decomposed and put in canonical order, and the
 byte of the original text each of them came from. [folded_text](folded_text/points.md),
@@ -26,8 +28,8 @@ two.
 
 ## Rules
 
-- A plain struct of two [vectors](../core/vector/README.md): it lives where those may, on a stack or inside a managed
-  object. The ones the classes keep do not change after they are built.
+- A plain struct of two [vectors](../core/vector/README.md). The ones the classes keep do not change after they are
+  built.
 - `at` holds one entry more than `points`: the size of the text, so that the end of a match is a position too.
 
 ## Member objects

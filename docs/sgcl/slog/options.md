@@ -22,6 +22,8 @@ namespace sgcl::slog {
 }
 ```
 
+**Requires [rooted](../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::slog::options` is what a [logger](logger/README.md) is made with: Go's `HandlerOptions` with the choice of handler.
 By default text lines on `io::stderr` from `info` up, in the local time. A plain struct, filled by designated
 initializers in the order of its fields, naming what differs from the defaults:

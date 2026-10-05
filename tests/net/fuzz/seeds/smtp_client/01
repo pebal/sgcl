@@ -1,0 +1,11 @@
+220 mx
+250-mx
+250-AUTH PLAIN LOGIN
+250-CHUNKING
+250 DSN
+235 2.7.0 ok
+250 ok
+250 ok
+250 ok
+250 2.0.0 done
+221 bye

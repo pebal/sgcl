@@ -13,6 +13,8 @@ namespace sgcl::compress {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::compress::gzip::reader` is an [io reader](../../io/reader/README.md) of what the data read from another reader, `in`,
 decompresses to: gzip (RFC 1952): a header, DEFLATE, then the CRC-32 and the length of the data. It is Go's
 `gzip.NewReader`. The data is read into an input buffer and decoded into a window of 64 KB whose first half is the
@@ -34,8 +36,7 @@ and a read gives it as an `io::error` of the [compress category](../compress_cat
 
 ## Rules
 
-- The reader holds `in`, a handle of a tracked word, so it lives where a `tracked_ptr` may: a stack, a task's frame,
-  a managed object. It is move-only, and read by one thread or task at a time.
+- The reader is move-only, and read by one thread or task at a time.
 - A reader moved from has no stream, it went with the move: a read gives `io::errc::closed` (its
   [last_error](last_error.md) is `errc::io` with that error), its [close](close.md) closes
   nothing, and a [reset](reset.md) gives it a new stream. A reader moved onto itself is unchanged.

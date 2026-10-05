@@ -14,6 +14,8 @@ namespace sgcl {
 }
 ```
 
+**Requires [rooted](../rooted/README.md) outside a stack or a managed object.**
+
 `set<Key, Hash, KeyEqual>::node_type` is the node handle of `std::unordered_set`: it owns one node taken out of a
 set by [extract](../set/extract.md), the element in it untouched, and hands it to [insert](../set/insert.md) of a set,
 which links the node again without copying or moving the element. Out of a set, the element is writable through
@@ -26,9 +28,6 @@ The type depends on `Key` alone: it is the node handle of every set and every [m
 
 ## Rules
 
-- The handle holds its node by a `tracked_ptr`, so it lives on a stack or inside a managed object: never in
-  `new`/`malloc` memory, a `std` container, a global, a `thread_local` or a plain coroutine frame
-  ([The rules](../README.md#the-rules), 1).
 - It is movable and not copyable: one handle owns a node.
 - A handle dying in a sweep, inside a managed object nobody refers to any more, leaves its element to the same
   sweep, which destroys it with the node.

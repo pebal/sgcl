@@ -13,6 +13,8 @@ namespace sgcl::compress {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::compress::xz::writer` is an [io writer](../../io/writer/README.md) that compresses what is written to it into another
 writer, `out`: the `.xz` format of XZ Utils: LZMA2 in a container that checks what it holds. [close](close.md)
 writes the rest of the data, the block's check, the index and the footer and leaves `out` open.
@@ -28,8 +30,7 @@ once, at the close; [last_error](last_error.md) holds it, and [reset](reset.md) 
 
 ## Rules
 
-- The writer holds `out`, a handle of a tracked word, so it lives where a `tracked_ptr` may: a stack, a task's
-  frame, a managed object. It is move-only, and written by one thread or task at a time.
+- The writer is move-only, and written by one thread or task at a time.
 - A writer moved from is closed, its stream gone with the move: its [close](close.md) does nothing, a write
   gives `io::errc::closed` (kept as its first error), and a [reset](reset.md) gives it a new stream with the
   settings it was made with. A writer moved onto itself is unchanged.

@@ -10,6 +10,8 @@ namespace sgcl::codec {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::codec::image` is an image in memory: its size, its [pixel format](../pixel_format.md) and its pixels, row after
 row with no padding, plus the metadata of the file it came from, the EXIF block and the ICC profile as bytes and
 EXIF's orientation, which a program may set too. Every decoder of the module returns one and every encoder takes
@@ -30,9 +32,6 @@ not an image throws a [bad_expected_access](../../core/bad_expected_access/READM
 
 ## Rules
 
-- An image holds a `tracked_ptr`, so it lives where one may: on a stack or inside a managed object, never in
-  `new`/`malloc` memory, a `std` container, a global or a plain coroutine frame
-  ([The rules](../../core/README.md#the-rules), 1).
 - The pixels and the metadata are not synchronized: concurrent readers, or one writer, with the program's own
   synchronization, and that counts every copy of the handle, since copies share them. [convert](convert.md),
   [clone](clone.md), [oriented](oriented.md) and the encoders only read.

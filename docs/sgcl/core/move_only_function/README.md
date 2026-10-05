@@ -20,6 +20,8 @@ namespace sgcl {
 }
 ```
 
+**Requires [rooted](../rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::move_only_function<Signature>` is `std::move_only_function` (C++23) over the storage of
 [function](../function/README.md): a pointer word in the word, a small callable that cannot hold a pointer in the buffer of 16
 bytes, any other in a managed node of its own, traced, so that a closure capturing a `tracked_ptr` keeps its object
@@ -37,8 +39,7 @@ supported. Calling an empty one is undefined, as with `std`; debug builds assert
 
 ## Rules
 
-- The word is a `tracked_ptr`, so a `move_only_function` lives where one may: on a stack or inside a managed object
-  ([The rules](../README.md#the-rules), 1). The callable follows the rules of its captures where it lives.
+- The callable of a `move_only_function` follows the rules of its captures where the `move_only_function` lives.
 - A closure in a node is destroyed by an assignment, the assignment of `nullptr` or the destructor, at once, on the
   calling thread; the node is left to the collector.
 - Non-copyable: a callable that may not be copied has one owner. A move hands the callable over and leaves the

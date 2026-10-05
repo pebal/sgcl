@@ -104,6 +104,19 @@ else()
 endif()
 set_target_properties(bench_http_hello PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/benchmarks)
 
+# The reverse proxy load test's proxy (net/http_load/proxy.cpp, run_proxy.sh
+# there): http::reverse_proxy in front of bench_http_hello
+add_executable(bench_http_proxy ${CMAKE_CURRENT_SOURCE_DIR}/net/http_load/proxy.cpp)
+target_link_libraries(bench_http_proxy sgcl)
+target_include_directories(bench_http_proxy PRIVATE ${CMAKE_SOURCE_DIR})
+target_compile_definitions(bench_http_proxy PRIVATE NDEBUG)
+if(MSVC)
+    target_compile_options(bench_http_proxy PRIVATE /O2)
+else()
+    target_compile_options(bench_http_proxy PRIVATE -O3)
+endif()
+set_target_properties(bench_http_proxy PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/benchmarks)
+
 # Its client's side (net/http_load/postbench.cpp): the module's client
 # POSTing a body, its requests per second and its CPU per request
 add_executable(bench_http_post ${CMAKE_CURRENT_SOURCE_DIR}/net/http_load/postbench.cpp)

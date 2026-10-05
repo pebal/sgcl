@@ -10,6 +10,8 @@ namespace sgcl::txt {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::txt::collated_matches` is every occurrence of a pattern in a text counting as equal what a
 [collator](../collator/README.md) counts as equal, the text weighed a single time for all of them: the counterpart, for a
 search by collation, of [fold_matches](../fold_matches/README.md). It is a range of the library
@@ -26,8 +28,8 @@ not overlap: the next is looked for past the end of the last. The rules of a mat
 ## Rules
 
 - The weighed text is too large to copy into every iterator, so the range holds it with the pattern in one tracked
-  object, and the iterator points at that. A range lives where a `tracked_ptr` may: on a stack or inside a managed
-  object. A loop over a temporary is safe, and so is an iterator that outlives the range it came from.
+  object, and the iterator points at that. A loop over a temporary is safe, and so is an iterator that outlives the
+  range it came from.
 - A pattern weighed by another collator than the range's is weighed again once, where the range is built, rather
   than at every step of the walk.
 - An empty pattern matches nowhere: a range of every position is not what anyone asking this question wants, and it

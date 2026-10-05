@@ -10,6 +10,8 @@ namespace sgcl::net {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::net::query_params` is `application/x-www-form-urlencoded` as the WHATWG URL Standard (§5) reads and writes it:
 a list of name and value pairs in their order, a name as often as it comes, as the query of a URL and the body of an
 HTML form carry them. It is Go's `url.Values` and JavaScript's `URLSearchParams`, with the order of the latter: Go's
@@ -21,10 +23,8 @@ standard. A query is a handful of pairs, and there is no hash for the sender to 
 
 ## Rules
 
-- **A query_params holds a [vector](../../core/vector/README.md)** of pairs of [strings](../../core/string/README.md), so it lives where
-  they may: on a stack, in a task, in a managed object; in a global or a `std` container, a
-  [rooted](../../core/rooted/README.md) of it ([The rules](../../core/README.md#the-rules), 1). One thread at a time changes it.
-  A copy is a list of its own; a list moved from is empty, as the vector moved from is.
+- **A query_params holds a [vector](../../core/vector/README.md)** of pairs of [strings](../../core/string/README.md).
+  One thread at a time changes it. A copy is a list of its own; a list moved from is empty, as the vector moved from is.
 - **parse reads every text as pairs**, as the standard does: a `+` is a space, an escape that is not `%XX` stays as it
   is written, bytes that are not UTF-8 after the unescaping become U+FFFD; a leading `?` is taken off first. Its one
   refusal is the limit below.

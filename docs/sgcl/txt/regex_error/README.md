@@ -10,15 +10,12 @@ namespace sgcl::txt {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::txt::regex_error` is why a pattern given to [regex::compile](../regex/compile.md) is not one: the sentence and
 the byte of the pattern where it went wrong. The sentence is the point — "a lookahead or a lookbehind: this engine
 matches in time linear in the length of the text" tells a reader what to do, and an empty `optional` does not. It
 is the error of the `expected` that `compile` returns; it is a value, not an exception, and nothing throws it.
-
-## Rules
-
-- A `regex_error` holds a [string](../../core/string/README.md), so it lives where one may: on a stack or inside a managed
-  object.
 
 ## Member functions
 

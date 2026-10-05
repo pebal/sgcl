@@ -11,6 +11,8 @@ namespace sgcl::concurrent {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::concurrent::bounded_queue<T>` is a bounded lock-free FIFO queue shared by any number of producers and
 consumers: the bounded MPMC queue of Dmitry Vyukov, the ring of Go's buffered `chan` and of Java's
 `ArrayBlockingQueue` without the lock. The elements live in a ring of cells, a power of two of them, fixed at
@@ -39,11 +41,9 @@ a full queue makes `try_push` return `false` where Java's `offer` does. The elem
 
 ## Rules
 
-- The container is three groups of words a cache line apart (`config::cache_line_size`): the buffer, the mask
-  and the count of waiters, read by every thread and written by none but a thread about to wait; the enqueue
-  position, the producers' word; the dequeue position, the consumers'. The queue holds its buffer by a
-  `tracked_ptr`, so it lives where one may: on a thread's stack or inside a managed object
-  ([The rules](../../core/README.md#the-rules), 1).
+- The container is three groups of words a cache line apart (`config::cache_line_size`): the buffer, the mask and the
+  count of waiters, read by every thread and written by none but a thread about to wait; the enqueue position, the
+  producers' word; the dequeue position, the consumers'.
 - The capacity is rounded up to a power of two, at least two; [capacity](capacity.md) is what the
   ring holds.
 - Every member function may be called from any thread at any time. `try_push`, `try_emplace`, `try_pop`, `size`,

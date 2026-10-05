@@ -10,6 +10,8 @@ namespace sgcl::encoding {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::encoding::xml` is one node of a tree of XML 1.0 (fifth edition) with Namespaces in XML 1.0 — an element
 with its attributes and children, a text, a comment or a processing instruction — and a value that never changes,
 as [json](../json/README.md) is and the containers of [immutable](../../immutable/README.md) are: a copy is a copy of the
@@ -79,9 +81,6 @@ structures (`xml.Unmarshal`) or hands out its tokens.
   deeper than any thread's stack.
 - `parse` of a stream reads it on the thread that calls it; `async_parse` in a task gives the worker back while
   the stream waits. A document in memory never waits.
-- A node holds tracked pointers: it lives where a `tracked_ptr` may (a stack, a managed object, a managed
-  container).
-
 ### A program's types
 
 A type with `describe(field_list&)` ([field_list](../field_list/README.md)) is mapped as Go maps a structure:

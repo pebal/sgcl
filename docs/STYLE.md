@@ -87,23 +87,37 @@ members.
 2. The names block: a `cpp` block with the include line and the declarations, the class header first and the
    module header as the remark — `#include "sgcl/net/http/client.h"   // or "sgcl/net/http.h"`. No program
    and no fragment of one between the title, this block and the description.
-3. The description: what the type is, how it differs from `std` and Go. Prose, no code.
-4. `## Rules`: where an object may live, what it may hold, what waits and what does not.
-5. `## Template parameters`: a table of the parameters of the class. A container's `Hash`, `KeyEqual` and
+3. The line of rooted, on the page of a type that holds a tracked word, directly under the names block, a blank
+   line before and after it, exactly:
+
+   `**Requires [rooted](../../../core/rooted/README.md) outside a stack or a managed object.**`
+
+   bold, the link relative to the page and always to `docs/sgcl/core/rooted/README.md`. A type holds a tracked
+   word directly or through a member: a `tracked_ptr`, a `string`, a `vector` or another container of the
+   library, a handle (`io::file`, `net::http::client`), a struct of options holding a string, an
+   `optional<string>`. One glance says whether the type needs a rooted; the page of a type that holds no tracked
+   word (a plain value such as `ip_address` or `duration`, an enumeration) says nothing, never that one is not
+   needed. Whether a type holds one is decided from its code, never from its page, and kept in
+   `tools/rooted_types.txt`, against which `tools/lint_docs.py` checks the line. `## Rules` does not say it
+   again: the line says it, and the page of [rooted](sgcl/core/rooted/README.md) shows how a rooted is used.
+4. The description: what the type is, how it differs from `std` and Go. Prose, no code.
+5. `## Rules`: what an object may hold, what waits and what does not, what a copy and a move do; where it may
+   live only where the line of rooted does not say it (a guard is an object of its scope).
+6. `## Template parameters`: a table of the parameters of the class. A container's `Hash`, `KeyEqual` and
    `Compare` say their call must be noexcept: one that is not is rejected at compile time, but for the function
    objects of `std` (`std::hash`, `std::equal_to`, `std::less`, …), taken as they are.
-6. `## Member types`: a table, `Type | Definition`.
-7. `## Member objects`: the public fields, an options struct's fields, the settings, each with what it means
+7. `## Member types`: a table, `Type | Definition`.
+8. `## Member objects`: the public fields, an options struct's fields, the settings, each with what it means
    and its default.
-8. `## Member functions`: tables without code, grouped as cppreference groups them — the constructor, the
+9. `## Member functions`: tables without code, grouped as cppreference groups them — the constructor, the
    destructor and the assignment first without a heading, then `#### Element access`, `#### Iterators`,
    `#### Capacity`, `#### Modifiers` (or the groups the class has: cppreference's names first — `Lookup`,
    `Bucket interface`, `Hash policy`, `Observers` — and a name of its own only where none fits, `New versions`
    for an immutable container, `Statistics`), then `#### From mixin::<name>` for the members of each mixin.
    One row per function, its name a link to its page.
-9. `## Non-member functions`, `## Deduction guides`, `## Specializations`.
-10. `## Complexity` and, for a container, `## Iterator invalidation`.
-11. `## Example`, then `## See also`.
+10. `## Non-member functions`, `## Deduction guides`, `## Specializations`.
+11. `## Complexity` and, for a container, `## Iterator invalidation`.
+12. `## Example`, then `## See also`.
 
 A section the class has nothing for is left out. The class page has no code beside its members: their programs
 are on their own pages.
@@ -196,7 +210,7 @@ pages").
   `false` (`println("{}", req::equatable<point>)`), and the page's output block says it.
 - It compiles and runs as pasted, from the root of the tree, and prints what the page says (section 3).
 - Includes: one header per module the program uses, the module's umbrella header — `sgcl/core.h`,
-  `sgcl/io.h`, `sgcl/net.h`, `sgcl/net/http.h`, `sgcl/net/tls.h`, `sgcl/concurrent.h`,
+  `sgcl/io.h`, `sgcl/net.h`, `sgcl/net/http.h`, `sgcl/net/smtp.h`, `sgcl/net/tls.h`, `sgcl/concurrent.h`,
   `sgcl/async.h`, `sgcl/time.h`, `sgcl/encoding.h`, `sgcl/hash.h`,
   `sgcl/crypto.h`, `sgcl/compress.h`, `sgcl/codec.h`, `sgcl/slog.h`,
   `sgcl/math.h`, `sgcl/txt.h`, `sgcl/immutable.h`. Never `sgcl/sgcl.h`, never a class
@@ -268,8 +282,10 @@ Before a page is handed in:
 3. `tools/lint_docs.py <page>` (or `--changed`): 0 findings. It checks the form of section 1 that a reader of
    the page would see broken — the breadcrumb, the title and its escaped `<`, HTML, the text and the target of
    every link, the header row of every table, a fragment of code, the numbering of overloads, the sections and
-   their order, a README's programs and the order of its tables. A finding on a page in the old form is fixed by
-   moving the page to this form, not by changing the lint.
+   their order, a README's programs and the order of its tables, the line of rooted (on a page listed in
+   `tools/rooted_types.txt`, once, exactly, directly under the names block, the link to the page of rooted; on a
+   page not listed, none). A finding on a page in the old form is fixed by moving the page to this form, not by
+   changing the lint.
 4. `tools/lint_handles.py <page>`: 0 findings. It reads the programs of the page for the rule of the handles
    (section 2): a handle in a container of the standard library, in a lambda copied into a thread or a
    `std::function`, in a global, a `static`, `new` memory or an exception object. A Release run of the program
@@ -278,7 +294,13 @@ Before a page is handed in:
    output:` label, a note in a label) gives 0 over `docs/` and `README.md`; `detail::` inside the programs of
    the page gives 0.
 6. What a page says about types — which ones satisfy a requirement, what a parameter takes — is checked by
-   `static_assert`s in a scratch file before the page is handed in.
+   `static_assert`s in a scratch file before the page is handed in. A new page of a class, or a class whose
+   members changed, has its type decided from its header: one that holds a tracked word, directly or through a
+   member, a base or an alternative (a container of `T` whatever `T` is), goes into `tools/rooted_types.txt` and
+   its page gets the line of rooted; one that holds none stays out and its page has no line. A doubtful case is
+   settled by the type's record layout (`clang++ -Xclang -fdump-record-layouts`, every member to the last word)
+   or by a Debug build that constructs the type in `malloc` memory, where the placement assertion of a
+   `tracked_ptr` member fires.
 7. The change touches only what it says: a relabelling changes labels, a comment change changes comments,
    a code change is announced as one. A program's code is not rewritten to make its output stable; the
    output rule of section 3 covers that.

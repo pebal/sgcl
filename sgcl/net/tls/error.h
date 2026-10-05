@@ -112,6 +112,8 @@ namespace sgcl::net::tls {
                 case reason::incompatible_usage: return "certificate specifies an incompatible key usage";
                 case reason::unhandled_critical_extension: return "certificate with an unhandled critical extension";
                 case reason::too_many_constraints: return "certificate chain with too many name constraints";
+                case reason::revoked: return "certificate is revoked";
+                case reason::revocation_unknown: return "certificate revocation status unknown";
                 case reason::none: break;
             }
             return "certificate does not verify";

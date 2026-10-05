@@ -10,6 +10,8 @@ namespace sgcl::txt {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::txt::match` is one match of a [regex](../regex/README.md): the whole of it and each group, as
 [slices](../../core/slice/README.md) of the text it was found in, with their byte positions. It is what
 [regex::find](../regex/find.md) returns and what [regex::all](../regex/all.md) walks: Python's `re.Match`, C++'s
@@ -23,9 +25,8 @@ in the match is nothing, which an empty group is not: in `(a)|(b)` over `"b"` gr
 
 ## Rules
 
-- A match holds a slice of its text and, where the pattern has groups or names, a `tracked_ptr` to the compiled
-  pattern; so it lives where those may, on a stack or inside a managed object. It needs neither the
-  [regex](../regex/README.md) nor the string it came from to stay alive.
+- A match holds a slice of its text and, where the pattern has groups or names, a `tracked_ptr` to the compiled pattern.
+  It needs neither the [regex](../regex/README.md) nor the string it came from to stay alive.
 - The positions are byte offsets in the text: [begin_at](begin_at.md), [end_at](end_at.md). Up to four
   groups their positions are in the match itself, past that in a block of plain memory a copy duplicates.
 - A match does not change after it is made; a copy is independent.

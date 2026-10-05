@@ -13,6 +13,8 @@ namespace sgcl::txt {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::txt::fold_matches::iterator` is the forward iterator of [fold_matches](../fold_matches/README.md), and of
 `normalized_matches` the same way: its `*` is the slice of the original text an occurrence covers, made when it is
 asked for, and it knows the byte position of that occurrence and its size — which need not be the pattern's, since

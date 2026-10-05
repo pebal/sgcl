@@ -10,6 +10,8 @@ namespace sgcl::io {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::io::reader` is any reader, held as a value: whatever meets [req::reader](../req/reader.md) or
 [req::async_reader](../req/reader.md) — a handle of the library (a [file](../file/README.md), a [buffer](../buffer/README.md), a
 [buffered_reader](../buffered_reader/README.md), a `net::connection`), a stream of the program's, a lambda — kept where a
@@ -36,8 +38,6 @@ is and never make a half: `io::async_copy` of a source that has only `read` does
 
 ## Rules
 
-- A reader holds a `tracked_ptr`, so it lives where one may: on a stack, in a task, in a managed object; in a
-  global or a `std` container, a [rooted](../../core/rooted/README.md) of it ([The rules](../../core/README.md#the-rules), 1).
 - A copy is the same stream: the three words copied, the stream shared.
 - One thread or task at a time on one stream, as with the stream itself.
 - An async read that runs on the blocking pool (the async half made of a stream's `read`) and is given a slice

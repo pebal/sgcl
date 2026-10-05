@@ -10,6 +10,8 @@ namespace sgcl::encoding {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::encoding::error` is why an input is not what its format says: the [code](code.md) of what went wrong
 (an [errc](../errc.md)), the byte of the input it was found at, the line and the column when the format has lines, the
 path inside the structure when it has one (JSON, XML), and the error of the stream when a stream failed. It is the
@@ -29,8 +31,7 @@ its `last_error()`.
 
 ## Rules
 
-- An error is a value: copied, compared, held in an `expected`. It holds two [strings](../../core/string/README.md) and an
-  optional `io::error`, so it lives where a `tracked_ptr` may.
+- An error is a value: copied, compared, held in an `expected`.
 - **The offset is where the input stops being the start of something valid**: the character outside the alphabet,
   the padding where the data cannot end, the first character after the padding, and the end of the input when it is
   cut — `QQ=x` fails at the `x`, `QUJ` at its end. A strict base64 or base32 refuses bits past the data at the

@@ -10,6 +10,8 @@ namespace sgcl::async {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::async::semaphore` holds *n* permits: [acquire](acquire.md) takes one, waiting while there is none,
 and [release](release.md) gives one back. Under it is a channel holding *n* signals, Go's idiom of a
 buffered channel as a counting semaphore, so it is waited for the ways a [channel](../channel/README.md) is: blocking on a
@@ -21,9 +23,8 @@ release past the maximum is lost rather than undefined, and a task that waits pa
 
 ## Rules
 
-- A semaphore is an object, not a handle: it lives where a `tracked_ptr` may, on a stack or inside a managed object
-  ([The rules](../../core/README.md#the-rules), 1), and is neither copied nor moved. Tasks reach it through the
-  object that holds it.
+- A semaphore is an object, not a handle: it is neither copied nor moved. Tasks reach it through the object that holds
+  it.
 - A semaphore never holds more permits than its maximum: a [release](release.md) that finds the channel
   full is lost.
 - `semaphore(0)`, made closed, has a maximum of one: a release opens it, which a channel of capacity zero, a

@@ -6,6 +6,7 @@
 request& set_body(const string& text) noexcept;                                               // (1)
 request& set_body(vector<byte> bytes) noexcept;                                               // (2)
 request& set_body(const io::reader& stream, optional<uint64_t> length = nullopt) noexcept;    // (3)
+request& set_body(const http::form& f) noexcept;                                              // (4)
 ```
 
 Sets the body the request sends, in place of any set before, Go's `r.Body` with its `ContentLength`. The client sends
@@ -17,8 +18,12 @@ the length it knows as `Content-Length` and chunked framing when it knows none.
    that many bytes (a stream that ends sooner fails the send, `io::errc::unexpected_eof`); without, chunked. A stream
    is read once, so a request with one is neither sent again on a new connection nor redirected by a 307 or a 308
    (the 307 is then the response).
+4. A [form](../form/README.md), `multipart/form-data`: `Content-Type` set to the form's (its boundary, in place of
+   any set before), the body's length taken when the send begins, each file read from disk as the body goes out. A
+   file that cannot be read then is the send's error, before a connection is dialed.
 
-- (1–2) A body in memory can be sent again: on a new connection after a pooled one failed, and after a 307 or a 308.
+- (1–2, 4) A body in memory, or a form, can be sent again: on a new connection after a pooled one failed, and after
+  a 307 or a 308.
 
 ## Parameters
 
@@ -28,6 +33,7 @@ the length it knows as `Content-Length` and chunked framing when it knows none.
 | `bytes` | the body as bytes |
 | `stream` | the stream the body is read from when the request is sent |
 | `length` | the number of bytes the stream gives, or `nullopt` for chunked |
+| `f` | the form: its fields and its files |
 
 ## Return value
 
@@ -87,6 +93,7 @@ from a stream (Content-Length)
 
 ## See also
 
-- [post](../client/post.md): a POST of text in one call
+- [post](../client/post.md): a POST of text or of a form in one call
+- [form](../form/README.md): a multipart/form-data body
 - [text](text.md): the body read on the server
 - [sgcl::net::http::request](README.md)

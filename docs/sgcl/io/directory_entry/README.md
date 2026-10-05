@@ -10,14 +10,11 @@ namespace sgcl::io {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `io::directory_entry` is an entry of a directory listing, Go's `fs.DirEntry`: what [read_dir](../read_dir.md) returns
 and [walk_dir](../walk_dir.md) gives its function. The name and the type come from the listing itself, with no stat
 per entry; the rest of what a stat says is [info()](info.md), asked when needed.
-
-## Rules
-
-- The struct holds [string](../../core/string/README.md)s, so it lives where one may: on a stack or inside a managed object
-  ([The rules](../../core/README.md#the-rules), 1).
 
 ## Member objects
 

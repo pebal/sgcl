@@ -13,6 +13,8 @@ namespace sgcl::txt {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `txt::words::iterator` is the forward iterator of [words](../words/README.md): its `*` is a word, a slice of the text, found
 when the iterator reaches it, and it knows the byte position of that element and its size in bytes, for the code that
 goes back to the bytes: a slice of the text around it, a search from it, a position to report.

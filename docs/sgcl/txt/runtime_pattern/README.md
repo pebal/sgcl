@@ -10,6 +10,8 @@ namespace sgcl::txt {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 A pattern of [format](../format.md) that the compiler never saw: a catalogue of translations read from a file when the
 program starts, the text of a message chosen by the language of whoever reads it — `"{} left"` in one file and
 `"pozostało: {}"` in another. No `consteval` can help there, so the asking moves to where the pattern arrives, and the
@@ -24,8 +26,6 @@ falls back on a pattern of its own.
 
 ## Rules
 
-- It holds a `string`, so it lives where a `string` may: on a stack or inside a managed object
-  ([the rules of core](../../core/README.md#the-rules), 1).
 - Nothing is read when it is made: the pattern is read by the call that takes it, every time, and [fits](../fits.md)
   asks the question once.
 

@@ -13,6 +13,8 @@ namespace sgcl::txt {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `txt::line_breaks::iterator` is the forward iterator of [line_breaks](../line_breaks/README.md): its `*` is a piece that must
 stay together, a slice of the text, found when the iterator reaches it, and it knows the byte position of that element
 and its size in bytes, for the code that goes back to the bytes: a slice of the text around it, a search from it, a

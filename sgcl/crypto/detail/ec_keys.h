@@ -308,19 +308,39 @@ namespace sgcl::crypto::detail {
             unsigned char u2b[size];
             limbs_to_be(u1b, u1);
             limbs_to_be(u2b, u2);
-            typename E::point x = E::base_mult(u1b);
-            typename E::point y = E::scalar_mult(typename E::point{q.x, q.y, F::one()}, u2b);
-            E::add(x, x, y);
-            if (E::identity_mask(x) != 0) {
+            typename E::jacobian x = E::double_mult_vartime(u1b, q, u2b);
+            if (E::is_zero(x.z)) {
                 return false;
             }
-            typename E::affine a = E::to_affine(x);
-            sc v = reduce_n(F::from_mont(a.x));
-            uint64_t diff = 0;
-            for (size_t i = 0; i < C::words; ++i) {
-                diff |= v[i] ^ r[i];
+            typename F::element zz;
+            F::sqr(zz, x.z);
+            return x_matches(x.x, zz, r);
+        }
+
+        // Whether x mod n = r for x = X/D (a point not the identity: D = Z
+        // projective, Z^2 Jacobian), without the inversion of D: x is below
+        // p, so x mod n = r when X = r D, or when X = (r + n) D and r + n is
+        // below p (a field inversion costs as much as 300 multiplications).
+        // Public data
+        static bool x_matches(const typename F::element& X, const typename F::element& D, const sc& r) noexcept {
+            auto equal = [](const typename F::element& a, const typename F::element& b) noexcept {
+                uint64_t diff = 0;
+                for (size_t i = 0; i < C::words; ++i) {
+                    diff |= a[i] ^ b[i];
+                }
+                return diff == 0;
+            };
+            typename F::element t;
+            F::mul(t, F::to_mont(r), D);   // r < n < p: a field element as it is
+            if (equal(t, X)) {
+                return true;
             }
-            return diff == 0;
+            sc rn;
+            if (limbs_add(rn, r, S::k.m) != 0 || limbs_less_mask(rn, F::k.m) == 0) {
+                return false;   // r + n is not below p
+            }
+            F::mul(t, F::to_mont(rn), D);
+            return equal(t, X);
         }
 
         // An ECDSA-Sig-Value: SEQUENCE { INTEGER r, INTEGER s }, each in

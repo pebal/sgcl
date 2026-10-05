@@ -11,6 +11,8 @@ namespace sgcl::async {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::async::broadcast<T>` is a channel every subscriber receives every value from: tokio's `broadcast`, Kotlin's
 `SharedFlow`, the event bus of a user interface. A [channel](../channel/README.md) hands each element to one receiver; here
 `b.send(v)` goes to every [subscription](../broadcast-subscription/README.md) alive, each reading at its own pace from one ring
@@ -49,10 +51,8 @@ with a subscription could be a stale one.
 
 ## Rules
 
-- A `broadcast` holds its ring by a `tracked_ptr`, so it lives where one may: on a thread's stack or inside a managed
-  object ([The rules](../../core/README.md#the-rules), 1); it is neither copyable nor movable. A subscription is movable,
-  not copyable, and lives in the same places (a task's parameter or local, a member of a managed object); the ring
-  outlives the `broadcast` object while a subscription holds it.
+- A `broadcast` is neither copyable nor movable. A subscription is movable, not copyable; the ring outlives the
+  `broadcast` object while a subscription holds it.
 - `T` is copied to every subscription.
 - A send never waits and never fails but for the close: a value nobody subscribes to is dropped, and a subscription
   that does not read is lapped, never a brake on the sender (Go's channel and tokio's `mpsc` apply back-pressure,

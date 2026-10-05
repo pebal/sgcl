@@ -233,6 +233,7 @@ namespace sgcl::crypto::x509::detail {
     inline constexpr size_t max_constraint_subtrees = 256;
     inline constexpr size_t max_policies = 64;
     inline constexpr size_t max_ext_key_usages = 64;
+    inline constexpr size_t max_access_locations = 64;   // the URIs of an AIA or of the CRL distribution points
 
     // The OIDs read (content bytes)
     namespace oid {
@@ -257,6 +258,10 @@ namespace sgcl::crypto::x509::detail {
         inline constexpr unsigned char prime256v1[] = {0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07};
         inline constexpr unsigned char secp384r1[] = {0x2b, 0x81, 0x04, 0x00, 0x22};
         inline constexpr unsigned char authority_info_access[] = {0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x01, 0x01};
+        inline constexpr unsigned char tls_feature[] = {0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x01, 0x18};   // RFC 7633
+        inline constexpr unsigned char ad_ocsp[] = {0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x30, 0x01};
+        inline constexpr unsigned char ad_ca_issuers[] = {0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x30, 0x02};
+        inline constexpr unsigned char sha1[] = {0x2b, 0x0e, 0x03, 0x02, 0x1a};
         inline constexpr unsigned char any_ext_key_usage[] = {0x55, 0x1d, 0x25, 0x00};
         inline constexpr unsigned char kp_prefix[] = {0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x03};   // 1.3.6.1.5.5.7.3.x
         inline constexpr unsigned char ms_sgc[] = {0x2b, 0x06, 0x01, 0x04, 0x01, 0x82, 0x37, 0x0a, 0x03, 0x03};
@@ -309,6 +314,9 @@ namespace sgcl::crypto::x509::detail {
         vector<ip_range> permitted_ip, excluded_ip;
         vector<string> policies;
         vector<string> unhandled_critical;
+        vector<string> ocsp_servers, issuing_certificate_urls;   // authorityInfoAccess: id-ad-ocsp, id-ad-caIssuers
+        vector<string> crl_distribution_points;                  // the URIs of the fullNames of cRLDistributionPoints
+        bool must_staple = false;                                // the TLS feature status_request (RFC 7633)
 
         SGCL_INLINE_HOT slice<const byte> range(size_t at, size_t n) const noexcept {
             return raw.as_slice().subslice(at, n);
@@ -484,11 +492,19 @@ namespace sgcl::crypto::x509::detail {
         // with none, RSA-PSS with the parameters Go takes: MGF1 over the
         // same hash, the salt as long as the hash, the trailer 1
         expected<void, error> signature_algorithm_of(DerReader alg) noexcept {
+            return read_signature_algorithm(alg, c.sig_algorithm, c.sig_algorithm_oid);
+        }
+
+        // The same for any structure signed as a certificate is (an OCSP
+        // response, a CRL): the algorithm in `out`, its OID's text in `oid`;
+        // malformed only for an AlgorithmIdentifier that is not DER
+        static expected<void, error> read_signature_algorithm(DerReader alg, signature_algorithm& out, string& oid_out) noexcept {
             DerReader o;
             if (!alg.read_oid(o)) {
                 return unexpected<error>(fail(alg.offset(), "a malformed signature algorithm OID"));
             }
-            c.sig_algorithm_oid = string(oid_text(o.data(), o.size()));
+            oid_out = string(oid_text(o.data(), o.size()));
+            out = signature_algorithm::unknown;
             DerReader params = alg;
             bool no_params = alg.empty();
             if (!no_params) {
@@ -505,7 +521,7 @@ namespace sgcl::crypto::x509::detail {
                 null_params = p.read_exact(der::null, nothing, 0) && p.empty();
             }
             auto set = [&](signature_algorithm a) {
-                c.sig_algorithm = a;
+                out = a;
             };
             bool plain = no_params || null_params;
             if (oid::is(o, oid::md2_rsa) && plain) set(signature_algorithm::md2_with_rsa);
@@ -723,8 +739,8 @@ namespace sgcl::crypto::x509::detail {
                     }
                     case 30:     // nameConstraints
                         return name_constraints_of(value, critical, unhandled);
-                    case 31:     // cRLDistributionPoints: read, not used
-                        return sequence_of_sequences(value, "malformed CRL distribution points");
+                    case 31:     // cRLDistributionPoints
+                        return crl_distribution_points_of(value);
                     case 32:     // certificatePolicies
                         return policies_of(value);
                     case 33:     // policyMappings: read, not enforced
@@ -768,25 +784,137 @@ namespace sgcl::crypto::x509::detail {
                 if (critical) {
                     return unexpected<error>(fail(at, "authority information access marked critical"));
                 }
-                return sequence_of_sequences(value, "malformed authority information access");
+                return authority_info_access_of(value);
+            } else if (oid::is(o, oid::tls_feature)) {
+                return tls_feature_of(value);
             }
             unhandled = true;
             return {};
         }
 
-        // A SEQUENCE of SEQUENCEs, each well formed: what an extension
-        // read and not used must be to be taken
-        expected<void, error> sequence_of_sequences(DerReader value, const char* what) noexcept {
+        // A uniformResourceIdentifier of a GeneralName read where a
+        // location is (IA5, at most max_access_locations of a list)
+        expected<void, error> location_of(const DerReader& gn, size_t at, vector<string>& out, const char* what) noexcept {
+            if (!ia5_valid(gn.data(), gn.size())) {
+                return unexpected<error>(fail(at, what));
+            }
+            if (out.size() == max_access_locations) {
+                return unexpected<error>(fail(at, "more than 64 locations of one kind"));
+            }
+            out.push_back(text(gn));
+            return {};
+        }
+
+        // authorityInfoAccess (RFC 5280 §4.2.2.1): the URIs of id-ad-ocsp
+        // and id-ad-caIssuers; other methods and other kinds of name
+        // passed over
+        expected<void, error> authority_info_access_of(DerReader value) noexcept {
             size_t at = value.offset();
+            const char* what = "malformed authority information access";
             DerReader seq;
             if (!value.read(der::sequence, seq) || !value.empty()) {
                 return unexpected<error>(fail(at, what));
             }
             while (!seq.empty()) {
-                DerReader item;
-                if (!seq.read(der::sequence, item)) {
-                    return unexpected<error>(fail(at, what));
+                DerReader ad, method, gn;
+                unsigned char tag;
+                size_t dat = seq.offset();
+                if (!seq.read(der::sequence, ad) || !ad.read_oid(method) || !ad.read_any(tag, gn) || !ad.empty()) {
+                    return unexpected<error>(fail(dat, what));
                 }
+                if (tag != 0x86) {
+                    continue;
+                }
+                if (oid::is(method, oid::ad_ocsp)) {
+                    if (auto r = location_of(gn, dat, c.ocsp_servers, what); !r) {
+                        return r;
+                    }
+                } else if (oid::is(method, oid::ad_ca_issuers)) {
+                    if (auto r = location_of(gn, dat, c.issuing_certificate_urls, what); !r) {
+                        return r;
+                    }
+                }
+            }
+            return {};
+        }
+
+        // cRLDistributionPoints (RFC 5280 §4.2.1.13): the URIs of each
+        // point's fullName; a name relative to the issuer, the reasons and
+        // the cRLIssuer read for their syntax
+        expected<void, error> crl_distribution_points_of(DerReader value) noexcept {
+            size_t at = value.offset();
+            const char* what = "malformed CRL distribution points";
+            DerReader seq;
+            if (!value.read(der::sequence, seq) || !value.empty()) {
+                return unexpected<error>(fail(at, what));
+            }
+            while (!seq.empty()) {
+                DerReader dp;
+                size_t dat = seq.offset();
+                if (!seq.read(der::sequence, dp)) {
+                    return unexpected<error>(fail(dat, what));
+                }
+                DerReader name;
+                bool present;
+                if (!dp.read_optional(der::context0, name, present)) {
+                    return unexpected<error>(fail(dat, what));
+                }
+                if (present) {
+                    DerReader full;
+                    bool has_full;
+                    if (!name.read_optional(der::context0, full, has_full)) {
+                        return unexpected<error>(fail(dat, what));
+                    }
+                    if (has_full) {
+                        while (!full.empty()) {
+                            DerReader gn;
+                            unsigned char tag;
+                            if (!full.read_any(tag, gn)) {
+                                return unexpected<error>(fail(dat, what));
+                            }
+                            if (tag == 0x86) {
+                                if (auto r = location_of(gn, dat, c.crl_distribution_points, what); !r) {
+                                    return r;
+                                }
+                            }
+                        }
+                    } else {
+                        DerReader rdn;
+                        if (!name.read(der::context1, rdn)) {
+                            return unexpected<error>(fail(dat, what));
+                        }
+                    }
+                    if (!name.empty()) {
+                        return unexpected<error>(fail(dat, what));
+                    }
+                }
+                while (!dp.empty()) {   // reasons [1], cRLIssuer [2]
+                    DerReader skip;
+                    unsigned char tag;
+                    if (!dp.read_any(tag, skip) || (tag != 0x81 && tag != 0xa2)) {
+                        return unexpected<error>(fail(dat, what));
+                    }
+                }
+            }
+            return {};
+        }
+
+        // The TLS feature extension (RFC 7633): a SEQUENCE of INTEGERs, the
+        // extension types of TLS a server must answer; status_request (5)
+        // is OCSP Must-Staple
+        expected<void, error> tls_feature_of(DerReader value) noexcept {
+            size_t at = value.offset();
+            DerReader seq;
+            if (!value.read(der::sequence, seq) || !value.empty()) {
+                return unexpected<error>(fail(at, "a malformed TLS feature extension"));
+            }
+            size_t count = 0;
+            while (!seq.empty()) {
+                uint64_t f;
+                if (++count > max_access_locations || !seq.read_small_unsigned(f)) {
+                    return unexpected<error>(fail(at, "a malformed TLS feature extension"));
+                }
+                c.must_staple |= f == 5;
             }
             return {};
         }

@@ -59,7 +59,7 @@ TEST(EncodingBoundaries_Tests, ErrorDefaultCopiedAndMoved) {
     (void)copy.message();
     // a code outside the list has words of its own; 0 is no code of it
     EXPECT_EQ(encoding_category().message(0), "unknown encoding error");
-    EXPECT_EQ(encoding_category().message(int(encoding::errc::io) + 1), "unknown encoding error");
+    EXPECT_EQ(encoding_category().message(int(encoding::errc::limit_exceeded) + 1), "unknown encoding error");
     EXPECT_EQ(encoding_category().message(-1), "unknown encoding error");
 }
 

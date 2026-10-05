@@ -10,6 +10,8 @@ namespace sgcl::codec {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::codec::error` is why an image file is not an image, or an image not a file: the [code](code.md) from
 the one list of every format ([errc](../errc.md)), the [byte](offset.md) of the input where the failure was
 found, the [error of the stream](io_error.md) when the input came from one and that failed, and a
@@ -24,8 +26,7 @@ the error, its `what()` the error's message.
 
 ## Rules
 
-- An error is a value: it is copied (never with a throw), compared and held in an `expected`. It holds a
-  [string](../../core/string/README.md) and an [io::error](../../io/error/README.md), so it lives where a string may.
+- An error is a value: it is copied (never with a throw), compared and held in an `expected`.
 - The codes start at 1, so that a `std::error_code` of 0 is success; an `errc` converts to one of
   [codec_category](../codec_category.md).
 - The offset is in bytes from the start of the input, at the header or the field that failed; 0 where the failure

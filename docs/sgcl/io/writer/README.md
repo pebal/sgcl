@@ -10,6 +10,8 @@ namespace sgcl::io {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::io::writer` is any writer, held as a value: whatever meets [req::writer](../req/writer.md) or
 [req::async_writer](../req/writer.md) — a handle of the library (a [file](../file/README.md), a [buffer](../buffer/README.md), a
 [buffered_writer](../buffered_writer/README.md), a `net::connection`), a standard stream, a stream of the program's, a lambda
@@ -33,8 +35,6 @@ or fails, as Go's `Write` does; a callable that returns nothing is a writer that
 
 ## Rules
 
-- A writer holds a `tracked_ptr`, so it lives where one may: on a stack, in a task, in a managed object; in a
-  global or a `std` container, a [rooted](../../core/rooted/README.md) of it ([The rules](../../core/README.md#the-rules), 1).
 - A copy is the same stream: the three words copied, the stream shared.
 - One thread or task at a time on one stream, as with the stream itself.
 - An async write that runs on the blocking pool (the async half made of a stream's `write`) and is given a slice

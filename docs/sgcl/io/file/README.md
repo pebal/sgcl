@@ -11,6 +11,8 @@ namespace sgcl::io {
 }
 ```
 
+**Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::io::file` is one class for every descriptor — a regular file, a pipe, a terminal, later a socket — a stream
 with a position. A read or a write is the system call on the descriptor. The asynchronous form of an operation goes
 one of two ways, chosen when the file is made: a regular file's (and a terminal's) runs the call on the
@@ -43,10 +45,6 @@ pool for a regular file and by the reactor for a pipe or a socket.
   closer and a seeker ([req::reader](../req/reader.md), [req::writer](../req/writer.md), [req::closer](../req/closer.md),
   [req::seeker](../req/seeker.md)). A `file` made by its default constructor holds none (`!f`); an operation on it is
   a contract violation.
-- A handle is a tracked word: on a stack, in a task, in a managed object. In a global or a `std` container it goes
-  into a [rooted](../../core/rooted/README.md): `rooted<io::file> log(io::open(p));`, then `log->write(...)` — a copy of the
-  handle in a managed object of its own under a root, the same file. A root is never part of a cycle: a `rooted`
-  never lies in a managed object or in a task's frame, where the handle itself goes.
 - A stream made of a file (`io::reader in = f;`, [reader](../reader/README.md), [writer](../writer/README.md)) holds the file itself,
   not the handle: the handle may go first.
 - [close](close.md) from any thread or task ends the file: no operation starts after it, and an operation

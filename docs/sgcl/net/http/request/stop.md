@@ -8,8 +8,10 @@ async::stop_token stop() const noexcept;
 
 Returns a [stop token](../../../async/stop_token/README.md) of a received request, Go's `r.Context()`: it is stopped when
 the server closes ([close](../server/close.md), or the end of a [shutdown](../server/shutdown.md) for this
-connection) and when a write of the response fails, the client gone. A long handler waits on it or checks it, and
-gives up the work nobody will receive. A request the program built has a token that is never stopped.
+connection), when a write of the response fails, the client gone, and over HTTP/2 when the connection ends. A long
+handler waits on it or checks it, and gives up the work nobody will receive; a
+[reverse_proxy](../reverse_proxy/README.md) ends its backend's exchange by it. A request the program built has the
+token [set_stop](set_stop.md) gave it, and an empty one, never stopped, by default.
 
 ## Parameters
 

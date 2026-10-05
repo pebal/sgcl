@@ -16,6 +16,8 @@ namespace sgcl::compress {
 }
 ```
 
+**Requires [rooted](../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::compress::zlib::options` is how a zlib stream is made and read: the [level](level/README.md) of the encoder and a
 preset dictionary, data both sides agree on in advance, which the first matches may refer to.
 [compress](zlib/compress.md) and the [writer](zlib-writer/README.md) take both, and name the dictionary in the header by

@@ -21,6 +21,8 @@ namespace sgcl::compress {
 }
 ```
 
+**Requires [rooted](../core/rooted/README.md) outside a stack or a managed object.**
+
 `sgcl::compress::gzip_header` is the header of a gzip member (RFC 1952, 2.3): every field optional. The
 [writer](gzip-writer/README.md) and [compress](gzip/compress.md) write the one of their [options](gzip-options.md) before the
 data; the [reader](gzip-reader/README.md) reads each member's ([header](gzip-reader/header.md)).
