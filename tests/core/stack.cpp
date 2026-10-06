@@ -39,6 +39,35 @@ namespace {
     }
 }
 
+namespace {
+    // A frame with a large local buffer written only at its low end (next to
+    // the stack pointer): the stack probes of a big frame (___chkstk_darwin,
+    // -fstack-clash-protection) only read the pages they cross, so those pages
+    // stay out of the resident set, a hole between the caller's frames and the
+    // deeper ones. The scan must look below it.
+    SGCL_NOINLINE int hold_below_a_hole(const tracked_ptr<Holder>& holder) {
+        char hole[96 * 1024];
+        hole[0] = 1;
+        asm volatile("" :: "r"(hole) : "memory");
+        return hold_deep(0, holder);
+    }
+}
+
+// A root in a frame below a hole of pages never written (a big buffer used at
+// one end), on a thread of its own whose stack the collector has not seen yet.
+// A scan that took the first unused page for the end of the stack (a growth-
+// only query, measured unsound on macOS) freed the object under the frame.
+TEST(Stack_Tests, RootBelowAnUnwrittenBufferSurvives) {
+    for (int round = 0; round < 8; ++round) {
+        tracked_ptr<Holder> holder = make_tracked<Holder>();
+        holder->ptr = make_tracked<Payload>(9);
+        int seen = 0;
+        std::thread worker([&] { seen = hold_below_a_hole(holder); });
+        worker.join();
+        ASSERT_EQ(seen, 9) << "round " << round;
+    }
+}
+
 // A thread that never allocates still holds roots: copying a pointer out of a
 // shared object onto its stack registers the thread, so the object survives
 // after the shared reference is gone.

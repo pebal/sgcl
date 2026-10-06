@@ -419,49 +419,6 @@ namespace sgcl::detail::os {
 #endif
     }
 
-#if !defined(_WIN32)
-    // The lowest page of the unbroken run of used pages that goes down from
-    // the page at `top` to the page at `floor` (both page-aligned, floor <=
-    // top), asked one page per call and ending at the first unused page;
-    // top + page when the page at top is unused. Used as in touched_pages:
-    // resident or swapped out. The stack scan asks only about the pages
-    // beyond the deepest one it knows used (collector.h:
-    // _thread_stack_segments), so a cycle in which the stack did not grow
-    // asks about one page. Not on Windows: touched_pages reads the few
-    // regions of a stack there.
-    inline uintptr_t used_pages_down(uintptr_t top, uintptr_t floor, size_t page) noexcept {
-#if defined(__linux__)
-        int fd = ::open("/proc/self/pagemap", O_RDONLY | O_CLOEXEC);
-#endif
-        auto low = top + page;
-        for (auto p = top;; p -= page) {
-            unsigned char used = 0;
-#if defined(__linux__)
-            uint64_t entry;
-            if (fd >= 0 && ::pread(fd, &entry, sizeof(entry), (off_t)(p / page * sizeof(uint64_t))) == (ssize_t)sizeof(entry)) {
-                used = (entry >> 62) ? 1 : 0;   // present or swapped
-            } else
-#endif
-            {
-                _touched_pages_mincore(p, 1, page, &used);
-            }
-            if (!used) {
-                break;
-            }
-            low = p;
-            if (p == floor) {
-                break;
-            }
-        }
-#if defined(__linux__)
-        if (fd >= 0) {
-            ::close(fd);
-        }
-#endif
-        return low;
-    }
-#endif
-
     // Calls fn(arg) with the callee-saved registers zeroed for the duration,
     // their values kept inverted in this frame, after zeroing the stack
     // between `limit` and the frame (nothing when limit is not below it).

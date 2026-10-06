@@ -821,9 +821,8 @@ namespace sgcl::detail {
         // covered by the write barrier (state Reachable on the target), the
         // same argument as for pointers stored into objects.
         //
-        // First the used pages of every stack are found (the pages beyond
-        // the deepest one known used are asked about: _thread_stack_segments)
-        // and cut into segments. Small total: this
+        // First the used pages of every stack are found (one mincore or
+        // pagemap query per thread) and cut into segments. Small total: this
         // thread scans and marks them as before. Large total: the helpers
         // read the segments and collect the words that point into the heap,
         // this thread marks the collected words afterwards. The helpers only
@@ -842,7 +841,7 @@ namespace sgcl::detail {
                     continue;
                 }
                 _scanned_threads.push_back(thread);
-                bytes += _thread_stack_segments(thread);
+                bytes += _stack_segments_of(thread->stack_begin, thread->stack_end);
             }
             auto workers = _pool.workers(bytes, config::stack_scan_threshold, true);
             if (!workers) {
@@ -877,94 +876,8 @@ namespace sgcl::detail {
             }
         }
 
-        // Appends the used part of a registered thread's stack to
-        // _stack_segments; returns the bytes added. The used pages of a stack
-        // are one run from its top down to the deepest page the thread has
-        // reached, and stay used for the thread's life (a stack only grows,
-        // its pages are not given back): a frame is entered by moving the
-        // stack pointer down and writing next to it, and a frame larger than
-        // the probe interval touches every page it spans on the way down
-        // before using it (stack probes: ___chkstk_darwin on Apple's clang,
-        // __chkstk on Windows, -fstack-clash-protection on Linux). So the
-        // pages down to the deepest one known used (Data::stack_used, the
-        // collector's) count as used without asking, and only the pages
-        // beyond are asked about, one per call up to the first unused one:
-        // a cycle in which the stack did not grow asks about one page, and
-        // each page of the stack is asked about used once in the thread's
-        // life. Data is made anew for every thread (Thread()), so a new
-        // thread starts with nothing known. Builds with assertions
-        // (or -DSGCL_CHECK_STACK_PAGES) also read the whole range and stop
-        // the program at a used page beyond an unused one below the run:
-        // a frame that skipped a page, whose pages this scan would miss.
-        size_t _thread_stack_segments(Thread::Data* thread) noexcept {
-#if defined(_WIN32)
-            return _stack_segments_of(thread->stack_begin, thread->stack_end);
-#else
-            auto begin = (thread->stack_begin + sizeof(uintptr_t) - 1) & ~(uintptr_t)(sizeof(uintptr_t) - 1);
-            auto end = thread->stack_end & ~(uintptr_t)(sizeof(uintptr_t) - 1);
-            if (begin >= end) {
-                return 0;
-            }
-            auto page = os::page_size();
-            auto floor = begin & ~(page - 1);
-            auto top = (end - 1) & ~(page - 1);
-            auto low = thread->stack_used ? thread->stack_used : top + page;
-            if (low > floor) {
-                low = os::used_pages_down(low - page, floor, page);
-            }
-            if (low > top) {
-                // the top page unused: not a stack this scan knows, the
-                // whole range is asked about as before
-                return _stack_segments_of(begin, end);
-            }
-            if (low != thread->stack_used) {
-                thread->stack_used = low;   // written on growth only: the line holds the thread's hazard pointer
-            }
-#if !defined(NDEBUG) || defined(SGCL_CHECK_STACK_PAGES)
-            _check_stack_run(begin, end, low);
-#endif
-#ifdef SGCL_TRACE_STACK
-            std::fprintf(stderr, "[scan] stack %p..%p page %zu used from %p (%zu pages)\n", (void*)begin, (void*)end, page, (void*)low, (top + page - low) / page);
-#endif
-            auto from = std::max(begin, low);
-            auto bytes = end - from;
-            for (; from < end; from += config::stack_scan_segment) {
-                _stack_segments.push_back({from, std::min(end, from + config::stack_scan_segment)});
-            }
-            return bytes;
-#endif
-        }
-
-#if !defined(_WIN32) && (!defined(NDEBUG) || defined(SGCL_CHECK_STACK_PAGES))
-        // The check of _thread_stack_segments: below the run that ends at
-        // `low`, the pages the stack has grown into since (a run of their
-        // own, read in address order by one query, so a growth seen half
-        // way still reads as a run) and then no used page.
-        void _check_stack_run(uintptr_t begin, uintptr_t end, uintptr_t low) noexcept {
-            auto page = os::touched_pages((void*)begin, end - begin, _touched_pages);
-            if (!page) {
-                return;
-            }
-            auto first = begin & ~(page - 1);
-            auto i = (low - first) / page;
-            while (i > 0 && _touched_pages[i - 1]) {
-                --i;
-            }
-            while (i > 0 && !_touched_pages[i - 1]) {
-                --i;
-            }
-            if (i > 0) {
-                std::fprintf(stderr, "[sgcl] stack %p..%p: page %p used below an unused page beyond %p, which the stack scan would miss (a frame skipped a page: build with stack probes, -fstack-clash-protection)\n", (void*)begin, (void*)end, (void*)(first + (i - 1) * page), (void*)low);
-                std::terminate();
-            }
-        }
-#endif
-
-        // Appends the used part of [begin, end) to _stack_segments, in pieces
-        // of at most config::stack_scan_segment bytes, from one query over
-        // the whole range (the diagnostics' walks over the stacks, and the
-        // scan where _thread_stack_segments has no run to go by); returns
-        // the bytes added.
+        // Appends the used part of one stack to _stack_segments, in pieces
+        // of at most config::stack_scan_segment bytes; returns the bytes added.
         size_t _stack_segments_of(uintptr_t begin, uintptr_t end) noexcept {
             begin = (begin + sizeof(uintptr_t) - 1) & ~(uintptr_t)(sizeof(uintptr_t) - 1);
             end &= ~(uintptr_t)(sizeof(uintptr_t) - 1);
