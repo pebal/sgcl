@@ -8,6 +8,7 @@
 #include "../secret.h"
 #include "../secure_zero.h"
 #include "../../core/detail/bytes.h"
+#include "../../encoding/detail/asn1_core.h"
 
 #include <cassert>
 #include <cstddef>
@@ -27,7 +28,10 @@
 // and never recurses; an element nested deeper than max_depth levels is
 // refused (§11 A7 of the design: no input makes the walk deeper than a
 // certificate is), and the limits of size and count a certificate needs
-// are the certificate parser's, over this reader.
+// are the certificate parser's, over this reader. The rules of X.690 it
+// shares with encoding::asn1 (a header, an arc, the times) are
+// encoding/detail/asn1_core.h's; the narrower ones of a certificate are
+// here.
 namespace sgcl::crypto::detail {
     namespace der {
         inline constexpr unsigned char boolean = 0x01;
@@ -123,31 +127,21 @@ namespace sgcl::crypto::detail {
             if ((t0 & 0x1f) == 0x1f || (t0 & 0xdf) == 0x00 || ((t0 & 0xe0) == 0x20 && t0 != der::sequence && t0 != der::set) || t0 == 0x10 || t0 == 0x11) {
                 return false;
             }
-            unsigned char t = _p[pos++];
-            if (pos >= _n) {
+            encoding::detail::Asn1Header h;
+            encoding::detail::Asn1Fault fault;
+            // DER's header (a length in its shortest form, never indefinite),
+            // its length of at most four bytes
+            if (!encoding::detail::asn1_header(_p + pos, _n - pos, false, h, fault) || h.size > 6) {
                 return false;
             }
-            size_t len = _p[pos++];
-            if (len & 0x80) {
-                size_t k = len & 0x7f;
-                if (k == 0 || k > 4 || k > _n - pos || _p[pos] == 0) {
-                    return false;   // indefinite, too long, or a leading zero byte
-                }
-                len = 0;
-                for (size_t i = 0; i < k; ++i) {
-                    len = len << 8 | _p[pos++];
-                }
-                if (len < 0x80) {
-                    return false;   // the short form would have done
-                }
-            }
-            if (len > _n - pos || !_content_ok(t, _p + pos, len)) {
+            const unsigned char* c = _p + pos + h.size;
+            if (!_content_ok(t0, c, h.length)) {
                 return false;
             }
-            content = DerReader(_p + pos, len, _base + pos);
+            content = DerReader(c, h.length, _base + pos + h.size);
             content._depth = _depth + 1;
-            tag = t;
-            _pos = pos + len;
+            tag = t0;
+            _pos = pos + h.size + h.length;
             return true;
         }
 
@@ -198,25 +192,9 @@ namespace sgcl::crypto::detail {
             return true;
         }
 
-        static bool oid_valid(const unsigned char* p, size_t n) noexcept {
-            if (n == 0 || (p[n - 1] & 0x80) != 0) {
-                return false;
-            }
-            bool start = true;
-            unsigned bytes = 0;
-            for (size_t i = 0; i < n; ++i) {
-                if (start && p[i] == 0x80) {
-                    return false;
-                }
-                if (++bytes > 9) {
-                    return false;   // an arc of more than 63 bits
-                }
-                start = (p[i] & 0x80) == 0;
-                if (start) {
-                    bytes = 0;
-                }
-            }
-            return true;
+        // Every arc in its shortest form and of at most 63 bits
+        SGCL_INLINE_HOT static bool oid_valid(const unsigned char* p, size_t n) noexcept {
+            return encoding::detail::asn1_oid_valid(p, n, 9);
         }
 
         // A BIT STRING of DER: the count of unused bits first (0 to 7, 0
@@ -276,36 +254,14 @@ namespace sgcl::crypto::detail {
         // The seconds of a UTCTime or GeneralizedTime's content in the one
         // form read_time takes; false for any other
         static bool time_of(unsigned char tag, const unsigned char* p, size_t n, int64_t& seconds) noexcept {
-            int64_t year;
-            const unsigned char* d;
-            if (tag == der::utc_time) {
-                if (n != 13 || !_digits(p, 12) || p[12] != 'Z') {
-                    return false;
-                }
-                year = _two(p);
-                year += year < 50 ? 2000 : 1900;
-                d = p + 2;
-            } else {
-                if (n != 15 || !_digits(p, 14) || p[14] != 'Z') {
-                    return false;
-                }
-                year = _two(p) * 100 + _two(p + 2);
-                d = p + 4;
-            }
-            int month = _two(d), day = _two(d + 2), hour = _two(d + 4), minute = _two(d + 6), second = _two(d + 8);
-            static constexpr int days_in[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-            bool leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
-            if (month < 1 || month > 12 || day < 1 || day > days_in[month - 1] + (month == 2 && leap ? 1 : 0) || hour > 23 || minute > 59 || second > 59) {
+            // DER's forms (X.690 §11.7-11.8) without the fraction RFC 5280 has
+            // no place for: thirteen and fifteen characters
+            bool utc = tag == der::utc_time;
+            encoding::detail::Asn1Time t;
+            if (n != (utc ? 13u : 15u) || !encoding::detail::asn1_time(utc, p, n, false, t)) {
                 return false;
             }
-            // days from 1970-01-01 to the date (the civil calendar's count)
-            int64_t y = month <= 2 ? year - 1 : year;
-            int64_t era = (y >= 0 ? y : y - 399) / 400;
-            int64_t yoe = y - era * 400;
-            int64_t doy = (153 * (month + (month > 2 ? -3 : 9)) + 2) / 5 + day - 1;
-            int64_t doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-            int64_t days = era * 146097 + doe - 719468;
-            seconds = days * 86400 + hour * 3600 + minute * 60 + second;
+            seconds = t.seconds;
             return true;
         }
 
@@ -392,13 +348,13 @@ namespace sgcl::crypto::detail {
                     return n == 1 && (p[0] == 0x00 || p[0] == 0xff);
                 case der::integer:
                 case 0x0a:   // ENUMERATED
-                    return n != 0 && !(n > 1 && ((p[0] == 0x00 && (p[1] & 0x80) == 0) || (p[0] == 0xff && (p[1] & 0x80) != 0)));
+                    return encoding::detail::asn1_integer_valid(p, n);
                 case der::null:
                     return n == 0;
                 case der::object_identifier:
                     return oid_valid(p, n);
                 case der::bit_string:
-                    return n != 0 && p[0] <= 7 && (n > 1 || p[0] == 0) && (n == 1 || (p[n - 1] & ((1u << p[0]) - 1)) == 0);
+                    return encoding::detail::asn1_bit_string_valid(p, n, false);
                 case der::utc_time:
                 case der::generalized_time: {
                     int64_t s;
@@ -407,19 +363,6 @@ namespace sgcl::crypto::detail {
                 default:
                     return true;
             }
-        }
-
-        static bool _digits(const unsigned char* p, size_t n) noexcept {
-            for (size_t i = 0; i < n; ++i) {
-                if (p[i] < '0' || p[i] > '9') {
-                    return false;
-                }
-            }
-            return true;
-        }
-
-        SGCL_INLINE_HOT static int _two(const unsigned char* p) noexcept {
-            return (p[0] - '0') * 10 + (p[1] - '0');
         }
     };
 

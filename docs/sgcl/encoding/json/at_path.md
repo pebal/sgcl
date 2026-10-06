@@ -71,4 +71,5 @@ users            nullopt
 
 - [set_path](set_path.md): the value with the one at a pointer replaced
 - [operator[]](operator_at.md): a member or an element, one step
+- [path_of](path_of.md): a pointer of keys
 - [sgcl::encoding::json](README.md)

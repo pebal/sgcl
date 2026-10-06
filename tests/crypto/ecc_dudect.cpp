@@ -95,7 +95,7 @@ TYPED_TEST(Crypto_EcDudect, DISABLED_SharedSecret) {
     auto peer = TypeParam::ecdh_key::generate().public_key();
     volatile unsigned sink = 0;
     double t = dudect(
-        TypeParam::size == 32 ? 40000 : 16000, [](int c, random_source& r) { return fixed_or_random_scalar<TypeParam>(c, r); },
+        TypeParam::size == 32 ? 40000 : TypeParam::size == 48 ? 16000 : 8000, [](int c, random_source& r) { return fixed_or_random_scalar<TypeParam>(c, r); },
         [&](const bytes_t& d) {
             auto key = TypeParam::ecdh_key::from_bytes(view(d));
             sink = sink + unsigned(to_bytes(key->shared_secret(peer)->bytes())[0]);
@@ -114,7 +114,7 @@ TYPED_TEST(Crypto_EcDudect, DISABLED_Sign) {
     const bytes_t fixed_digest(TypeParam::size, 0x5a);
     volatile unsigned sink = 0;
     double t = dudect(
-        TypeParam::size == 32 ? 40000 : 16000,
+        TypeParam::size == 32 ? 40000 : TypeParam::size == 48 ? 16000 : 8000,
         [&](int c, random_source& r) {
             // both classes draw and copy the same: only which bytes differs
             bytes_t random_d = random_scalar<TypeParam>(r), random_digest = r.bytes(TypeParam::size);
@@ -125,7 +125,7 @@ TYPED_TEST(Crypto_EcDudect, DISABLED_Sign) {
         },
         [&](const bytes_t& in) {
             unsigned char sig[2 * C::size];
-            Ecdsa::template sign<typename TypeParam::hash>(sig, crypto::detail::limbs_from_be<C::words>(in.data()), in.data() + C::size, C::size, nullptr, 0);
+            Ecdsa::template sign<typename TypeParam::hash>(sig, crypto::detail::ec_from_be<C>(in.data()), in.data() + C::size, C::size, nullptr, 0);
             sink = sink + sig[0];
         });
     std::printf("dudect %s sign: t = %.2f\n", TypeParam::group, t);
@@ -137,10 +137,10 @@ TYPED_TEST(Crypto_EcDudect, DISABLED_BaseMultAndInverse) {
     using E = crypto::detail::Curve<typename TypeParam::curve>;
     volatile uint64_t sink = 0;
     double t = dudect(
-        TypeParam::size == 32 ? 60000 : 30000, [](int c, random_source& r) { return fixed_or_random_scalar<TypeParam>(c, r); },
+        TypeParam::size == 32 ? 60000 : TypeParam::size == 48 ? 30000 : 15000, [](int c, random_source& r) { return fixed_or_random_scalar<TypeParam>(c, r); },
         [&](const bytes_t& k) {
             auto p = E::base_mult(k.data());
-            auto inv = E::S::inverse(E::S::to_mont(crypto::detail::limbs_from_be<TypeParam::curve::words>(k.data())));
+            auto inv = E::S::inverse(E::S::to_mont(crypto::detail::ec_from_be<typename TypeParam::curve>(k.data())));
             sink = sink + p.x[0] + inv[0];
         });
     std::printf("dudect %s base_mult + inverse: t = %.2f\n", TypeParam::group, t);

@@ -1,0 +1,9 @@
+HTTP/1.1 200 X
+Content-Length: 2
+Cache-Control: no-cache
+ETag: "a"
+
+v1ÿHTTP/1.1 304 Not Modified
+ETag: "a"
+X-New: 1
+

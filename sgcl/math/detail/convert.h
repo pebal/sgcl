@@ -103,6 +103,16 @@ namespace sgcl::math::detail {
         while (m) {
             Limb rem = div_1(w, w, m, dv);
             m = normalized(w, m);
+            if (base == 10) {
+                // the divisor a constant, which the compiler turns into a
+                // multiplication: a division by a base known only at run
+                // time is the processor's divide, nineteen of them a chunk
+                for (unsigned d = 0; d < 19 && at > first; ++d) {
+                    *--at = char('0' + rem % 10);
+                    rem /= 10;
+                }
+                continue;
+            }
             for (unsigned d = 0; d < c.digits && at > first; ++d) {
                 *--at = Digits[rem % base];
                 rem /= base;
@@ -111,6 +121,78 @@ namespace sgcl::math::detail {
         while (at > first) {
             *--at = '0';
         }
+    }
+
+    // write_small of two numbers at once, for a divisor whose top bit is
+    // set (10^19 is): the division of each number by it is a chain of
+    // dependent steps, the remainder of one limb going into the next, so
+    // the two chains taken in one loop run side by side where one alone
+    // waits on itself — the leaves of write_digits, both halves of one
+    // split, written in about the time of one
+    inline void write_small_pair(char* end1, size_t width1, const Limb* x1, size_t xn1, char* end2, size_t width2, const Limb* x2,
+                                 size_t xn2, Chunk c, const Divisor& dv, unsigned base) noexcept {
+        Scratch s1(xn1);
+        Scratch s2(xn2);
+        Limb* w1 = s1.get();
+        Limb* w2 = s2.get();
+        sgcl::detail::copy_bytes(w1, x1, xn1 * sizeof(Limb));
+        sgcl::detail::copy_bytes(w2, x2, xn2 * sizeof(Limb));
+        size_t m1 = normalized(w1, xn1);
+        size_t m2 = normalized(w2, xn2);
+        char* at1 = end1;
+        char* at2 = end2;
+        char* first1 = end1 - width1;
+        char* first2 = end2 - width2;
+        auto put = [&](char*& at, char* first, Limb rem) {
+            for (unsigned d = 0; d < c.digits && at > first; ++d) {
+                *--at = Digits[rem % base];
+                rem /= base;
+            }
+        };
+        while (m1 && m2) {
+            // the longer's top limbs alone, then both chains in step
+            Limb* a = w1;
+            Limb* b = w2;
+            size_t an = m1;
+            size_t bn = m2;
+            bool swapped = an < bn;
+            if (swapped) {
+                std::swap(a, b);
+                std::swap(an, bn);
+            }
+            Limb ra = 0;
+            Limb rb = 0;
+            for (size_t i = an; i > bn;) {
+                --i;
+                a[i] = dv.divide(ra, a[i], ra);
+            }
+            for (size_t i = bn; i-- > 0;) {
+                a[i] = dv.divide(ra, a[i], ra);
+                b[i] = dv.divide(rb, b[i], rb);
+            }
+            Limb r1 = swapped ? rb : ra;
+            Limb r2 = swapped ? ra : rb;
+            m1 = normalized(w1, m1);
+            m2 = normalized(w2, m2);
+            if (base == 10) {
+                for (unsigned d = 0; d < 19; ++d) {
+                    if (at1 > first1) {
+                        *--at1 = char('0' + r1 % 10);
+                    }
+                    if (at2 > first2) {
+                        *--at2 = char('0' + r2 % 10);
+                    }
+                    r1 /= 10;
+                    r2 /= 10;
+                }
+            } else {
+                put(at1, first1, r1);
+                put(at2, first2, r2);
+            }
+        }
+        // the shorter is done: the rest of the other alone
+        write_small(at1, size_t(at1 - first1), w1, m1, c, dv, base);
+        write_small(at2, size_t(at2 - first2), w2, m2, c, dv, base);
     }
 
     // The digits of x < P_level as exactly c.digits·2^level characters
@@ -138,6 +220,11 @@ namespace sgcl::math::detail {
             rs.get()[0] = div_1(qs.get(), x, xn, Divisor(p[0]));
         } else {
             divide(qs.get(), rs.get(), x, xn, p.data(), pn);
+        }
+        size_t t = std::max<size_t>(thresholds.to_string, 2);
+        if (!dv.shift && (level == 1 || (normalized(rs.get(), pn) < t && normalized(qs.get(), qn) < t))) {
+            write_small_pair(end, half, rs.get(), pn, end - half, half, qs.get(), qn, c, dv, base);
+            return;
         }
         write_digits(end, rs.get(), pn, level - 1, powers, c, dv, base);
         write_digits(end - half, qs.get(), qn, level - 1, powers, c, dv, base);

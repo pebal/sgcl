@@ -8,7 +8,7 @@
 
 Checks that the request is signed by the private key of its own public key, Go's `CheckSignature`: the proof that
 whoever asks for the certificate holds the key. The algorithms of a certificate's signatures are verified (RSA PKCS #1
-v1.5 and PSS, ECDSA on P-256 and P-384, Ed25519; over SHA-256, SHA-384 and SHA-512), MD5 and SHA-1 never.
+v1.5 and PSS, ECDSA on P-256, P-384 and P-521, Ed25519; over SHA-256, SHA-384 and SHA-512), MD5 and SHA-1 never.
 
 ## Parameters
 

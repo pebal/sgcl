@@ -27,7 +27,9 @@ namespace sgcl::crypto {
         invalid_signature,    // a signature that cannot be one: out of range, badly encoded
         malformed,            // DER, ASN.1 or PEM that cannot be read
         unsupported,          // an algorithm, a curve or a parameter the module does not do
-        verification          // a certificate chain that does not verify
+        verification,         // a signature, a token's claims or a certificate chain that do not verify
+        expired,              // a token past its expiry (a JWT's exp)
+        not_yet_valid         // a token before its start (a JWT's nbf, an iat in the future)
     };
 
     namespace detail {
@@ -46,6 +48,8 @@ namespace sgcl::crypto {
                     case errc::malformed: return "malformed data";
                     case errc::unsupported: return "unsupported algorithm or parameter";
                     case errc::verification: return "verification failed";
+                    case errc::expired: return "expired";
+                    case errc::not_yet_valid: return "not yet valid";
                 }
                 return "unknown crypto error";
             }

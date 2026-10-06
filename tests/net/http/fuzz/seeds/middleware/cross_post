@@ -1,0 +1,4 @@
+Sec-Fetch-Site: cross-site
+Origin: https://evil.example
+
+body

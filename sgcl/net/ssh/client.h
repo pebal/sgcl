@@ -14,6 +14,7 @@
 #include "../connection.h"
 #include "../error.h"
 #include "../socket.h"
+#include "../socks5.h"
 #include "../../async/stop_token.h"
 #include "../../core/detail/handle_word.h"
 #include "../../core/function.h"
@@ -861,6 +862,31 @@ namespace sgcl::net::ssh {
             return _co_listen(_c, address);
         }
 
+        // A SOCKS5 proxy here whose connections the server makes (ssh -D,
+        // OpenSSH's DynamicForward): each CONNECT a direct-tcpip channel to
+        // its target, the name resolved by the server. Serves the address
+        // ("127.0.0.1:1080") or the listener until this connection ends
+        // (then nothing for its close, its error otherwise) or the
+        // listener is closed (net::errc::server_closed). BIND and UDP
+        // ASSOCIATE are refused (SSH has no way for them); the options'
+        // authentication and rules, a socks5::server's, are taken as given
+        // `serve_socks5(...)` on this thread, `co_await async_serve_socks5(...)` in a task
+        expected<void, io::error> serve_socks5(const string& address) const {
+            return async_serve_socks5(address).wait();
+        }
+
+        async::task<expected<void, io::error>> async_serve_socks5(string address) const noexcept {
+            return _co_socks5(_c, std::move(address), net::listener(), net::socks5::server());
+        }
+
+        expected<void, io::error> serve_socks5(const net::listener& l, const net::socks5::server& proxy = {}) const {
+            return async_serve_socks5(l, proxy).wait();
+        }
+
+        async::task<expected<void, io::error>> async_serve_socks5(net::listener l, net::socks5::server proxy = {}) const noexcept {
+            return _co_socks5(_c, string(), std::move(l), std::move(proxy));
+        }
+
         // keepalive@openssh.com sent and its answer awaited: whether the
         // server still answers
         // `keepalive(...)` on this thread, `co_await async_keepalive(...)` in a task
@@ -1183,6 +1209,37 @@ namespace sgcl::net::ssh {
             r.err = string(err);
             r.status = std::move(*status);
             co_return r;
+        }
+
+        static async::task<expected<void, io::error>> _co_socks5(tracked_ptr<detail::ClientConn> conn, string address, net::listener l, net::socks5::server proxy) noexcept {
+            if (!l) {
+                auto made = net::tcp::listen(address);
+                if (!made) {
+                    co_return unexpected(made.error());
+                }
+                l = *made;
+            }
+            proxy.dial = [conn](string target, async::stop_token) -> async::task<expected<net::connection, io::error>> {
+                return _co_dial(conn, std::move(target));
+            };
+            proxy.bind = false;
+            proxy.udp = false;
+            // the proxy ends with this connection: a task waits for the end and closes it
+            auto ender = async::spawn([](tracked_ptr<detail::ClientConn> conn, net::socks5::server proxy) -> async::task<> {
+                (void)co_await _co_wait(conn);
+                proxy.close();
+            }(conn, proxy));
+            auto served = co_await proxy.async_serve(l);
+            proxy.close();
+            if (!conn->failed.load()) {
+                co_return served;   // the listener closed by the program: server_closed
+            }
+            auto end = co_await _co_wait(conn);
+            co_await ender;
+            if (!end && end.error().code() != io::errc::closed && end.error().code() != net::errc::ssh_disconnected) {
+                co_return end;
+            }
+            co_return expected<void, io::error>();
         }
 
         static async::task<expected<net::connection, io::error>> _co_dial(tracked_ptr<detail::ClientConn> conn, string address) noexcept {

@@ -355,6 +355,22 @@ namespace sgcl::io {
             co_return co_await async::spawn_blocking([self = tracked_ptr<FileState>(this), p] { return self->chmod(p); });
         }
 
+        // fchown: the owner and the group, -1 keeping one
+        SGCL_INLINE_HOT expected<void, error> chown(int uid, int gid) noexcept {
+            detail::Operation op(_d);
+            if (!op) {
+                return detail::fail(error(errc::closed, "chown", _name()));
+            }
+            if (::fchown(_d.fd(), static_cast<uid_t>(uid), static_cast<gid_t>(gid)) != 0) {
+                return detail::fail(last_error("chown", _name()));
+            }
+            return {};
+        }
+
+        async::task<expected<void, error>> async_chown(int uid, int gid) noexcept {
+            co_return co_await async::spawn_blocking([self = tracked_ptr<FileState>(this), uid, gid] { return self->chown(uid, gid); });
+        }
+
         // The descriptor, -1 when closed; the path it was opened with,
         // or the name given to from_fd
         SGCL_INLINE_HOT int fd() const noexcept {
@@ -550,6 +566,17 @@ namespace sgcl::io {
 
         SGCL_INLINE_HOT async::task<expected<void, error>> async_chmod(permissions p) const noexcept {
             return _get().async_chmod(p);
+        }
+
+        // fchown: the owner and the group of the file, a uid or gid of -1
+        // keeping that one. `chown(...)` on this thread, `co_await
+        // async_chown(...)` in a task, on the blocking pool
+        SGCL_INLINE_HOT expected<void, error> chown(int uid, int gid) const noexcept {
+            return _get().chown(uid, gid);
+        }
+
+        SGCL_INLINE_HOT async::task<expected<void, error>> async_chown(int uid, int gid) const noexcept {
+            return _get().async_chown(uid, gid);
         }
 
         // The descriptor, -1 when closed; the path it was opened with,

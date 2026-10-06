@@ -7,6 +7,7 @@
 
 #include "bytes.h"
 #include "wide.h"
+#include "xxhash.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -53,14 +54,6 @@
 // buffer of four stripes, and takes a stripe only when more bytes come
 // after it, so that a hash in pieces is the hash in one call.
 namespace sgcl::hash::detail {
-    inline constexpr uint32_t Xxh32Prime1 = 0x9E3779B1u;
-    inline constexpr uint32_t Xxh32Prime2 = 0x85EBCA77u;
-    inline constexpr uint32_t Xxh32Prime3 = 0xC2B2AE3Du;
-    inline constexpr uint64_t Xxh64Prime1 = 0x9E3779B185EBCA87ull;
-    inline constexpr uint64_t Xxh64Prime2 = 0xC2B2AE3D27D4EB4Full;
-    inline constexpr uint64_t Xxh64Prime3 = 0x165667B19E3779F9ull;
-    inline constexpr uint64_t Xxh64Prime4 = 0x85EBCA77C2B2AE63ull;
-    inline constexpr uint64_t Xxh64Prime5 = 0x27D4EB2F165667C5ull;
     inline constexpr uint64_t Xxh3MixPrime1 = 0x165667919E3779F9ull;
     inline constexpr uint64_t Xxh3MixPrime2 = 0x9FB21C651E98DF25ull;
 
@@ -106,16 +99,8 @@ namespace sgcl::hash::detail {
         }
     }
 
-    // The final mixes: of XXH64 (for the shortest inputs), of XXH3, and the
-    // stronger one of the 4–8 path
-    SGCL_INLINE_HOT uint64_t xxh64_avalanche(uint64_t h) noexcept {
-        h ^= h >> 33;
-        h *= Xxh64Prime2;
-        h ^= h >> 29;
-        h *= Xxh64Prime3;
-        return h ^ (h >> 32);
-    }
-
+    // The final mixes: of XXH3, and the stronger one of the 4–8 path (the
+    // shortest inputs take XXH64's, xxhash.h)
     SGCL_INLINE_HOT uint64_t xxh3_avalanche(uint64_t h) noexcept {
         h ^= h >> 37;
         h *= Xxh3MixPrime1;

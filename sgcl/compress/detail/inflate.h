@@ -98,13 +98,25 @@ namespace sgcl::compress::detail {
     inline constexpr uint32_t WindowSize = 32768;
     inline constexpr uint32_t Window64Size = 65536;
 
+#if defined(__has_builtin)
+#if __has_builtin(__builtin_bitreverse32)
+#define SGCL_COMPRESS_BITREVERSE 1
+#endif
+#endif
+    // The low length bits of code in reverse order: one instruction (rbit)
+    // where the compiler has it — the code tables of every dynamic block,
+    // both ways, reverse a code a symbol
     constexpr uint32_t reverse_bits(uint32_t code, unsigned length) noexcept {
+#if defined(SGCL_COMPRESS_BITREVERSE)
+        return length ? __builtin_bitreverse32(code) >> (32 - length) : 0;
+#else
         uint32_t r = 0;
         for (unsigned i = 0; i < length; ++i) {
             r = (r << 1) | (code & 1);
             code >>= 1;
         }
         return r;
+#endif
     }
 
     // What a symbol of a code means, as a table entry of `bits` bits

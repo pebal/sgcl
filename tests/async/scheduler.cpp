@@ -754,7 +754,11 @@ namespace {
 // which allocated nothing, was measured and dropped (the global queue
 // stays on its nodes)
 TEST(Scheduler_Tests, AWakeFromOffTheWorkersAllocatesOneNode) {
+#if defined(SGCL_ASAN)
+    constexpr size_t Wakes = 20'000, NodeBytes = 32 + 16;   // the node's slot holds a redzone under the address sanitizer (page_info.h: SlotSize)
+#else
     constexpr size_t Wakes = 20'000, NodeBytes = 32;
+#endif
     Handoff handoff;
     std::atomic<bool> stop = {false};
     std::atomic<uint64_t> rounds = {0};

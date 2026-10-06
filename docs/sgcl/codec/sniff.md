@@ -12,8 +12,8 @@ namespace sgcl::codec {
 
 Tells the [format](format.md) of a file by its signature, from its first bytes: what [decode](decode.md),
 [decode_frames](decode_frames.md) and [load](load.md) look at before they choose a decoder. Twelve bytes are enough
-for each format but HEIF and AVIF under a general brand, whose `ftyp` box is read for its compatible brands (`decode`
-of a stream reads up to 64 bytes for it).
+for each format but BMP, which takes 18, and HEIF and AVIF under a general brand, whose `ftyp` box is read for its
+compatible brands within the first 64 bytes, as many as `decode` of a stream reads for it.
 
 | Format | Signature |
 |---|---|
@@ -23,6 +23,12 @@ of a stream reads up to 64 bytes for it).
 | `webp` | `RIFF`, 4 bytes of size, `WEBP` |
 | `heif` | an `ftyp` box first whose major brand is `heic`, `heix`, `hevc`, `hevx`, `heim`, `heis`, `hevm` or `hevs`; under any other major brand (`mif1`, `msf1`, `miaf`, `isom`, …), the first compatible brand of HEIF or AVIF within the box, when it is one of these |
 | `avif` | the same with the brand `avif` or `avis` |
+| `bmp` | `BM`, then at byte 14 the size of a DIB header BMP has (12, 40, 52, 56, 64, 108 or 124) |
+| `tiff` | `II` and 42 little-endian, or `MM` and 42 big-endian |
+| `ico` | `00 00`, `01 00` (icon) or `02 00` (cursor), a count of entries other than 0, and the first entry's reserved byte 0 |
+| `qoi` | `qoif` |
+| `pnm` | `P` and a digit `1` to `7`, then white space |
+| `jxl` | `FF 0A`, a bare codestream; or the container's first box, `00 00 00 0C`, `JXL `, `0D 0A 87 0A` |
 
 It says what the file claims to be, not what it is: a file with the signature of PNG and a broken body is `png` here,
 and an error of `decode`.
@@ -39,7 +45,7 @@ The format the bytes claim; `nullopt` for any other bytes, or for too few to tel
 
 ## Complexity
 
-Constant for a signature; for an `ftyp` box under a general brand, linear in its compatible brands within `head`.
+Constant for a signature; for an `ftyp` box under a general brand, linear in its compatible brands within the first 64 bytes.
 
 ## Exceptions
 

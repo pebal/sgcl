@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "../dkim.h"
 #include "../error.h"
 #include "../ip.h"
 #include "../tls.h"
@@ -100,8 +101,9 @@ namespace sgcl::net::smtp {
     // of the password. TLS: smtps:// is TLS from the first byte (RFC 8314),
     // smtp:// upgrades by STARTTLS when the server offers it (RFC 3207),
     // and refuses to go on in clear text when require_tls is set; AUTH is
-    // never sent in clear text unless allow_insecure_auth says so. The
-    // waits are those of RFC 5321 §4.5.3.2 (5 minutes for the greeting,
+    // never sent in clear text unless allow_insecure_auth says so. With
+    // dkim set, each message gets a DKIM-Signature of that signer before
+    // DATA. The waits are those of RFC 5321 §4.5.3.2 (5 minutes for the greeting,
     // MAIL and RCPT, 2 for DATA, 3 for each block of data, 10 for the
     // end of it) unless timeout gives one for all of them.
     struct options {
@@ -118,6 +120,8 @@ namespace sgcl::net::smtp {
         duration timeout = duration::zero();   // every wait for the server; zero: RFC 5321's own
         uint16_t port = 0;                     // deliver's port of the exchangers; zero: 25
         net::dns::options dns;                 // deliver's resolver of MX records
+        optional<dkim::signer> dkim;           // every message signed with it before it is sent (RFC 6376)
+        dkim::sign_options dkim_options;       // how
         async::stop_token stop;
     };
 

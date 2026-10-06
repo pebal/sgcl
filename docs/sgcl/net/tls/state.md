@@ -16,6 +16,7 @@ namespace sgcl::net::tls {
         bool resumed = false;
         optional<crypto::x509::revocation_status> revocation;
         tls::revocation_source revocation_source = revocation_source::none;
+        bool ech_accepted = false;
     };
 }
 ```
@@ -41,6 +42,7 @@ is a value, a copy of what the connection keeps.
 | `resumed` | whether the handshake resumed a session of a ticket, with no certificate sent (Go's `DidResume`): over 1.2 the abbreviated handshake, by a ticket or a session id, with no key exchange either; `false` for a full handshake |
 | `revocation` | the revocation status of the peer's leaf as `config::revocation` checked it ([revocation_mode](revocation_mode.md)): `good`, or `unknown` when no source said (a revoked one ends the connection); the certificates above it were checked too. `nullopt` when nothing was checked: `revocation_mode::off`, a resumed session, a chain not verified |
 | `revocation_source` | where the leaf's status came from ([revocation_source](revocation_source.md)): the peer's staple, an OCSP responder, a CRL; `none` when it is `unknown` or not checked |
+| `ech_accepted` | whether the hello the server answered was the client's encrypted ClientHelloInner (RFC 9849, Go's `ECHAccepted`): the client's `config::ech_config_list` and the server's `config::ech_keys` agreed; the name and the rest of the state are then the inner hello's. A client's that was rejected never gets a connection to ask |
 
 The defaults of `version`, `cipher` and `group` stand only in a state made by the program; one from
 [state_of](state_of.md) holds what was settled.

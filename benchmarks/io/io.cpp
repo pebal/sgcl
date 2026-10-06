@@ -17,6 +17,10 @@
 //   io byte sgcl [n]        read_byte() of a buffered_reader over a file of 1 MB
 //   io buf sgcl [n]         write(1 byte) to an io::buffer, cleared every 4 KB
 //   io bufw sgcl [n]        write(16 bytes) to a buffered_writer over io::discard
+//   io globmatch sgcl [n]   glob_pattern("*/[a-m]*_test.go").match of 1000 paths in turn (Go: filepath.Match)
+//   io globwalk sgcl [n]    io::glob("<tree>/*/*/*.txt") over 20 x 20 directories of 15 files, 4000 found (Go: filepath.Glob)
+//   io globstar sgcl [n]    io::glob("<tree>/**/*.txt") over the same tree (Go has no `**`: Python's glob is the reference)
+//   io watch sgcl [n]       io::watch of a directory, coalescing off: from a file written to its event received (no Go side: none in its standard library)
 // The file cases are written so that one source builds before and after
 // the io handles (an A/B of the same code): the free functions of io and
 // a helper that reaches the file through either shape of io::open's value.
@@ -29,6 +33,7 @@ using namespace sgcl::async;
 #include <cstdlib>
 #include <string>
 #include <unistd.h>
+#include <vector>
 
 namespace {
     sgcl::async::task<long> async_runs(long n) {
@@ -95,6 +100,38 @@ namespace {
         std::fclose(f);
     }
 
+    // The paths globmatch matches: a third of them match
+    std::vector<std::string> glob_paths() {
+        std::vector<std::string> out;
+        for (int i = 0; i < 1000; ++i) {
+            char b[64];
+            std::snprintf(b, sizeof b, "pkg%03d/%c%s%d%s", i % 37, char('a' + i % 26), "name", i, i % 3 == 0 ? "_test.go" : ".go");
+            out.push_back(b);
+        }
+        return out;
+    }
+
+    // The tree of globwalk and globstar: d00..d19/s00..s19/f00..f09.txt and
+    // g00..g04.dat
+    std::string glob_tree() {
+        std::string root = temp_path("glob");
+        for (int d = 0; d < 20; ++d) {
+            for (int s = 0; s < 20; ++s) {
+                char dir[64];
+                std::snprintf(dir, sizeof dir, "/d%02d/s%02d", d, s);
+                std::string path = root + dir;
+                (void)sgcl::io::mkdir_all(sgcl::string(path));
+                for (int f = 0; f < 15; ++f) {
+                    char name[32];
+                    std::snprintf(name, sizeof name, f < 10 ? "/f%02d.txt" : "/g%02d.dat", f);
+                    std::FILE* file = std::fopen((path + name).c_str(), "wb");
+                    std::fclose(file);
+                }
+            }
+        }
+        return root;
+    }
+
     void report(const char* what, double wall, long ops) {
         std::printf("io %s ns/op=%.1f ops/s=%.0f wall=%.2fs cpu=%.2fs\n", what, wall * 1e9 / ops, ops / wall, wall, bench::cpu_seconds());
     }
@@ -102,7 +139,7 @@ namespace {
 
 int main(int argc, char** argv) {
     if (argc < 3 || std::string(argv[2]) != "sgcl") {
-        std::fprintf(stderr, "usage: io <run|output|asyncrun|parallel|read|write|copy|lines|byte|buf|bufw> sgcl [n]\n");
+        std::fprintf(stderr, "usage: io <run|output|asyncrun|parallel|read|write|copy|lines|byte|buf|bufw|globmatch|globwalk|globstar|watch> sgcl [n]\n");
         return 2;
     }
     std::string what = argv[1];
@@ -256,6 +293,58 @@ int main(int argc, char** argv) {
         }
         (void)out.flush();
         report("bufw", bench::seconds_since(t0), n);
+    } else if (what == "globmatch") {
+        n = n ? n : 20000000;
+        auto paths = glob_paths();
+        sgcl::vector<sgcl::string> names;
+        for (auto& p : paths) {
+            names.push_back(sgcl::string(p));
+        }
+        sgcl::io::glob_pattern pattern(sgcl::string("*/[a-m]*_test.go"));
+        long matched = 0;
+        auto t0 = bench::Clock::now();
+        for (long i = 0; i < n; ++i) {
+            matched += pattern.match(names[size_t(i % 1000)]);
+        }
+        report("globmatch", bench::seconds_since(t0), n);
+        ok = matched > 0 ? n : 0;
+    } else if (what == "globwalk" || what == "globstar") {
+        n = n ? n : 200;
+        std::string root = glob_tree();
+        sgcl::string pattern(root + (what == "globwalk" ? "/*/*/*.txt" : "/**/*.txt"));
+        auto t0 = bench::Clock::now();
+        for (long i = 0; i < n; ++i) {
+            auto r = sgcl::io::glob(pattern);
+            ok += r && r->size() == 4000;
+        }
+        report(what.c_str(), bench::seconds_since(t0), n);
+        (void)sgcl::io::remove_all(sgcl::string(root));
+    } else if (what == "watch") {
+        n = n ? n : 200;
+        std::string root = temp_path("watch");
+        (void)sgcl::io::mkdir_all(sgcl::string(root));
+        sgcl::async::stop_source stop;
+        auto changes = sgcl::io::watch(sgcl::string(root), {.coalesce = sgcl::duration::zero()}, stop.token()).value();
+        double total = 0;
+        for (long i = 0; i < n; ++i) {
+            std::string name = root + "/f" + std::to_string(i);
+            auto t0 = bench::Clock::now();
+            (void)sgcl::io::write_file(sgcl::string(name), "x");
+            for (;;) {
+                auto e = changes.receive().wait();
+                if (!e) {
+                    break;
+                }
+                if (e->path.view() == name) {
+                    ++ok;
+                    break;
+                }
+            }
+            total += bench::seconds_since(t0);
+        }
+        report("watch", total, n);
+        stop.request_stop();
+        (void)sgcl::io::remove_all(sgcl::string(root));
     } else {
         std::fprintf(stderr, "unknown case %s\n", what.c_str());
         return 2;

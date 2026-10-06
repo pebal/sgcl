@@ -513,3 +513,129 @@ TEST(Bzip2_Tests, ResetReadsAnotherStream) {
     EXPECT_FALSE(r.last_error());
     static_assert(noexcept(r.reset(std::declval<sgcl::io::reader>())));
 }
+
+// ---- the compressor ------------------------------------------------------------
+
+namespace {
+    std::string contents_of(const sgcl::io::buffer& b) {
+        auto d = b.data();
+        return std::string(reinterpret_cast<const char*>(d.data()), d.size());
+    }
+}
+
+// Ours read by libbz2 and by ourselves at every level, over the corpus,
+// the runs of RLE1 about its edges, every byte, a periodic block, blocks
+// that end inside a run
+TEST(Bzip2_Tests, CompressedReadByLibbz2AtEveryLevel) {
+    auto corp = corpus();
+    corp.push_back({"runs", runs()});
+    corp.push_back({"all bytes", all_bytes()});
+    corp.push_back({"periodic", std::string("abcabcabc")});
+    std::string period;
+    for (int i = 0; i < 50000; ++i) {
+        period += "abcdefg";
+    }
+    corp.push_back({"powers", period});
+    corp.push_back({"run across blocks", std::string(250000, 'r')});
+    for (auto& [name, plain] : corp) {
+        for (int level : {1, 2, 5, 9}) {
+            SCOPED_TRACE(name + " level " + std::to_string(level));
+            auto c = text(bzip2::compress(bytes(plain), {.level = level}));
+            if (!plain.empty()) {
+                EXPECT_EQ(c.substr(0, 4), "BZh" + std::to_string(level));
+            }
+            EXPECT_EQ(bz_decompress(c), plain);
+            auto d = bzip2::decompress(bytes(c));
+            ASSERT_TRUE(d) << d.error().message();
+            EXPECT_EQ(text(*d), plain);
+        }
+    }
+}
+
+// Sizes beside libbz2's at the same block size: within one per cent
+TEST(Bzip2_Tests, SizesBesideLibbz2) {
+    std::string plain;
+    {
+        std::ifstream is(std::string(SGCL_TEST_SOURCE_ROOT) + "/DESIGN.md", std::ios::binary);
+        std::stringstream ss;
+        ss << is.rdbuf();
+        plain = ss.str().substr(0, 2 << 20);
+    }
+    ASSERT_GT(plain.size(), 100000u);
+    for (int level : {1, 9}) {
+        const size_t ours = bzip2::compress(bytes(plain), {.level = level}).size();
+        const size_t theirs = bz_compress(plain, level).size();
+        EXPECT_LE(ours, theirs + theirs / 100) << level;
+    }
+}
+
+// The empty input is a stream of no block, as bzip2 writes it
+TEST(Bzip2_Tests, TheEmptyStream) {
+    auto c = text(bzip2::compress(bytes(std::string())));
+    EXPECT_EQ(c, bz_compress(""));
+    EXPECT_EQ(bzip2::decompress(bytes(c))->size(), 0u);
+}
+
+// The level's range
+TEST(Bzip2_Tests, LevelsAtTheirEnds) {
+    for (int v : {1, 5, 9}) {
+        EXPECT_EQ(bzip2::level(v).value(), v);
+    }
+    for (int v : {0, 10, -1, INT_MAX}) {
+        EXPECT_THROW(bzip2::level{v}, std::invalid_argument);
+    }
+    EXPECT_EQ(bzip2::level().value(), bzip2::level::standard);
+    EXPECT_EQ(text(*bzip2::decompress(bzip2::compress("hello, hello"))), "hello, hello");
+    EXPECT_EQ(text(*bzip2::decompress(bzip2::compress(sgcl::string("twice twice"), {.level = 1}))), "twice twice");
+}
+
+// The writer in pieces of every size, flushed now and then: each flush ends
+// a stream, and what is in the sink decodes to everything written so far,
+// by the reader and by libbz2 stream after stream
+TEST(Bzip2_Tests, TheWriterInPieces) {
+    const std::string plain = runs() + all_bytes() + runs();
+    for (int level : {1, 9}) {
+        SCOPED_TRACE(level);
+        sgcl::io::buffer sink;
+        bzip2::writer w(sink, {.level = level});
+        std::mt19937 rng {unsigned(level)};
+        size_t at = 0;
+        while (at < plain.size()) {
+            const size_t k = std::min<size_t>(rng() % 20000, plain.size() - at);
+            ASSERT_TRUE(w.write(bytes(plain.substr(at, k))));
+            at += k;
+            if (rng() % 4 == 0) {
+                ASSERT_TRUE(w.flush());
+                auto d = bzip2::decompress(bytes(contents_of(sink)));
+                ASSERT_TRUE(d) << d.error().message();
+                EXPECT_EQ(text(*d), plain.substr(0, at));
+            }
+        }
+        ASSERT_TRUE(w.close());
+        auto d = bzip2::decompress(bytes(contents_of(sink)));
+        ASSERT_TRUE(d) << d.error().message();
+        EXPECT_EQ(text(*d), plain);
+        bzip2::reader r(dribble{contents_of(sink), 999});
+        EXPECT_EQ(read_all(r), plain);
+    }
+}
+
+TEST(Bzip2_Tests, TheWritersAsyncForm) {
+    const std::string plain = runs() + all_bytes();
+    auto task = sgcl::async::spawn([](std::string t) -> sgcl::async::task<std::string> {
+        sgcl::io::buffer sink;
+        bzip2::writer w(sink, {.level = 1});
+        for (size_t i = 0; i < t.size(); i += 70000) {
+            if (!co_await w.async_write(bytes(t.substr(i, 70000)))) {
+                co_return "write failed";
+            }
+        }
+        if (!co_await w.async_close()) {
+            co_return "close failed";
+        }
+        auto d = bzip2::decompress(bytes(contents_of(sink)));
+        co_return d ? text(*d) : std::string("read failed");
+    }(plain));
+    EXPECT_EQ(task.wait(), plain);
+    sgcl::async::scheduler::stop();
+}

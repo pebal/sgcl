@@ -72,12 +72,11 @@
 // What this deliberately does not do, and it is a boundary and not a gap.
 // There is no escaping that knows where a value lands. Go has that in
 // html/template — it reads the HTML around a field and escapes for an
-// attribute, a URL or a script accordingly — and it is a parser for a
-// second language and a promise this module is not in a position to
-// keep. What is here is escape_html as a function of the pipeline, asked
-// for by name; whoever writes the template decides where it is needed,
-// and the safety of the HTML is the caller's. A boundary written down is
-// worth more than one discovered.
+// attribute, a URL or a script accordingly — and so does html_stencil
+// (html_stencil.h), this syntax with a page of HTML, which rewrites the
+// steps read here. A stencil writes what its values hold: escape_html is a
+// function of the pipeline, asked for by name, and the safety of the HTML
+// is the caller's.
 namespace sgcl::txt {
     namespace detail {
         struct value_list;
@@ -451,6 +450,8 @@ namespace sgcl::txt {
             leave,      // give the dot back
             loop,       // `range`: open expression a; if it is empty, go to b
             repeat,     // one element on; if there is one, go back to b
+            escaped,    // work out expression a, write it through the escaper, b its context (html_stencil)
+            extra,      // write the run of the stencil's own text at [a, a + b) (html_stencil's rewritten text)
         };
 
         struct stencil_step {
@@ -492,7 +493,16 @@ namespace sgcl::txt {
             uint32_t fn = 0;            // which of the resolved functions
             uint32_t args_at = 0;       // the first of its arguments
             uint32_t args_size = 0;
+            uint32_t name_at = 0;       // its name in the source, for html_stencil's trusted values
+            uint32_t name_size = 0;
         };
+
+        struct HtmlStencilBuilder;
+
+        // How an html_stencil writes a value where the HTML around it says:
+        // the value, the field's specification and the context of the step
+        using stencil_escaper = void (*)(format_sink& out, const value& v, const format_spec& spec,
+                                         std::string_view nested, uint32_t context);
 
         // One open loop: what it walks, where it has got to, and what
         // `owned` held before it opened. Out here rather than inside the
@@ -577,6 +587,7 @@ namespace sgcl::txt {
 
     private:
         friend struct detail::StencilParser;
+        friend struct detail::HtmlStencilBuilder;
 
         // How deep the blocks may go before the walk's bookkeeping stops
         // fitting on the stack of _run
@@ -612,6 +623,11 @@ namespace sgcl::txt {
         vector<string> _names;
         vector<value> _literals;
         vector<stencil_function> _functions;
+        // html_stencil's: the text it rewrote (comments dropped, a lone
+        // < escaped) and how it writes a value; empty and null for a
+        // stencil, whose walk never meets the two steps that read them
+        string _extra;
+        detail::stencil_escaper _escaper = nullptr;
         // How deep the blocks go, worked out where the source is read.
         // A render keeps one frame and one value per open block and
         // reserves both to this before it starts, so nothing it holds a
@@ -1406,6 +1422,8 @@ namespace sgcl::txt {
                     }
                     detail::stencil_stage stage;
                     stage.fn = uint32_t(out._functions.size());
+                    stage.name_at = uint32_t(name_from);
+                    stage.name_size = uint32_t(at - name_from);
                     out._functions.push_back(*fn);
                     stage.args_at = uint32_t(args.size());
                     stage.args_size = 0;
@@ -1759,6 +1777,15 @@ namespace sgcl::txt {
                 auto o = get_if<tracked_ptr<value_object>>(&v._held);
                 return o ? o->get() : nullptr;
             }
+
+            // the numbers a value holds, for message_format
+            SGCL_INLINE_HOT static const long long* integer_of(const value& v) noexcept {
+                return get_if<long long>(&v._held);
+            }
+
+            SGCL_INLINE_HOT static const double* real_of(const value& v) noexcept {
+                return get_if<double>(&v._held);
+            }
         };
     }
 
@@ -1962,6 +1989,34 @@ namespace sgcl::txt {
                     ++pc;
                     break;
                 }
+                case detail::stencil_op::escaped: {
+                    size_t mark = out.size();
+                    const auto& e = _exprs[s.a];
+                    std::string_view nested;
+                    if (e.has_nested) {
+                        nested = std::string_view(_source.data() + e.nested_at, e.nested_size);
+                    }
+                    if (!e.pipe_size) {
+                        const value* v = _resolve(e, dots[n_dots - 1], root);
+                        _escaper(out, v ? *v : nothing, e.spec, nested, s.b);
+                    } else {
+                        _escaper(out, _eval(e, dots[n_dots - 1], root), e.spec, nested, s.b);
+                    }
+                    if (out.size() > cap) [[unlikely]] {
+                        cap = room.take_room(out.size(), mark);
+                        break;
+                    }
+                    ++pc;
+                    break;
+                }
+                case detail::stencil_op::extra:
+                    out.put(_extra.data() + s.a, s.b);
+                    if (out.size() > cap) [[unlikely]] {
+                        cap = room.take_room(out.size(), out.size() - s.b);
+                        break;
+                    }
+                    ++pc;
+                    break;
                 case detail::stencil_op::branch:
                     pc = _eval(_exprs[s.a], dots[n_dots - 1], root).truthy() ? pc + 1 : s.b;
                     break;

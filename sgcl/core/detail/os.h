@@ -98,6 +98,128 @@
 #define SGCL_TSAN_ACQUIRE(p) ((void)0)
 #endif
 
+// The address sanitizer sees the managed heap as one mapped range: a read
+// past a managed object lands in the next slot or the size class's slack,
+// both addressable to it. Under it, and only there, the heap tells it
+// where the objects end: a pool slot is sizeof(T) and a redzone (page_info.h:
+// SlotSize), a buffer is exactly what was asked for with a redzone after it
+// (maker.h), a string ends at its terminator (string_data.h), a large object
+// at its last byte (object_allocator.h); everything else of a page is
+// poisoned, a free slot whole, a swept object from its sweep on
+// (collector.h: _sweep). The collector's own reads of objects (the marking,
+// the diagnostics) go through functions hidden from it (load_word,
+// SGCL_NO_ASAN). Nothing of this exists in any other build: the macros are
+// empty, the slot sizes those of the types. Every translation unit of a
+// program must agree on the sanitizer, the layout of the pages depends on it.
+#if defined(__has_feature)
+#if __has_feature(address_sanitizer)
+#define SGCL_ASAN 1
+#endif
+#endif
+#if !defined(SGCL_ASAN) && defined(__SANITIZE_ADDRESS__)
+#define SGCL_ASAN 1
+#endif
+#if defined(SGCL_ASAN)
+#include <sanitizer/asan_interface.h>
+#if defined(__clang__)
+#define SGCL_NO_ASAN __attribute__((no_sanitize("address")))
+#elif defined(__GNUC__)
+#define SGCL_NO_ASAN __attribute__((no_sanitize_address))
+#else
+#define SGCL_NO_ASAN __declspec(no_sanitize_address)
+#endif
+#define SGCL_ASAN_POISON(p, n) ::sgcl::detail::asan::poison((const void*)(p), (size_t)(n), ::sgcl::detail::asan::Redzone)
+#define SGCL_ASAN_POISON_FREED(p, n) ::sgcl::detail::asan::poison((const void*)(p), (size_t)(n), ::sgcl::detail::asan::Freed)
+#define SGCL_ASAN_UNPOISON(p, n) __asan_unpoison_memory_region((const void*)(p), (size_t)(n))
+#define SGCL_ASAN_RELEASE(p, n) ::sgcl::detail::asan::release((const void*)(p), (size_t)(n))
+namespace sgcl::detail::asan {
+    // The sanitizer's own marks of malloc's memory: a redzone past a block
+    // ("heap-buffer-overflow" in its report) and a freed block
+    // ("heap-use-after-free"). Its public poisoning marks memory "poisoned
+    // by the user" (a "use-after-poison" report): the managed heap retags
+    // the granules it poisons whole, so that a read past an object and a
+    // read of a swept one read as they would in malloc's memory.
+    enum : unsigned char { Redzone = 0xfa, Freed = 0xfd, UserPoisoned = 0xf7 };
+
+    // [p, p + n) made unaddressable: the sanitizer's poisoning (which keeps
+    // the addressable head of a granule the range starts inside), then the
+    // granules it marked whole retagged as `kind`. The shadow is written
+    // with plain byte stores in a function the sanitizer does not see: a
+    // memset of the shadow would be checked against the shadow's shadow.
+    struct Mapping {
+        size_t scale;
+        size_t offset;
+    };
+
+    // The shadow's place: the address of a byte's shadow is
+    // (address >> scale) + offset
+    inline const Mapping& mapping() noexcept {
+        static const auto m = [] {
+            Mapping m = {3, 0};
+            __asan_get_shadow_mapping(&m.scale, &m.offset);
+            return m;
+        }();
+        return m;
+    }
+
+    SGCL_NO_ASAN inline void poison(const void* p, size_t n, unsigned char kind) noexcept {
+        if (!n) {
+            return;
+        }
+        __asan_poison_memory_region(p, n);
+#if defined(__clang__) || defined(__GNUC__)
+        auto& mapping = asan::mapping();
+        auto first = (uintptr_t)p >> mapping.scale;
+        auto last = ((uintptr_t)p + n - 1) >> mapping.scale;
+        for (auto g = first; g <= last; ++g) {
+            auto shadow = (volatile unsigned char*)(g + mapping.offset);
+            if (*shadow == UserPoisoned) {
+                *shadow = kind;
+            }
+        }
+#else
+        (void)kind;   // MSVC's runtime: the sanitizer's own marks ("use-after-poison"), unchecked here
+#endif
+    }
+
+    // [p, p + n) addressable again, a range of whole pages of the heap,
+    // with its shadow given back to the system where the shadow covers
+    // whole pages of memory: a mapping of zeros in their place, as the
+    // sanitizer itself clears a large shadow. Unpoisoned with a memset of
+    // the shadow, a buffer of a gigabyte that the program never touched
+    // held 128 MB of it resident, and poisoned once more when it died
+    // (the fuzzing of the BER lengths of encoding::asn1 went past 4 GB of
+    // memory in seconds); a mapping costs a call whatever the size.
+    SGCL_NO_ASAN inline void release(const void* p, size_t n) noexcept {
+#if !defined(_WIN32)
+        static const uintptr_t page = (uintptr_t)::sysconf(_SC_PAGESIZE);
+        auto& mapping = asan::mapping();
+        auto begin = (uintptr_t)p;
+        auto end = begin + n;
+        auto shadow_begin = ((begin >> mapping.scale) + mapping.offset + page - 1) & ~(page - 1);
+        auto shadow_end = ((end >> mapping.scale) + mapping.offset) & ~(page - 1);
+        if (shadow_begin < shadow_end) {
+            auto first = (shadow_begin - mapping.offset) << mapping.scale;
+            auto last = (shadow_end - mapping.offset) << mapping.scale;
+            if (::mmap((void*)shadow_begin, shadow_end - shadow_begin, PROT_READ | PROT_WRITE,
+                       MAP_FIXED | MAP_PRIVATE | MAP_ANON | MAP_NORESERVE, -1, 0) != MAP_FAILED) {
+                __asan_unpoison_memory_region(p, first - begin);
+                __asan_unpoison_memory_region((const void*)last, end - last);
+                return;
+            }
+        }
+#endif
+        __asan_unpoison_memory_region(p, n);
+    }
+}
+#else
+#define SGCL_NO_ASAN
+#define SGCL_ASAN_POISON(p, n) ((void)0)
+#define SGCL_ASAN_POISON_FREED(p, n) ((void)0)
+#define SGCL_ASAN_UNPOISON(p, n) ((void)0)
+#define SGCL_ASAN_RELEASE(p, n) ((void)0)
+#endif
+
 // Short functions (a few statements, no loop, not a slow path): inlined
 // into the caller in optimized builds, whatever the compiler's estimate of
 // the size around them (it counts every call in a body, a cold one too, so

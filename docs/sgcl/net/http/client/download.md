@@ -3,9 +3,10 @@
 # sgcl::net::http::client::download, async_download
 
 ```cpp
-expected<response, io::error> download(const string& url, const string& path) const;      // (1)
-async::task<expected<response, io::error>> async_download(string url,                     // (2)
-                                                          string path) const noexcept;
+expected<response, io::error> download(const string& url, const string& path,                         // (1)
+                                       const download_options& o = {}) const;
+async::task<expected<response, io::error>> async_download(string url, string path,                    // (2)
+                                                          download_options o = {}) const noexcept;
 ```
 
 Saves the file at `url` to `path`, curl's `-fo path url`: a [get](get.md) whose body is streamed into
@@ -13,6 +14,10 @@ Saves the file at `url` to `path`, curl's `-fo path url`: a [get](get.md) whose 
 there before untouched. A status other than 2xx is an error and writes nothing: the body is given up and no file is
 made. The client's pool and settings serve it; the free [download](../download.md) does the same through a client of
 the process's.
+
+A body broken off is continued from where it stopped, `Range` with `If-Range` and the response's validator (a strong
+`ETag`, or `Last-Modified`), `o.retries` times; with `o.resume` a part an earlier call left is continued as well
+([download_options](../download_options.md)).
 
 1. Blocks the calling thread: the exchange runs on the scheduler and the thread waits for it. For a thread of the
    program, never a worker.
@@ -24,10 +29,11 @@ the process's.
 |---|---|
 | `url` | the URL, `http://` or `https://` |
 | `path` | the file to write; `path + ".part"` is written first |
+| `o` | how the download goes on after its transfer stopped ([download_options](../download_options.md)) |
 
 ## Return value
 
-The response, its body read and saved. Or the error: that of [send](send.md); `net::errc::http_status` for a status
+The response, its body read and saved (a 206 when it was continued). Or the error: that of [send](send.md); `net::errc::http_status` for a status
 other than 2xx, the status and its phrase named
 (`GET http://127.0.0.1:8080/a.zip (404 Not Found): the response's status is not 2xx`); the error of the file
 (creating the part, writing it, renaming it) or of the body's reading, the part removed.
@@ -80,5 +86,6 @@ true false
 ## See also
 
 - [download](../download.md): the same through a client of the process's
+- [download_options](../download_options.md): the continuations
 - [save](../response/save.md): the body of any response into a file
 - [sgcl::net::http::client](README.md)

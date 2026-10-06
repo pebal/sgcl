@@ -636,7 +636,11 @@ TEST(Vector_Test, ShrinkToFit) {
     vec.shrink_to_fit();
     EXPECT_EQ(collector::get_live_object_count(), 1u);
     EXPECT_EQ(Int::counter, 3u);
+#if defined(SGCL_ASAN)
+    EXPECT_EQ(vec.capacity(), 3u);   // under the address sanitizer the capacity asked for, never the class's (maker.h)
+#else
     EXPECT_EQ(vec.capacity(), 4u);
+#endif
 }
 
 // The cases the review found: element types with real semantics.
@@ -1372,6 +1376,9 @@ TEST(Vector_Test, ABufferPastAPageTakesItsPagesOnly) {
 // 16384 asked for), so that the growth doubles into four pages where it
 // went to three and then five
 TEST(Vector_Test, AVectorPastAPageFillsItsPages) {
+#if defined(SGCL_ASAN)
+    GTEST_SKIP() << "under the address sanitizer a buffer is the capacity asked for, never what its pages hold (maker.h)";
+#endif
     const size_t before = live_buffer_bytes<int>();
     sgcl::vector<int> v;
     off_frame([&] {

@@ -333,6 +333,9 @@ namespace sgcl::detail {
             size_t capacity;
             size_t object_size;
             bool zero;
+#if defined(SGCL_ASAN)
+            size_t slot = 0;   // a size class's slot, header included, which the allocator unpoisoned whole; 0 for a range (object_allocator.h poisons its tail)
+#endif
 
             // the allocator's init: the header and the zeroing, before publication
             SGCL_INLINE_HOT void operator()(void* p) const noexcept {
@@ -342,6 +345,14 @@ namespace sgcl::detail {
                 if (zero) {
                     std::memset(array->data, 0, object_size * capacity);
                 }
+#if defined(SGCL_ASAN)
+                // the class's slack past the elements asked for, and the
+                // redzone the class was chosen with (_make_array), poisoned
+                if (slot) {
+                    auto end = array->data + object_size * capacity;
+                    SGCL_ASAN_POISON(end, (char*)p + slot - end);
+                }
+#endif
             }
         };
 
@@ -373,7 +384,11 @@ namespace sgcl::detail {
             auto& allocator = current_thread().pool_allocator(BufferPools::slots[c], [c]() -> Metadata& {
                 return Metadata::of_pool(BufferPools::metadata[c], buffer_class_constants[c]);
             });
+#if defined(SGCL_ASAN)
+            auto mem = allocate(allocator, 0, Header{metadata, capacity, object_size, zero, sizeof(ArrayBase) + buffer_classes[c]});
+#else
             auto mem = allocate(allocator, 0, Header{metadata, capacity, object_size, zero});
+#endif
             return ((Array<>*)mem)->data;
         }
 
@@ -415,6 +430,31 @@ namespace sgcl::detail {
         // page found by buffer_large_class_index (a direct call), then the
         // range. A capacity past buffer_max_capacity ends the program, one
         // comparison with a constant before the chain.
+#if defined(SGCL_ASAN)
+        // Under the address sanitizer (os.h: SGCL_ASAN): the buffer is the
+        // capacity asked for, never what its class or its pages would hold
+        // (the header says so, and the containers grow from it), in the
+        // smallest class that holds it and a redzone of 16 bytes, or a range
+        // with one (object_allocator.h); what lies past the elements is
+        // poisoned (Header). A read past the capacity is reported, in a
+        // buffer that fills its class exactly too. `whole_pages` is not
+        // followed: the pages past the capacity are slack like the class's.
+        template<size_t ObjectSize, bool Zero, size_t I = 0>
+        static UniquePtr<void> _make_array(size_t capacity, ArrayMetadata* metadata, bool) noexcept {
+            if (capacity > buffer_max_capacity(ObjectSize)) [[unlikely]] {
+                out_of_managed_memory();
+            }
+            const size_t bytes = ObjectSize * capacity;
+            if (bytes + 16 <= buffer_classes.back()) {
+                unsigned c = 0;
+                while (buffer_classes[c] < bytes + 16) {
+                    ++c;
+                }
+                return UniquePtr<void>(_alloc_class(c, metadata, capacity, ObjectSize, _zero<Zero>(metadata)));
+            }
+            return UniquePtr<void>(_alloc<Array<>>(bytes + sizeof(ArrayBase) - sizeof(Array<>), Header{metadata, capacity, ObjectSize, _zero<Zero>(metadata)}));
+        }
+#else
         template<size_t ObjectSize, bool Zero, size_t I = 0>
         static UniquePtr<void> _make_array(size_t capacity, ArrayMetadata* metadata, bool whole_pages) noexcept {
             if constexpr(I == 0) {
@@ -440,6 +480,7 @@ namespace sgcl::detail {
                 return UniquePtr<void>(_alloc<Array<>>(ObjectSize * capacity + sizeof(ArrayBase) - sizeof(Array<>), Header{metadata, capacity, ObjectSize, _zero<Zero>(metadata)}));
             }
         }
+#endif
     };
 
     // Managed buffers exist only for the containers (vector, dynamic_array,

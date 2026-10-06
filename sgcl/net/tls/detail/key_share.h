@@ -9,6 +9,7 @@
 #include "../../../crypto/mlkem.h"
 #include "../../../crypto/p256.h"
 #include "../../../crypto/p384.h"
+#include "../../../crypto/p521.h"
 #include "../../../crypto/random.h"
 #include "../../../crypto/x25519.h"
 
@@ -20,7 +21,7 @@
 
 // The key shares of TLS 1.3 (RFC 8446 §4.2.8, §7.4) for the groups of v1:
 // X25519 (RFC 7748; the share is the 32-byte u-coordinate, §4.2.8.2),
-// secp256r1 and secp384r1 (the uncompressed point 04 ‖ X ‖ Y, §4.2.8.2;
+// secp256r1, secp384r1 and secp521r1 (the uncompressed point 04 ‖ X ‖ Y, §4.2.8.2;
 // the shared secret is X, §7.4.1) and X25519MLKEM768
 // (draft-ietf-tls-ecdhe-mlkem-05 §3–§4: the client's share is the ML-KEM-768
 // encapsulation key ‖ its X25519 share, 1184 + 32 bytes; the server's the
@@ -30,8 +31,8 @@
 //
 // The private keys are drawn from an Entropy (crypto::random by default;
 // the tests give the bytes of RFC 8448), in a fixed order per group:
-// X25519 32 bytes; P-256 32 and P-384 48 (a scalar out of range draws
-// again); X25519MLKEM768 the 64-byte ML-KEM seed d ‖ z, then 32 for
+// X25519 32 bytes; P-256 32, P-384 48 and P-521 66, its first byte cut
+// to its one bit of the 521 (a scalar out of range draws again); X25519MLKEM768 the 64-byte ML-KEM seed d ‖ z, then 32 for
 // X25519; the server of X25519MLKEM768 32 bytes of the encapsulation's
 // message m, then 32 for X25519. Every private key and shared secret lives
 // in the object that holds it (the connection's unmanaged block of
@@ -54,10 +55,10 @@ namespace sgcl::net::tls::detail {
         }
     };
 
-    // A shared secret of a key exchange: up to 64 bytes (X25519MLKEM768),
-    // zeroed when it goes and when moved from
+    // A shared secret of a key exchange: up to 66 bytes (P-521's; 64 for
+    // X25519MLKEM768), zeroed when it goes and when moved from
     struct SharedSecret {
-        uint8_t bytes[64] = {};
+        uint8_t bytes[66] = {};
         uint8_t size = 0;
 
         SharedSecret() noexcept = default;
@@ -92,7 +93,7 @@ namespace sgcl::net::tls::detail {
     };
 
     SGCL_INLINE_HOT constexpr bool supported(Group g) noexcept {
-        return g == Group::x25519 || g == Group::secp256r1 || g == Group::secp384r1 || g == Group::x25519_mlkem768;
+        return g == Group::x25519 || g == Group::secp256r1 || g == Group::secp384r1 || g == Group::secp521r1 || g == Group::x25519_mlkem768;
     }
 
     // The sizes of the shares of a group on the wire (0: not a group of v1)
@@ -104,6 +105,8 @@ namespace sgcl::net::tls::detail {
             return 65;
         case Group::secp384r1:
             return 97;
+        case Group::secp521r1:
+            return 133;
         case Group::x25519_mlkem768:
             return crypto::mlkem768::encapsulation_key_size + 32;
         }
@@ -136,13 +139,16 @@ namespace sgcl::net::tls::detail {
             uint8_t b[N];
             for (;;) {
                 entropy(b, N);
+                if constexpr (N == 66) {
+                    b[0] &= 1;   // P-521: 521 bits
+                }
                 auto k = Key::from_bytes(bytes_of(b, N));
                 if (k) {
                     crypto::detail::secure_zero(b, N);
                     return std::move(*k);
                 }
                 // zero or at least n: another draw (for a random scalar
-                // about 2^-128 for P-256, 2^-190 for P-384)
+                // about 2^-128 for P-256, 2^-190 for P-384, 2^-260 for P-521)
             }
         }
 
@@ -221,6 +227,12 @@ namespace sgcl::net::tls::detail {
                 _append(s, p.data(), p.size());
                 break;
             }
+            case Group::secp521r1: {
+                s.p521.emplace(key_share_detail::ec_key<crypto::p521::ecdh_key, 66>(entropy));
+                auto p = s.p521->public_key().bytes();
+                _append(s, p.data(), p.size());
+                break;
+            }
             case Group::x25519_mlkem768: {
                 uint8_t seed[64];
                 entropy(seed, 64);
@@ -283,6 +295,10 @@ namespace sgcl::net::tls::detail {
                 ok = ec_shared<crypto::p384::ecdh_key, crypto::p384::public_key>(*s->p384, server_share, out.bytes);
                 out.size = 48;
                 break;
+            case Group::secp521r1:
+                ok = ec_shared<crypto::p521::ecdh_key, crypto::p521::public_key>(*s->p521, server_share, out.bytes);
+                out.size = 66;
+                break;
             case Group::x25519_mlkem768: {
                 const size_t ct = crypto::mlkem768::ciphertext_size;
                 auto k = s->mlkem->decapsulate(server_share.subslice(0, ct));
@@ -315,6 +331,7 @@ namespace sgcl::net::tls::detail {
             optional<crypto::x25519::private_key> x25519;
             optional<crypto::p256::ecdh_key> p256;
             optional<crypto::p384::ecdh_key> p384;
+            optional<crypto::p521::ecdh_key> p521;
             optional<crypto::mlkem768::decapsulation_key> mlkem;
             std::vector<uint8_t> public_share;
 
@@ -322,6 +339,7 @@ namespace sgcl::net::tls::detail {
                 x25519.reset();
                 p256.reset();
                 p384.reset();
+                p521.reset();
                 mlkem.reset();
                 public_share.clear();
             }
@@ -387,6 +405,14 @@ namespace sgcl::net::tls::detail {
             auto k = ec_key<crypto::p384::ecdh_key, 48>(entropy);
             ok = ec_shared<crypto::p384::ecdh_key, crypto::p384::public_key>(k, client_share, out.secret.bytes);
             out.secret.size = 48;
+            auto p = k.public_key().bytes();
+            append(p.data(), p.size());
+            break;
+        }
+        case Group::secp521r1: {
+            auto k = ec_key<crypto::p521::ecdh_key, 66>(entropy);
+            ok = ec_shared<crypto::p521::ecdh_key, crypto::p521::public_key>(k, client_share, out.secret.bytes);
+            out.secret.size = 66;
             auto p = k.public_key().bytes();
             append(p.data(), p.size());
             break;

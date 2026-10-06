@@ -15,8 +15,9 @@ namespace sgcl::detail {
     // first allocator on.
     class ObjectAllocatorBase {
     public:
-        SGCL_INLINE_HOT ObjectAllocatorBase(std::atomic<Page*>& pages)
-        : _pages(pages) {
+        SGCL_INLINE_HOT ObjectAllocatorBase(std::atomic<Page*>& pages, StackRecord& stack_record)
+        : _pages(pages)
+        , _stack_record(stack_record) {
             collector_init();
         }
 
@@ -24,5 +25,6 @@ namespace sgcl::detail {
 
     protected:
         std::atomic<Page*>& _pages;
+        StackRecord& _stack_record;   // the thread's (thread.h: Data), prototype proto-stack-sp
     };
 }

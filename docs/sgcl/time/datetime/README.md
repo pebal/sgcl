@@ -153,7 +153,8 @@ pattern read without an offset ([parse](parse.md)) read a time of the clock by t
 | Function | Description |
 |---|---|
 | [to_string](to_string.md) | RFC 3339, with the fraction of a second where there is one |
-| [format](format.md) | the text by a layout or by a pattern of `%` |
+| [format](format.md) | the text by a layout or by a pattern of `%`; as a locale writes it, in its styles or for a skeleton |
+| [format_interval](format_interval.md) | the datetime and another as an interval in a locale's patterns: `24–26 wrz 2026` |
 | [parse](parse.md) | reads a text by a layout or by a pattern of `%` (static) |
 
 #### Arithmetic

@@ -18,7 +18,9 @@ namespace sgcl::net::smtp {
 message is whole; what it answers is the reply to the message's end. What is done with a message is the
 handler's: there is no relaying and no queue. `on_sender` and `on_recipient` decide MAIL and RCPT as they come;
 `auth` checks AUTH PLAIN and LOGIN; `starttls` offers STARTTLS, [serve_tls](serve_tls.md) listens with TLS from the
-first byte.
+first byte. With `sender_checks` set, the checks of the message's origin — [SPF](../../spf/README.md),
+[DKIM](../../dkim/README.md), [DMARC](../../dmarc/README.md) — are made before the handler runs, and their results
+are the message's.
 
 A session offers PIPELINING (every command of a batch answered in its turn, the replies written together), SIZE,
 8BITMIME, SMTPUTF8, CHUNKING with BINARYMIME, DSN (RET, ENVID, NOTIFY, ORCPT given to the handler in the envelope)
@@ -48,6 +50,7 @@ and ENHANCEDSTATUSCODES; every command of RFC 5321 with its error replies, VRFY 
 | `allow_insecure_auth` | AUTH offered without TLS too; `false` by default |
 | `on_sender` | a `function<reply(const envelope&)>`: MAIL decided, the envelope holding its address and parameters; a reply of 0 takes it, one of 400 or more refuses it; none by default: every sender taken |
 | `on_recipient` | a `function<reply(const envelope&, const string&)>`: RCPT decided the same way; none by default |
+| `sender_checks` | an `optional<`[sender_checks](../sender_checks.md)`>`: SPF, DKIM and DMARC checked for every message after DATA ([check_sender](../check_sender.md)), the results the handler's ([message::authentication](../message/sender_verdict.md)), an Authentication-Results field put first in the message, a DMARC reject refused when the options say so; none by default |
 | `max_message_bytes` | the most bytes of a message, announced in SIZE; 32 MB by default |
 | `max_recipients` | the most recipients of a message, RCPT past it 452; 100 by default (RFC 5321 §4.5.3.1.8) |
 | `max_line_bytes` | the longest command, past it 500; 2048 by default |

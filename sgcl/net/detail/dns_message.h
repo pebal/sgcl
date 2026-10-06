@@ -20,7 +20,7 @@
 // records, the names with their compression (§4.1.4), written and read in
 // place in a buffer the caller owns, with no allocation. The record types
 // the stub resolver asks for (A, NS, CNAME, SOA, MX, TXT, AAAA, SRV of
-// RFC 2782, OPT of RFC 6891) are known by number; the reader gives every
+// RFC 2782, OPT of RFC 6891, SVCB and HTTPS of RFC 9460) are known by number; the reader gives every
 // record's place in the message, and the rdata of a known type is read
 // from there.
 //
@@ -46,6 +46,8 @@ namespace sgcl::net::detail {
         inline constexpr uint16_t srv = 33;
         inline constexpr uint16_t opt = 41;
         inline constexpr uint16_t nsec = 47;
+        inline constexpr uint16_t svcb = 64;    // RFC 9460
+        inline constexpr uint16_t https = 65;
         inline constexpr uint16_t any = 255;
     }
 
@@ -546,6 +548,161 @@ namespace sgcl::net::detail {
         return true;
     }
 
+    // SVCB and HTTPS (RFC 9460 §2.2): SvcPriority, TargetName (RFC 9460
+    // forbids its compression; a pointer is read all the same, as SRV's
+    // target is) and the SvcParams, each a key, a length and a value
+    struct DnsSvcb {
+        uint16_t priority = 0;
+        DnsName target;
+        size_t params = 0;          // the SvcParams' offset in the message
+        size_t params_length = 0;
+    };
+
+    // The keys of RFC 9460 §14.3 and RFC 9461
+    namespace dns_svc_key {
+        inline constexpr uint16_t mandatory = 0;
+        inline constexpr uint16_t alpn = 1;
+        inline constexpr uint16_t no_default_alpn = 2;
+        inline constexpr uint16_t port = 3;
+        inline constexpr uint16_t ipv4hint = 4;
+        inline constexpr uint16_t ech = 5;
+        inline constexpr uint16_t ipv6hint = 6;
+        inline constexpr uint16_t dohpath = 7;
+        inline constexpr uint16_t invalid = 65535;
+    }
+
+    SGCL_INLINE_HOT uint16_t dns_u16(const uint8_t* p) noexcept {
+        return uint16_t(uint16_t(p[0]) << 8 | p[1]);
+    }
+
+    // The value of one key well formed (RFC 9460 §7, §8; RFC 9461 for
+    // dohpath, any bytes; RFC 9848 for ech, any bytes: the TLS client
+    // reads the list when it uses it); an unknown key's value is anything
+    inline bool dns_svc_value_ok(uint16_t key, const uint8_t* v, size_t n) noexcept {
+        switch (key) {
+            case dns_svc_key::mandatory: {
+                if (n == 0 || n % 2 != 0) {
+                    return false;
+                }
+                uint32_t previous = 0;   // key 0 may not be listed: every key above it
+                for (size_t i = 0; i < n; i += 2) {
+                    uint32_t k = dns_u16(v + i);
+                    if (k <= previous) {
+                        return false;
+                    }
+                    previous = k;
+                }
+                return true;
+            }
+            case dns_svc_key::alpn: {
+                if (n == 0) {
+                    return false;
+                }
+                size_t i = 0;
+                while (i < n) {
+                    size_t len = v[i];
+                    if (len == 0 || n - i - 1 < len) {
+                        return false;
+                    }
+                    i += len + 1;
+                }
+                return true;
+            }
+            case dns_svc_key::no_default_alpn:
+                return n == 0;
+            case dns_svc_key::port:
+                return n == 2;
+            case dns_svc_key::ipv4hint:
+                return n != 0 && n % 4 == 0;
+            case dns_svc_key::ipv6hint:
+                return n != 0 && n % 16 == 0;
+            case dns_svc_key::invalid:
+                return false;   // §14.3.2: reserved, "Invalid key"
+            default:
+                return true;
+        }
+    }
+
+    // The SvcParams of a ServiceMode record checked whole (RFC 9460 §2.2):
+    // the keys in strictly increasing order, every value within the rdata
+    // and well formed for its key, and the keys of "mandatory" all present
+    // (§8). False for a malformed record, which rejects its whole RRset
+    inline bool dns_svc_params_ok(const uint8_t* p, size_t n) noexcept {
+        size_t i = 0;
+        int32_t previous = -1;
+        const uint8_t* mandatory = nullptr;
+        size_t mandatory_length = 0;
+        while (i < n) {
+            if (n - i < 4) {
+                return false;
+            }
+            const uint16_t key = dns_u16(p + i);
+            const size_t len = dns_u16(p + i + 2);
+            i += 4;
+            if (int32_t(key) <= previous || n - i < len || !dns_svc_value_ok(key, p + i, len)) {
+                return false;
+            }
+            if (key == dns_svc_key::mandatory) {
+                mandatory = p + i;
+                mandatory_length = len;
+            }
+            previous = key;
+            i += len;
+        }
+        // both lists ascending: one walk over the keys for all of mandatory's
+        size_t at = 0;
+        for (size_t m = 0; m < mandatory_length; m += 2) {
+            const uint16_t want = dns_u16(mandatory + m);
+            for (;;) {
+                if (at >= n) {
+                    return false;
+                }
+                const uint16_t key = dns_u16(p + at);
+                at += 4 + size_t(dns_u16(p + at + 2));
+                if (key == want) {
+                    break;
+                }
+                if (key > want) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    // Each SvcParam of params already checked: f(key, value, length)
+    template<class F>
+    void dns_svc_params_each(const uint8_t* p, size_t n, F&& f) {
+        size_t i = 0;
+        while (i + 4 <= n) {
+            const uint16_t key = dns_u16(p + i);
+            const size_t len = dns_u16(p + i + 2);
+            i += 4;
+            if (n - i < len) {
+                return;
+            }
+            f(key, p + i, len);
+            i += len;
+        }
+    }
+
+    // An SVCB or HTTPS rdata: AliasMode's (priority 0) SvcParams are not
+    // read, as §2.4.2 has a client ignore them; ServiceMode's checked whole
+    inline bool dns_read_svcb(const DnsReader& r, const DnsReader::Record& rec, DnsSvcb& out) noexcept {
+        if (rec.length < 3) {
+            return false;
+        }
+        out.priority = r.u16_at(rec.rdata);
+        size_t p = rec.rdata + 2;
+        const size_t end = rec.rdata + rec.length;
+        if (!r.name_at(p, out.target) || p > end) {
+            return false;
+        }
+        out.params = p;
+        out.params_length = end - p;
+        return out.priority == 0 || dns_svc_params_ok(r.data() + p, end - p);
+    }
+
     inline constexpr int DnsMaxHops = 8;
 
     // What a lookup, a name or one exchange came to
@@ -565,9 +722,9 @@ namespace sgcl::net::detail {
 
     // One record of the type asked, its rdata as the public types take it
     struct DnsRecordData {
-        string name;                // MX's host, SRV's target, NS's host, CNAME's target
-        string text;                // TXT's strings joined
-        uint16_t first = 0;         // MX's preference, SRV's priority
+        string name;                // MX's host, SRV's target, NS's host, CNAME's target, SVCB's target
+        string text;                // TXT's strings joined, SVCB's SvcParams as they came
+        uint16_t first = 0;         // MX's preference, SRV's priority, SVCB's priority
         uint16_t second = 0;        // SRV's weight
         uint16_t third = 0;         // SRV's port
         uint8_t address[16] = {};   // A's four bytes, AAAA's sixteen
@@ -622,6 +779,19 @@ namespace sgcl::net::detail {
                     return false;
                 }
                 break;
+            case dns_type::svcb:
+            case dns_type::https: {
+                DnsSvcb svcb;
+                if (!dns_read_svcb(r, rec, svcb)) {
+                    return false;
+                }
+                d.first = svcb.priority;
+                d.name = dns_name_string(svcb.target);
+                if (svcb.priority != 0) {
+                    d.text = string(std::string_view(reinterpret_cast<const char*>(r.data() + svcb.params), svcb.params_length));
+                }
+                break;
+            }
             case dns_type::a:
             case dns_type::aaaa:
                 if (rec.length != (type == dns_type::a ? 4u : 16u)) {

@@ -444,6 +444,31 @@ namespace sgcl::encoding {
         // past the end of an array, gives this value unchanged.
         json set_path(const string& pointer, const json& value) const noexcept;
 
+        // The value without the one at the pointer, as RFC 6902's remove
+        // takes it: a member removed, an element removed and the rest moved
+        // down; this value when there is none at the pointer
+        json erase_path(const string& pointer) const noexcept;
+
+        // The pointer of the tokens, each escaped (RFC 6901: '~' as ~0, '/'
+        // as ~1): path_of({"a/b", "0"}) is "/a~1b/0"; none is ""
+        static string path_of(std::initializer_list<string> tokens) noexcept;
+
+        // RFC 6902: the operations of the patch (an array of objects of
+        // "op", "path", "from", "value") applied in their order, all or
+        // nothing: the new value, or the error of the first that fails, its
+        // path the operation's place in the patch ("/2")
+        expected<json, error> patch(const json& operations) const noexcept;
+
+        // RFC 7396: an object merged member by member (null removes a
+        // member, an object merges into the member's value), anything else
+        // the value instead of this
+        json merge_patch(const json& patch) const noexcept;
+
+        // A JSON Patch (RFC 6902) that turns from into to: patch applied to
+        // from gives to. Members removed, added and replaced, arrays element
+        // by element and their tails removed or added
+        static json diff(const json& from, const json& to) noexcept;
+
         // Deep. Numbers by value: two integers exactly, an integer and a
         // double as doubles (1 == 1.0, and an integer past 2^53 equals the
         // double it rounds to — the double 2^63 written is the integer
@@ -1822,6 +1847,347 @@ namespace sgcl::encoding {
         return result;
     }
 
+    namespace detail {
+        // The JSON Patch of RFC 6902 over json values: a strict walk to the
+        // parent of a pointer's target and the containers rebuilt from it up
+        struct JsonPatch {
+            enum class fault { none, syntax, missing, range, test };
+
+            struct Result {
+                json value;
+                fault why = fault::none;
+                std::string text;
+            };
+
+            static Result fail(fault f, std::string t) noexcept {
+                Result r;
+                r.why = f;
+                r.text = std::move(t);
+                return r;
+            }
+
+            // The value at the tokens, or none
+            static const json* at(const json& doc, const std::vector<std::string>& tokens, size_t n) noexcept {
+                const json* v = &doc;
+                for (size_t i = 0; i < n; ++i) {
+                    const auto& t = tokens[i];
+                    if (v->is_object()) {
+                        auto found = v->members();
+                        const json* next = nullptr;
+                        for (const auto& m : found) {
+                            if (m.key.view() == t) {
+                                next = &m.value;
+                            }
+                        }
+                        if (!next) {
+                            return nullptr;
+                        }
+                        v = next;
+                    } else if (v->is_array()) {
+                        auto i2 = pointer_index(t);
+                        if (!i2 || *i2 >= v->size()) {
+                            return nullptr;
+                        }
+                        v = &v->elements()[*i2];
+                    } else {
+                        return nullptr;
+                    }
+                }
+                return v;
+            }
+
+            enum class edit { add, remove, replace };
+
+            // add, remove or replace at the tokens; the containers on the way
+            // must be there
+            static Result change(const json& doc, const std::vector<std::string>& tokens, edit e, const json& value, const char* what) noexcept {
+                if (tokens.empty()) {
+                    if (e == edit::remove) {
+                        return fail(fault::syntax, std::string(what) + ": the whole document cannot be removed");
+                    }
+                    Result r;
+                    r.value = value;
+                    return r;
+                }
+                size_t n = tokens.size();
+                // the containers down to the target's parent
+                vector<json> chain;
+                chain.push_back(doc);
+                for (size_t i = 0; i + 1 < n; ++i) {
+                    const json& cur = chain.back();
+                    std::vector<std::string> one{tokens[i]};
+                    const json* v = at(cur, one, 1);
+                    if (!v) {
+                        return fail(fault::missing, std::string(what) + ": no value at " + prefix(tokens, i + 1));
+                    }
+                    chain.push_back(*v);
+                }
+                const json& parent = chain.back();
+                const std::string& last = tokens.back();
+                json result;
+                if (parent.is_object()) {
+                    bool there = parent.contains(string(last));
+                    if (e != edit::add && !there) {
+                        return fail(fault::missing, std::string(what) + ": no value at " + prefix(tokens, n));
+                    }
+                    result = e == edit::remove ? parent.erase(string(last)) : parent.set(string(last), value);
+                } else if (parent.is_array()) {
+                    size_t size = parent.size();
+                    size_t index;
+                    if (last == "-") {
+                        if (e != edit::add) {
+                            return fail(fault::range, std::string(what) + ": \"-\" names no element at " + prefix(tokens, n));
+                        }
+                        index = size;
+                    } else {
+                        auto i = pointer_index(last);
+                        if (!i) {
+                            return fail(fault::range, std::string(what) + ": not an index of an array at " + prefix(tokens, n));
+                        }
+                        index = *i;
+                    }
+                    if (index > size || (e != edit::add && index == size)) {
+                        return fail(fault::range, std::string(what) + ": an index past the end of the array at " + prefix(tokens, n));
+                    }
+                    vector<json> es(parent.elements().begin(), parent.elements().end());
+                    if (e == edit::add) {
+                        es.insert(es.begin() + ptrdiff_t(index), value);
+                    } else if (e == edit::remove) {
+                        es.erase(es.begin() + ptrdiff_t(index));
+                    } else {
+                        es[index] = value;
+                    }
+                    result = json::array(es);
+                } else {
+                    return fail(fault::missing, std::string(what) + ": no container at " + prefix(tokens, n - 1));
+                }
+                // rebuilt upward
+                for (size_t i = n - 1; i-- > 0;) {
+                    const json& p = chain[i];
+                    if (p.is_array()) {
+                        result = p.set(*pointer_index(tokens[i]), result);
+                    } else {
+                        result = p.set(string(tokens[i]), result);
+                    }
+                }
+                Result r;
+                r.value = std::move(result);
+                return r;
+            }
+
+            static std::string prefix(const std::vector<std::string>& tokens, size_t n) noexcept {
+                std::string s;
+                for (size_t i = 0; i < n; ++i) {
+                    s += '/';
+                    for (char c : tokens[i]) {
+                        if (c == '~') {
+                            s += "~0";
+                        } else if (c == '/') {
+                            s += "~1";
+                        } else {
+                            s += c;
+                        }
+                    }
+                }
+                return s.empty() ? std::string("\"\"") : s;
+            }
+
+            // One operation of the patch
+            static Result apply(const json& doc, const json& op) noexcept {
+                if (!op.is_object()) {
+                    return fail(fault::syntax, "an operation that is not an object");
+                }
+                auto name = op["op"].as_string();
+                if (!name) {
+                    return fail(fault::syntax, "an operation without \"op\"");
+                }
+                auto path_text = op["path"].as_string();
+                if (!path_text) {
+                    return fail(fault::syntax, "an operation without \"path\"");
+                }
+                auto path = pointer_tokens(path_text->view());
+                if (!path) {
+                    return fail(fault::syntax, "\"path\" is not a JSON Pointer: " + std::string(path_text->view()));
+                }
+                std::string n(name->view());
+                bool has_value = op.contains("value");
+                json value = op["value"];
+                if (n == "add" || n == "replace" || n == "test") {
+                    if (!has_value) {
+                        return fail(fault::syntax, "a " + n + " without \"value\"");
+                    }
+                    if (n == "test") {
+                        const json* v = at(doc, *path, path->size());
+                        if (!v) {
+                            return fail(fault::missing, "test: no value at " + prefix(*path, path->size()));
+                        }
+                        if (!(*v == value)) {
+                            return fail(fault::test, "test: the value at " + prefix(*path, path->size()) + " is not the one given");
+                        }
+                        Result r;
+                        r.value = doc;
+                        return r;
+                    }
+                    return change(doc, *path, n == "add" ? edit::add : edit::replace, value, n.c_str());
+                }
+                if (n == "remove") {
+                    return change(doc, *path, edit::remove, json(), "remove");
+                }
+                if (n == "move" || n == "copy") {
+                    auto from_text = op["from"].as_string();
+                    if (!from_text) {
+                        return fail(fault::syntax, "a " + n + " without \"from\"");
+                    }
+                    auto from = pointer_tokens(from_text->view());
+                    if (!from) {
+                        return fail(fault::syntax, "\"from\" is not a JSON Pointer: " + std::string(from_text->view()));
+                    }
+                    const json* v = at(doc, *from, from->size());
+                    if (!v) {
+                        return fail(fault::missing, n + ": no value at " + prefix(*from, from->size()));
+                    }
+                    json moved = *v;
+                    if (n == "copy") {
+                        return change(doc, *path, edit::add, moved, "copy");
+                    }
+                    // a value cannot move into one of its own children
+                    if (from->size() < path->size() && std::equal(from->begin(), from->end(), path->begin())) {
+                        return fail(fault::syntax, "move: from " + prefix(*from, from->size()) + " into its own child");
+                    }
+                    if (*from == *path) {
+                        Result r;
+                        r.value = doc;
+                        return r;
+                    }
+                    auto removed = change(doc, *from, edit::remove, json(), "move");
+                    if (removed.why != fault::none) {
+                        return removed;
+                    }
+                    return change(removed.value, *path, edit::add, moved, "move");
+                }
+                return fail(fault::syntax, "an unknown operation: " + n);
+            }
+        };
+    }
+
+    inline json json::erase_path(const string& pointer) const noexcept {
+        auto tokens = detail::pointer_tokens(pointer.view());
+        if (!tokens || tokens->empty()) {
+            return *this;
+        }
+        auto r = detail::JsonPatch::change(*this, *tokens, detail::JsonPatch::edit::remove, json(), "remove");
+        return r.why == detail::JsonPatch::fault::none ? r.value : *this;
+    }
+
+    inline string json::path_of(std::initializer_list<string> tokens) noexcept {
+        std::vector<std::string> ts;
+        for (const auto& t : tokens) {
+            ts.emplace_back(t.view());
+        }
+        if (ts.empty()) {
+            return string();
+        }
+        return string(detail::JsonPatch::prefix(ts, ts.size()));
+    }
+
+    inline expected<json, json::error> json::patch(const json& operations) const noexcept {
+        if (!operations.is_array()) {
+            error e(errc::syntax, 0, string("a JSON Patch that is not an array"));
+            detail::ErrorAccess::without_place(e);
+            return unexpected<error>(std::move(e));
+        }
+        json doc = *this;
+        auto ops = operations.elements();
+        for (size_t i = 0; i < ops.size(); ++i) {
+            auto r = detail::JsonPatch::apply(doc, ops[i]);
+            if (r.why != detail::JsonPatch::fault::none) {
+                errc code = r.why == detail::JsonPatch::fault::syntax ? errc::syntax
+                          : r.why == detail::JsonPatch::fault::missing ? errc::missing_field
+                          : r.why == detail::JsonPatch::fault::range ? errc::out_of_range
+                                                                     : errc::type_mismatch;
+                error e(code, 0, string(r.text));
+                detail::ErrorAccess::without_place(e);
+                e.set_path(string("/" + std::to_string(i)));
+                return unexpected<error>(std::move(e));
+            }
+            doc = std::move(r.value);
+        }
+        return doc;
+    }
+
+    inline json json::merge_patch(const json& patch) const noexcept {
+        // RFC 7396 §2 without recursion: a frame for each object of the
+        // patch, the target's member under it, the members merged so far
+        struct Frame {
+            json target;
+            json patch;
+            size_t next;
+            vector<member> out;
+            string key;                // the key of this frame in its parent
+            size_t place;              // where it goes back among the parent's members
+        };
+        if (!patch.is_object()) {
+            return patch;
+        }
+        vector<Frame> stack;
+        stack.push_back(Frame{is_object() ? *this : object({}), patch, 0, {}, string(), 0});
+        auto& first = stack.back();
+        for (const auto& m : first.target.members()) {
+            first.out.push_back(m);
+        }
+        json result;
+        while (!stack.empty()) {
+            Frame& f = stack.back();
+            auto pm = f.patch.members();
+            if (f.next == pm.size()) {
+                json made = f.out.empty() ? object({}) : detail::JsonAccess::object_of(f.out.data(), f.out.size());
+                string key = f.key;
+                size_t place = f.place;
+                stack.pop_back();
+                if (stack.empty()) {
+                    result = made;
+                } else {
+                    auto& out = stack.back().out;
+                    out.insert(out.begin() + ptrdiff_t(place), member{key, made});
+                }
+                continue;
+            }
+            const member& m = pm[f.next++];
+            // the member's place in what is merged so far
+            size_t at = f.out.size();
+            for (size_t i = 0; i < f.out.size(); ++i) {
+                if (f.out[i].key == m.key) {
+                    at = i;
+                    break;
+                }
+            }
+            if (m.value.is_null()) {
+                if (at != f.out.size()) {
+                    f.out.erase(f.out.begin() + ptrdiff_t(at));
+                }
+                continue;
+            }
+            if (!m.value.is_object()) {
+                if (at == f.out.size()) {
+                    f.out.push_back(m);
+                } else {
+                    f.out[at].value = m.value;
+                }
+                continue;
+            }
+            json target = at == f.out.size() ? json() : f.out[at].value;
+            if (at != f.out.size()) {
+                f.out.erase(f.out.begin() + ptrdiff_t(at));
+            }
+            Frame child{target.is_object() ? target : object({}), m.value, 0, {}, m.key, at};
+            for (const auto& tm : child.target.members()) {
+                child.out.push_back(tm);
+            }
+            stack.push_back(std::move(child));
+        }
+        return result;
+    }
+
     // Makes an array or an object in a loop without copying it at every
     // step: push_back gathers the elements of an array, set the members
     // of an object (a key set twice keeps its last value); build() hands
@@ -1904,6 +2270,87 @@ namespace sgcl::encoding {
         vector<member> _members;
         Mode _mode = Mode::none;
     };
+
+    inline json json::diff(const json& from, const json& to) noexcept {
+        builder ops;
+        bool any = false;
+        auto op = [&](const char* name, const std::string& path, const json* value) {
+            builder o;
+            o.set("op", json(name));
+            o.set("path", json(string(path)));
+            if (value) {
+                o.set("value", *value);
+            }
+            ops.push_back(o.build());
+            any = true;
+        };
+        auto escape = [](const string& key) {
+            std::string s = "/";
+            for (char c : key.view()) {
+                if (c == '~') {
+                    s += "~0";
+                } else if (c == '/') {
+                    s += "~1";
+                } else {
+                    s += c;
+                }
+            }
+            return s;
+        };
+        // pairs to compare, with their pointer
+        struct Pair {
+            json a;
+            json b;
+            std::string path;
+        };
+        vector<Pair> todo;
+        todo.push_back(Pair{from, to, std::string()});
+        while (!todo.empty()) {
+            Pair p = todo.back();
+            todo.pop_back();
+            if (p.a == p.b && p.a.type() == p.b.type()) {
+                continue;
+            }
+            if (p.a.is_object() && p.b.is_object()) {
+                for (const auto& m : p.a.members()) {
+                    if (!p.b.contains(m.key)) {
+                        op("remove", p.path + escape(m.key), nullptr);
+                    }
+                }
+                for (const auto& m : p.b.members()) {
+                    if (!p.a.contains(m.key)) {
+                        op("add", p.path + escape(m.key), &m.value);
+                    }
+                }
+                // the members of both, last first so the operations come in order
+                auto bm = p.b.members();
+                for (size_t i = bm.size(); i-- > 0;) {
+                    if (p.a.contains(bm[i].key)) {
+                        todo.push_back(Pair{p.a[bm[i].key], bm[i].value, p.path + escape(bm[i].key)});
+                    }
+                }
+                continue;
+            }
+            if (p.a.is_array() && p.b.is_array()) {
+                size_t na = p.a.size(), nb = p.b.size();
+                size_t common = na < nb ? na : nb;
+                // the tail first: removed from the end, or added after the end
+                for (size_t i = na; i-- > nb;) {
+                    op("remove", p.path + "/" + std::to_string(i), nullptr);
+                }
+                for (size_t i = na; i < nb; ++i) {
+                    op("add", p.path + "/-", &p.b.elements()[i]);
+                }
+                for (size_t i = common; i-- > 0;) {
+                    todo.push_back(Pair{p.a.elements()[i], p.b.elements()[i], p.path + "/" + std::to_string(i)});
+                }
+                continue;
+            }
+            op("replace", p.path, &p.b);
+        }
+        return any ? ops.build() : array({});
+    }
+
 
     // --- the reader ---
 

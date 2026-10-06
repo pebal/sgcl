@@ -569,6 +569,13 @@ namespace sgcl::net::smtp {
             if (s->broken) {
                 co_return fail(broken_error(*s));
             }
+            if (s->o.dkim) {
+                auto signed_data = s->o.dkim->sign(data, s->o.dkim_options);
+                if (!signed_data) {
+                    co_return fail(signed_data);
+                }
+                data = std::move(*signed_data);
+            }
             if (e.to.empty()) {
                 co_return fail(io::error(error_code(EINVAL, std::system_category()), "smtp", string("no recipients")));
             }

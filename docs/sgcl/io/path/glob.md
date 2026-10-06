@@ -7,7 +7,8 @@ expected<vector<string>, error> glob(const string& pattern) noexcept;
 ```
 
 Returns the paths of the file system that match the pattern, Go's `filepath.Glob`, with the rules of
-[match](match.md). The directory part may hold patterns of its own (`src/*/*.cpp`): each directory that matches is
+[match](match.md): without `**`, braces or hidden names, which [io::glob](../glob.md) has as the shell and Python's
+glob have them. The directory part may hold patterns of its own (`src/*/*.cpp`): each directory that matches is
 read in turn. The paths are sorted within each directory, and are relative when the pattern is. A directory that
 cannot be read is skipped, as Go skips it; a pattern without a meta character (`*`, `?`, `[`, `\`) names the file,
 which is the result when it exists; an empty pattern names none.
@@ -66,5 +67,6 @@ glob src/[: invalid pattern
 ## See also
 
 - [match](match.md): the rules of a pattern
+- [io::glob](../glob.md): `**`, braces and hidden names, as Python's glob
 - [read_dir](../read_dir.md), [walk_dir](../walk_dir.md): the entries of a directory, and of a tree
 - [sgcl::io::path](README.md)

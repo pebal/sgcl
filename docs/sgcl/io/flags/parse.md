@@ -17,6 +17,13 @@ Reads a command line into the variables of the flags, and the arguments after th
 2. The arguments given, without the program's name: Go's `FlagSet.Parse` with `ContinueOnError`. Nothing is printed
    and the process runs on; the result says what came of it.
 
+Beyond Go: the variables of the environment named by [flag_options](../flag_options.md) are read first and the
+command line wins over them; a required flag that neither gave refuses the command line (`flag is required: -port`);
+a token of one-letter bools that is no flag's name is the bools combined (`-vx`); and when commands were added
+([add_command](add_command.md)), the first argument after the flags that names one hands the rest to it, a name that
+is none is refused (`unknown command: x`) unless the description has a positional list, and the command's `-h` and
+errors print the command's usage.
+
 The variables before a refused argument are set, as in Go; the variable of a value refused keeps what it held (Go's
 `Set` stores what `strconv` returned, 0 or the type's limit, before it fails).
 

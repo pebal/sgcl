@@ -360,6 +360,14 @@ namespace sgcl::time {
         string format(layout format) const noexcept;
         string format(const string& pattern) const noexcept;
 
+        // The datetime as a locale writes it (localized.h): its patterns of
+        // a date and a time, t.format(txt::locale("pl")) "24 wrz 2026,
+        // 14:05"; its pattern for a skeleton, t.format(l, "MMMd") "24 wrz";
+        // an interval to another time, "24–26 wrz 2026"
+        string format(const txt::locale& l, style date = style::medium, style time = style::brief) const;
+        string format(const txt::locale& l, const string& skeleton) const;
+        string format_interval(const datetime& to, const txt::locale& l, const string& skeleton) const;
+
         // RFC 3339 with the fraction only where there is one:
         // "2026-09-24T12:41:15+02:00", "2026-09-24T10:41:15.5Z"
         string to_string() const noexcept;

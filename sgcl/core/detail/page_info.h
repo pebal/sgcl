@@ -17,14 +17,31 @@ namespace sgcl::detail {
     struct PageInfo {
         using Type = std::remove_cv_t<T>;
         static constexpr size_t ObjectSize = sizeof(std::remove_extent_t<std::conditional_t<std::is_void_v<Type>, char, Type>>);
-        static constexpr size_t ObjectCount = std::max(size_t(1), PageDataSize / ObjectSize);
+#if defined(SGCL_ASAN)
+        // Under the address sanitizer (os.h: SGCL_ASAN) the slot of an
+        // object is the object, rounded to the sanitizer's 8-byte granule,
+        // and a redzone of 16 bytes or the type's alignment, whichever is
+        // more, so that every slot starts on a granule and keeps the type's
+        // alignment; poisoned while the object lives, a read past its end
+        // is reported. A buffer's slot is its size class (maker.h: the
+        // redzone is in the class it takes). The stride of the page and its
+        // count of slots follow (Page: object_size, multiplier, object_count).
+        // Elsewhere the slot is the object.
+        using SlotElement = std::remove_extent_t<std::conditional_t<std::is_void_v<Type>, char, Type>>;
+        static constexpr size_t SlotSize = std::is_base_of_v<ArrayBase, SlotElement>
+                                           ? ObjectSize
+                                           : ((ObjectSize + 7) & ~size_t(7)) + std::max(size_t(16), alignof(SlotElement));
+#else
+        static constexpr size_t SlotSize = ObjectSize;
+#endif
+        static constexpr size_t ObjectCount = std::max(size_t(1), PageDataSize / SlotSize);
         static constexpr size_t StatesSize = (sizeof(std::atomic<State>) * ObjectCount + sizeof(uintptr_t) - 1) & ~(sizeof(uintptr_t) - 1);
         static constexpr size_t FlagsCount = (ObjectCount + Page::FlagBitCount - 1) / Page::FlagBitCount;
         static constexpr size_t FlagsSize = sizeof(Page::Flags) * FlagsCount;
         static constexpr size_t SummaryCount = (FlagsCount + 63) / 64;
         static constexpr size_t FreeBitsSize = sizeof(Page::Flag) * FlagsCount;
         static constexpr size_t HeaderSize = sizeof(Page) + StatesSize + FlagsSize + FreeBitsSize + sizeof(uint64_t) * SummaryCount;
-        using Allocator = std::conditional_t<ObjectSize <= PageDataSize, ObjectPoolAllocator<Type>, ObjectAllocator<Type>>;
+        using Allocator = std::conditional_t<SlotSize <= PageDataSize, ObjectPoolAllocator<Type>, ObjectAllocator<Type>>;
 
         // The sweep's destroy function for the type, or null when the type
         // needs none (trivially destructible: nothing runs per object)

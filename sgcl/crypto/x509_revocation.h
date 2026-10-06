@@ -95,10 +95,11 @@ namespace sgcl::crypto::x509 {
                 return unexpected<error>(detail::ocsp_fail(0, "an OCSP request larger than 1 MiB"));
             }
             auto d = make_tracked<detail::OcspRequestData>();
-            d->raw = vector<byte>(der.data(), der.data() + der.size());
-            if (auto r = detail::parse_ocsp_request(*d); !r) {
+            // parsed from the caller's bytes, copied after: a fuzzer's exact buffer shows an overread
+            if (auto r = detail::parse_ocsp_request(*d, der); !r) {
                 return unexpected<error>(r.error());
             }
+            d->raw = vector<byte>(der.data(), der.data() + der.size());
             return ocsp_request(std::move(d));
         }
 
@@ -191,10 +192,11 @@ namespace sgcl::crypto::x509 {
                 return unexpected<error>(detail::ocsp_fail(0, "an OCSP response larger than 1 MiB"));
             }
             auto d = make_tracked<detail::OcspData>();
-            d->raw = vector<byte>(der.data(), der.data() + der.size());
-            if (auto r = detail::parse_ocsp_response(*d); !r) {
+            // parsed from the caller's bytes, copied after: a fuzzer's exact buffer shows an overread
+            if (auto r = detail::parse_ocsp_response(*d, der); !r) {
                 return unexpected<error>(r.error());
             }
+            d->raw = vector<byte>(der.data(), der.data() + der.size());
             return ocsp_response(std::move(d));
         }
 
@@ -428,10 +430,11 @@ namespace sgcl::crypto::x509 {
         // is not one or is not strict DER
         [[nodiscard]] static expected<revocation_list, error> parse(const slice<const byte>& der) noexcept {
             auto d = make_tracked<detail::CrlData>();
-            d->raw = vector<byte>(der.data(), der.data() + der.size());
-            if (auto r = detail::parse_crl(*d); !r) {
+            // parsed from the caller's bytes, copied after: a fuzzer's exact buffer shows an overread
+            if (auto r = detail::parse_crl(*d, der); !r) {
                 return unexpected<error>(r.error());
             }
+            d->raw = vector<byte>(der.data(), der.data() + der.size());
             return revocation_list(std::move(d));
         }
 

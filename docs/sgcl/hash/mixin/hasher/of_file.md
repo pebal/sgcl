@@ -17,7 +17,8 @@ The hash of the whole file at `path`: the one-shot form of a file, what [of](of.
 
 - (1–2) Only for a class made without arguments, as `of(data)` is: a hasher with a key
   ([siphash](../../siphash/README.md)) has neither, and opens the file and calls `copy_from` itself. A class with a seed
-  hashes as one made without it: [xxh3_64](../../xxh3_64/README.md) and [xxh3_128](../../xxh3_128/README.md) with the seed 0,
+  hashes as one made without it: [xxh3_64](../../xxh3_64/README.md), [xxh3_128](../../xxh3_128/README.md),
+  [xxh32](../../xxh32/README.md) and [xxh64](../../xxh64/README.md) with the seed 0,
   [maphash](../../maphash/README.md) with the process's seed.
 
 ## Parameters

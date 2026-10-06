@@ -34,7 +34,8 @@ not an image throws a [bad_expected_access](../../core/bad_expected_access/READM
 
 - The pixels and the metadata are not synchronized: concurrent readers, or one writer, with the program's own
   synchronization, and that counts every copy of the handle, since copies share them. [convert](convert.md),
-  [clone](clone.md), [oriented](oriented.md) and the encoders only read.
+  [clone](clone.md), [oriented](oriented.md), [cropped](cropped.md), [flipped](flipped.md), [rotated](rotated.md) and
+  the encoders only read.
 - The decoders never turn an image: the rows are as the file stores them, and [orientation](orientation.md)
   says how they are meant to be shown, as with Go and libjpeg. [oriented](oriented.md) turns them.
 - [save](save.md) is declared with the class and defined in `sgcl/codec/files.h`, with
@@ -69,6 +70,9 @@ not an image throws a [bad_expected_access](../../core/bad_expected_access/READM
 | [convert](convert.md) | the same pixels in another format |
 | [clone](clone.md) | a copy of the pixels and the metadata |
 | [oriented](oriented.md) | the image turned and mirrored as it is meant to be shown |
+| [cropped](cropped.md) | a rectangle of the pixels |
+| [flipped](flipped.md) | the image mirrored, left to right or top to bottom |
+| [rotated](rotated.md) | the image turned by a multiple of 90 degrees |
 
 #### Metadata
 

@@ -8,15 +8,17 @@
 //
 //   ecc <case> <sgcl|openssl>
 //
-//   p256-sign p384-sign       an ECDSA signature (DER) of a 32/48-byte digest:
-//                             sign_digest against EVP_PKEY_sign
+//   p256-sign p384-sign       an ECDSA signature (DER) of a 32/48/64-byte
+//   p521-sign                 digest: sign_digest against EVP_PKEY_sign
 //   p256-verify p384-verify   its verification: verify_digest against
-//                             EVP_PKEY_verify
+//   p521-verify               EVP_PKEY_verify
 //   p256-ecdh p384-ecdh       a shared secret with a fixed peer:
-//                             shared_secret against EVP_PKEY_derive (the
+//   p521-ecdh                 shared_secret against EVP_PKEY_derive (the
 //                             context made once, the peer set once)
 //   p256-keygen p384-keygen   a new key and its public point: generate
-//                             against EVP_PKEY_generate
+//   p521-keygen               against EVP_PKEY_generate
+//
+// P-521's Go side is benchmarks/go/crypto (p521-*), through compare.sh.
 //
 // bench_ecc links libcrypto only when benchmarks/CMakeLists.txt finds
 // OpenSSL (Homebrew's openssl@3). About two seconds a run after a quarter
@@ -95,7 +97,7 @@ namespace {
             EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(key, nullptr);
             EVP_PKEY_sign_init(ctx);
             measure([&] {
-                unsigned char sig[128];
+                unsigned char sig[144];   // P-521's DER signature: up to 139 bytes
                 size_t n = sizeof sig;
                 EVP_PKEY_sign(ctx, sig, &n, digest, dlen);
                 return uint64_t(n);
@@ -104,7 +106,7 @@ namespace {
         } else if (op == "verify") {
             EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(key, nullptr);
             EVP_PKEY_sign_init(ctx);
-            unsigned char sig[128];
+            unsigned char sig[144];   // P-521's DER signature: up to 139 bytes
             size_t n = sizeof sig;
             EVP_PKEY_sign(ctx, sig, &n, digest, dlen);
             EVP_PKEY_CTX_free(ctx);
@@ -118,7 +120,7 @@ namespace {
             EVP_PKEY_derive_init(ctx);
             EVP_PKEY_derive_set_peer(ctx, peer);
             measure([&] {
-                unsigned char out[64];
+                unsigned char out[72];   // P-521's secret: 66 bytes
                 size_t n = sizeof out;
                 EVP_PKEY_derive(ctx, out, &n);
                 return uint64_t(out[0]);
@@ -150,22 +152,27 @@ struct P384Names {
     using ecdh_key = sgcl::crypto::p384::ecdh_key;
 };
 
+struct P521Names {
+    using private_key = sgcl::crypto::p521::private_key;
+    using ecdh_key = sgcl::crypto::p521::ecdh_key;
+};
+
 int main(int argc, char** argv) {
     std::string side = argc > 2 ? argv[2] : "";
     std::string what = argc > 1 ? argv[1] : "";
     size_t dash = what.find('-');
     if (argc < 3 || (side != "sgcl" && side != "openssl") || dash == std::string::npos) {
-        std::fprintf(stderr, "usage: ecc <p256|p384>-<sign|verify|ecdh|keygen> <sgcl|openssl>\n");
+        std::fprintf(stderr, "usage: ecc <p256|p384|p521>-<sign|verify|ecdh|keygen> <sgcl|openssl>\n");
         return 2;
     }
     std::string curve = what.substr(0, dash);
     std::string op = what.substr(dash + 1);
-    size_t dlen = curve == "p256" ? 32 : 48;
+    size_t dlen = curve == "p256" ? 32 : curve == "p384" ? 48 : 64;
     auto measure = [&](auto f) {
         run_for(f, 0.25);   // thrown away
         auto [calls, wall] = run_for(f, 2.0);
         double us = wall * 1e6 / double(calls);
-        std::printf("ecc %s %s us/op=%.2f op/s=%.0f wall=%.2fs\n", what.c_str(), side.c_str(), us, double(calls) / wall, wall);
+        std::printf("ecc %s %s us/op=%.2f ns/op=%.0f op/s=%.0f wall=%.2fs\n", what.c_str(), side.c_str(), us, us * 1e3, double(calls) / wall, wall);
     };
     int rc = 2;
     if (side == "sgcl") {
@@ -173,10 +180,12 @@ int main(int argc, char** argv) {
             rc = sgcl_case<P256Names>(op, dlen, measure);
         } else if (curve == "p384") {
             rc = sgcl_case<P384Names>(op, dlen, measure);
+        } else if (curve == "p521") {
+            rc = sgcl_case<P521Names>(op, dlen, measure);
         }
     } else {
 #if defined(SGCL_BENCH_OPENSSL)
-        rc = openssl_case(curve == "p256" ? "P-256" : "P-384", op, dlen, measure);
+        rc = openssl_case(curve == "p256" ? "P-256" : curve == "p384" ? "P-384" : "P-521", op, dlen, measure);
 #else
         std::fprintf(stderr, "built without OpenSSL\n");
 #endif

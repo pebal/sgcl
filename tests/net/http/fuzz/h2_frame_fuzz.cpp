@@ -12,6 +12,7 @@
 // reads as a frame of a known type, written again by the writers, reads
 // back the same (type, stream, flags that matter, fields, payload).
 #include "sgcl/net/http/detail/h2/frame.h"
+#include "tests/fuzz/input.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -135,7 +136,10 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         }
         const size_t step = whole / 64 + 1;
         for (size_t k = 0; k < whole; k += step) {
-            auto q = parse_frame(p, k, max);
+            // the prefix in a buffer of its own size: in the input's a read
+            // past it would find the frame's next bytes (tests/fuzz/input.h)
+            const sgcl_fuzz::exact prefix(p, k);
+            auto q = parse_frame(prefix.u8(), k, max);
             if (q.has_value()) {
                 check(q->size == 0);
             } else {

@@ -14,7 +14,8 @@
 #include <cstring>
 #include <memory>
 
-// The NIST prime curves P-256 and P-384 (FIPS 186-5, SP 800-186 §3.2.1):
+// The NIST prime curves P-256, P-384 and P-521 (FIPS 186-5, SP 800-186
+// §3.2.1):
 // y^2 = x^3 - 3x + b over the integers modulo a prime p, a group of prime
 // order n with cofactor 1. Points are projective (X:Y:Z), x = X/Z and
 // y = Y/Z, the identity (0:1:0); every coordinate is a field element in
@@ -34,11 +35,17 @@
 // given at run time has a table of its sixteen multiples made per call and
 // its doublings run in Jacobian coordinates; the generator has one table
 // per window, made once (52 windows of sixteen affine points for P-256,
-// 52 KB; 77 for P-384, 116 KB), so that k*G is additions alone.
+// 52 KB; 77 for P-384, 116 KB; 106 for P-521, 239 KB), so that k*G is
+// additions alone.
+//
+// A coordinate and a scalar are `size` bytes in every encoding: 8 words'
+// worth for P-256 and P-384, and for P-521, whose 521 bits fill 9 words
+// but 66 bytes, the low 66 bytes of the 72 (ec_from_be, ec_to_be).
 namespace sgcl::crypto::detail {
     struct P256 {
         static constexpr size_t words = 4;
         static constexpr size_t size = 32;   // bytes of a coordinate and of a scalar
+        static constexpr size_t bits = 256;  // of the order n: what bits2int keeps
 
         struct field {
             static constexpr size_t words = 4;
@@ -58,11 +65,13 @@ namespace sgcl::crypto::detail {
         // the DER OBJECT IDENTIFIER
         static constexpr unsigned char oid[] = {0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07};
         static constexpr const char* name = "P-256";
+        static constexpr const char* module = "p256";
     };
 
     struct P384 {
         static constexpr size_t words = 6;
         static constexpr size_t size = 48;
+        static constexpr size_t bits = 384;
 
         struct field {
             static constexpr size_t words = 6;
@@ -81,7 +90,64 @@ namespace sgcl::crypto::detail {
         // secp384r1, 1.3.132.0.34
         static constexpr unsigned char oid[] = {0x2b, 0x81, 0x04, 0x00, 0x22};
         static constexpr const char* name = "P-384";
+        static constexpr const char* module = "p384";
     };
+
+    // P-521: p = 2^521 - 1, a Mersenne prime; nine words, 66 bytes
+    struct P521 {
+        static constexpr size_t words = 9;
+        static constexpr size_t size = 66;
+        static constexpr size_t bits = 521;
+
+        struct field {
+            static constexpr size_t words = 9;
+            static constexpr limbs<9> modulus = limbs_from_hex<9>(
+                "00000000000001ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+        };
+
+        struct scalar {
+            static constexpr size_t words = 9;
+            static constexpr limbs<9> modulus = limbs_from_hex<9>(
+                "00000000000001fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffa51868783bf2f966b7fcc0148f709a5d03bb5c9b8899c47aebb6fb71e91386409");
+        };
+
+        static constexpr limbs<9> b = limbs_from_hex<9>(
+            "0000000000000051953eb9618e1c9a1f929a21a0b68540eea2da725b99b315f3b8b489918ef109e156193951ec7e937b1652c0bd3bb1bf073573df883d2c34f1ef451fd46b503f00");
+        static constexpr limbs<9> gx = limbs_from_hex<9>(
+            "00000000000000c6858e06b70404e9cd9e3ecb662395b4429c648139053fb521f828af606b4d3dbaa14b5e77efe75928fe1dc127a2ffa8de3348b3c1856a429bf97e7e31c2e5bd66");
+        static constexpr limbs<9> gy = limbs_from_hex<9>(
+            "000000000000011839296a789a3bc0045c8a5fb42c7d1bd998f54449579b446817afbd17273e662c97ee72995ef42640c550b9013fad0761353c7086a272c24088be94769fd16650");
+
+        // secp521r1, 1.3.132.0.35
+        static constexpr unsigned char oid[] = {0x2b, 0x81, 0x04, 0x00, 0x23};
+        static constexpr const char* name = "P-521";
+        static constexpr const char* module = "p521";
+    };
+
+    // A coordinate or a scalar of C::size big-endian bytes as words, and
+    // back: the size bytes the low end of the words' 8 N (P-521's 66 of 72)
+    template<class C>
+    constexpr limbs<C::words> ec_from_be(const unsigned char* p) noexcept {
+        unsigned char b[8 * C::words] = {};
+        for (size_t i = 0; i < C::size; ++i) {
+            b[8 * C::words - C::size + i] = p[i];
+        }
+        return limbs_from_be<C::words>(b);
+    }
+
+    template<class C>
+    SGCL_INLINE_HOT void ec_to_be(unsigned char* p, const limbs<C::words>& a) noexcept {
+        if constexpr (C::size == 8 * C::words) {
+            limbs_to_be(p, a);
+        } else {
+            unsigned char b[8 * C::words] = {};
+            limbs_to_be(b, a);
+            for (size_t i = 0; i < C::size; ++i) {
+                p[i] = b[8 * C::words - C::size + i];
+            }
+            secure_zero(b, sizeof b);   // a scalar may be a secret
+        }
+    }
 
     template<class C>
     struct Curve {
@@ -297,7 +363,7 @@ namespace sgcl::crypto::detail {
         }
 
         // A square root of a (Montgomery form) when there is one: p = 3
-        // mod 4 for both curves, so it is a^((p+1)/4), checked by squaring
+        // mod 4 for the three curves, so it is a^((p+1)/4), checked by squaring
         static bool sqrt(fe& r, const fe& a) noexcept {
             r = F::pow_public(a, F::k.sqrt_exp);
             fe s;
@@ -383,7 +449,7 @@ namespace sgcl::crypto::detail {
         // d_i = b(5i..5i+4) + b(5i-1) - 32 b(5i+4), each in [-16, 16], so
         // that a table of sixteen multiples serves the negative digits too
         // (a negated point is its y negated). 8 * size / 5 + 1 windows:
-        // 52 for P-256, 77 for P-384. The window index is public; the
+        // 52 for P-256, 77 for P-384, 106 for P-521. The window index is public; the
         // digit, its sign and its size are secret, and made with no branch
         static constexpr size_t booth_windows = 8 * size / 5 + 1;
 

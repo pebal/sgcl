@@ -34,7 +34,8 @@ namespace sgcl::io {
         unsupported,      // a descriptor the reactor cannot watch: its number past the reactor's table
         insecure_path,    // a name that would leave its directory once joined to it (path::under), as Go's ErrInsecurePath
         invalid_argument, // flags: a command line the flags do not take (the text as Go's flag package writes it, in the path)
-        help_requested    // flags: -h or -help asked for the usage (Go's flag.ErrHelp)
+        help_requested,   // flags: -h or -help asked for the usage (Go's flag.ErrHelp)
+        library           // open_library, library::symbol: the dynamic loader refused (its text in the error's path)
     };
 
     namespace detail {
@@ -60,6 +61,7 @@ namespace sgcl::io {
                     case errc::insecure_path: return "insecure path";
                     case errc::invalid_argument: return "invalid command line";
                     case errc::help_requested: return "help requested";
+                    case errc::library: return "dynamic library error";
                 }
                 return "unknown io error";
             }

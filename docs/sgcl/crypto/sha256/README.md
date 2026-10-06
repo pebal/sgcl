@@ -36,8 +36,8 @@ value with the shape of every hasher of the [hash module](../../hash/README.md):
   [hmac](../hmac/README.md).
 - **Not a MAC.** A digest of a secret and a message is open to length extension; a tag is [hmac\<sha256\>](../hmac/README.md).
   SHA-224 cut to 28 bytes is not much safer in that respect: it drops only 4 bytes.
-- **Not for passwords**: a digest is fast by design, and a password needs a slow function ([pbkdf2](../pbkdf2/README.md), or
-  Argon2id and scrypt after version 1).
+- **Not for passwords**: a digest is fast by design, and a password needs a slow function ([argon2](../argon2/README.md),
+  [scrypt](../scrypt/README.md), [pbkdf2](../pbkdf2/README.md)).
 - **Hashing never fails and never waits**: `update`, `value`, `digest`, `reset` and `of` are `noexcept`; only the
   mixin's `copy_from` and `of_file` wait, for a stream or a file, and return its error. One object is one thread's at
   a time, as any value.

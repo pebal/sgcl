@@ -80,7 +80,7 @@ is made by its constructor. `size()` and `capacity()` are Go's `len` and `cap`.
 |---|---|
 | `value_type` | `T` |
 | `size_type` | `size_t` |
-| `iterator` | an input iterator that receives on each step, the end iterator once the channel is closed and drained ([begin](begin.md)) |
+| `iterator` | an input iterator that receives at the first look at an element, equal to `std::default_sentinel` once the channel is closed and drained ([begin](begin.md)) |
 | `receive_op` | the awaiter of a receive in a task ([receive](receive.md)) |
 | `send_op` | the awaiter of a send in a task ([send](send.md)) |
 | `receive_case<F>` | a receive case of a select ([on_receive](on_receive.md)) |
@@ -116,7 +116,7 @@ is made by its constructor. `size()` and `capacity()` are Go's `len` and `cap`.
 | Function | Description |
 |---|---|
 | [begin](begin.md) | receives the first element, for a range-for |
-| [end](end.md) | the end iterator |
+| [end](end.md) | the end of a range-for, `std::default_sentinel` |
 
 #### Capacity
 

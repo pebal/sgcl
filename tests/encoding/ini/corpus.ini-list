@@ -1,0 +1,152 @@
+#%%% empty
+#%%% comments only
+; one
+# two
+   ; indented
+#%%% one section
+[server]
+host = example.com
+port = 8080
+#%%% colon delimiter
+[s]
+a: 1
+b : two
+c:three
+#%%% first delimiter wins
+[s]
+url = http://x/?a=b
+time: 12:30
+eq = a=b=c
+mixed : x = y
+#%%% blanks around
+[s]
+   key   =   value with spaces   
+	tab	=	x	
+#%%% empty values
+[s]
+a =
+b:
+c =    
+#%%% keys with spaces and symbols
+[s]
+my key = 1
+key.with.dots = 2
+key-with-dash = 3
+[brackets] key = 4
+#%%% no inline comments
+[s]
+a = 1 ; not a comment
+b = 2 # not a comment either
+#%%% several sections
+[a]
+x = 1
+
+[b]
+x = 2
+
+[c]
+#%%% section names as written
+[ spaced ]
+a = 1
+[UPPER]
+b = 2
+[with.dots and spaces]
+c = 3
+[a [nested] name]
+d = 4
+#%%% section with comment after
+[s] ; a comment
+a = 1
+[t]   # another
+b = 2
+#%%% case kept
+[S]
+Key = 1
+KEY = 2
+key = 3
+#%%% continuation lines
+[s]
+multi = first
+    second
+	third
+next = 1
+#%%% continuation after empty first line
+[s]
+multi =
+    second
+    third
+#%%% continuation ended by a blank line
+[s]
+multi = first
+    second
+
+    indented = new key
+#%%% continuation ended by a comment
+[s]
+multi = first
+; comment
+    second = 2
+#%%% continuation relative to the key's indent
+[s]
+  a = 1
+    more
+  b = 2
+#%%% continuation that looks like a section
+[s]
+a = 1
+  [not a section]
+#%%% continuation that looks like a key
+[s]
+a = 1
+  b = 2
+#%%% indented section header
+[s]
+a = 1
+  [t]
+b = 2
+#%%% unicode
+[sekcja]
+klucz = zażółć gęślą jaźń
+日本 = 語
+#%%% crlf
+[s]
+a = 1
+b = 2
+    more
+#%%% duplicate section
+[a]
+x = 1
+[a]
+y = 2
+#%%% duplicate key
+[a]
+x = 1
+x = 2
+#%%% key without value
+[s]
+lonely
+#%%% value without key
+[s]
+= 1
+#%%% empty brackets
+[]
+a = 1
+#%%% unclosed section
+[s
+a = 1
+#%%% bracket key line
+[s]
+[a = 1
+#%%% many keys
+[s]
+k0 = 0
+k1 = 1
+k2 = 2
+k3 = 3
+k4 = 4
+k5 = 5
+k6 = 6
+k7 = 7
+k8 = 8
+k9 = 9
+#%%% end

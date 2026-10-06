@@ -66,6 +66,6 @@ Output:
 
 ## See also
 
-- [max_redirects](../client/README.md#member-objects): how many redirects are followed
+- [max_redirects](../client/README.md#member-objects): how many redirects are followed, and `follow_redirects` whether any is
 - [request::url](../request/url.md): the URL of a request
 - [sgcl::net::http::response](README.md)

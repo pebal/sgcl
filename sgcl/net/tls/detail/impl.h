@@ -783,7 +783,9 @@ namespace sgcl::net::tls::detail {
         // machine as it is, which refuses it with the alert it deserves)
         bool _hold_hello(const slice<const byte>& m) noexcept {
             _chosen = true;
-            auto h = read_handshake(m);
+            // the hello answered: an ECH ClientHelloInner when it opens (its
+            // name and protocols are the ones asked for), else the hello
+            auto h = read_handshake(_server->hello_answered(m));
             if (!h || HandshakeType(h->type) != HandshakeType::client_hello) {
                 return false;
             }

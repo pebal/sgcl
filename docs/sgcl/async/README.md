@@ -29,7 +29,10 @@ Around the tasks stand the time ([sleep](sleep.md), [after](after.md), [tick](ti
 a channel closed by the stop), the
 composition of tasks ([when_all](when_all.md), [when_any](when_any.md), [task_group](task_group/README.md),
 [with_timeout](with_timeout.md)), their synchronization with each other and with threads ([mutex](mutex/README.md) and
-its family, none of which parks a worker), and the world outside them: a completion set by a callback
+its family, none of which parks a worker), the pace of their calls ([rate_limiter](rate_limiter/README.md), a token
+bucket taken from by many threads at once without a lock, and [singleflight](singleflight/README.md), one call per
+key for every caller that comes while it runs, and [retry](retry.md), an operation tried again with exponential
+backoff and jitter), and the world outside them: a completion set by a callback
 ([promise](promise/README.md)), a call that blocks run on threads apart from the workers
 ([spawn_blocking](spawn_blocking.md)), a thread of the program's choosing ([executor](executor/README.md),
 [strand](strand/README.md)), a value a task passes to everything under it ([task_local](task_local/README.md)), and the
@@ -201,6 +204,7 @@ never before, and holds the frame it will resume or the channel it will signal (
 | [parallel_reduce](parallel_reduce.md) | `parallel.h` | combines a value of every index of a range in the order of the indices, on the workers and the caller, and returns the result |
 | [readable](readable.md) | `reactor.h` | an event set when a descriptor can be read |
 | [reset_signals](reset_signals.md) | `signal.h` | gives signals back the disposition they had before `signals` |
+| [retry](retry.md) | `retry.h` | calls a function until it gives a value or the policy gives up, with exponential backoff and jitter |
 | [run](run.md) | `run.h` | the entry of a program: a task waited for on this thread, its token stopped by SIGINT or SIGTERM |
 | [select](select.md) | `select.h` | waits on several cases at once and runs the body of the first ready |
 | [signals](signals.md) | `signal.h` | the signals of the process as a channel |
@@ -235,10 +239,14 @@ never before, and holds the frame it will resume or the channel it will signal (
 | [operation\<F\>](operation/README.md) | `operation.h` | a waiting operation, carried out by `co_await` or `wait()` |
 | [parallel_options](parallel_options.md) | `parallel.h` | how a parallel loop is spread: its lanes and its grain |
 | [promise\<T\>](promise/README.md) | `promise.h` | a completion set once by any thread or callback, awaited by a task |
+| [rate_error](rate_error/README.md) | `rate_limiter.h` | why a wait for a rate limiter's tokens gave up |
+| [rate_limiter](rate_limiter/README.md) | `rate_limiter.h` | a token bucket, Go's `x/time/rate`: tokens taken now, reserved ahead or waited for |
 | [receive_channel\<T\>](receive_channel/README.md) | `channel.h` | a channel seen from its receiving end: receives, no send, no close |
+| [retry_policy](retry_policy.md) | `retry.h` | how a retry goes on: its attempts, its time, its waits |
 | [scheduler](scheduler/README.md) | `scheduler.h` | the pool of workers that runs the tasks: its size, its statistics, its stop |
 | [semaphore](semaphore/README.md) | `semaphore.h` | a number of permits |
 | [shared_mutex](shared_mutex/README.md) | `shared_mutex.h` | any number of readers or one writer |
+| [singleflight](singleflight/README.md) | `singleflight.h` | one call of a function per key at a time, its result for every caller, Go's `x/sync/singleflight` |
 | [stop_source](stop_source/README.md) | `stop_token.h` | requests the stop: at once, after a while, at a point, with a parent |
 | [stop_token](stop_token/README.md) | `stop_token.h` | the stop seen by a task: a channel closed by the stop |
 | [stopped](stopped/README.md) | `timeout.h` | the error of a task stopped through its token before it ended |
@@ -248,6 +256,12 @@ never before, and holds the frame it will resume or the channel it will signal (
 | [task_local\<T\>](task_local/README.md) | `task_local.h` | a value a task sets and every function and task under it reads |
 | [timed_out](timed_out/README.md) | `timeout.h` | the error of a task that did not end in time |
 | [wait_group](wait_group/README.md) | `wait_group.h` | counts work down to zero, Go's `WaitGroup` |
+
+## Enumerations
+
+| Enumeration | Header | Description |
+|---|---|---|
+| [jitter](jitter.md) | `retry.h` | how a retry draws its waits: none, full, equal, decorrelated |
 
 ## See also
 

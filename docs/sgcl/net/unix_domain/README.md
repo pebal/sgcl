@@ -13,8 +13,10 @@ namespace sgcl::net {
 `sgcl::net::unix_domain` is stream sockets in the file system (`AF_UNIX`): [listen](listen.md) creates
 the socket's file and gives a [listener](../listener/README.md), [connect](connect.md) dials the path a listener
 made and gives a [connection](../connection/README.md). They are Go's `net.Listen("unix", path)` and `net.Dial("unix", path)`.
-A structure of static functions, as [tcp](../tcp/README.md) is; a connection over a unix socket is a connection as any
-other, with no [endpoints](../connection/local_endpoint.md) and its [path](../connection/path.md) instead. The name is
+A structure of static functions, as [tcp](../tcp/README.md) is; a connection over a unix socket is a connection as
+any other, with no [endpoints](../connection/local_endpoint.md) and its [path](../connection/path.md) instead, and it
+passes descriptors between processes ([send_descriptors](../connection/send_descriptors.md),
+[receive_descriptors](../connection/receive_descriptors.md): `SCM_RIGHTS`, Go's `WriteMsgUnix` with `UnixRights`). The name is
 `unix_domain` and not `unix`: `unix` is a macro in the GNU modes of GCC and Clang on Linux.
 
 ## Rules
@@ -72,4 +74,5 @@ false
 
 - [listener](../listener/README.md), [connection](../connection/README.md): what it makes
 - [tcp](../tcp/README.md): the same over the network
+- [send_descriptors](../connection/send_descriptors.md): descriptors over a unix socket
 - `tests/net/socket.cpp`: a unix socket's file

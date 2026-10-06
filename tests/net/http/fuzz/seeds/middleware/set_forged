@@ -1,0 +1,4 @@
+	Cookie: __Host-session=AAAA; __Host-csrf=a.b
+X-CSRF-Token: a.b
+
+secret

@@ -1,0 +1,1 @@
+{n, plural, offset:1 =0 {nobody} one {# plik} few {# pliki} other {# plików}} {g, select, female {ona} other {on}}

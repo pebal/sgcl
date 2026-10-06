@@ -97,6 +97,26 @@ namespace {
         return text(*compress::lzw::decompress(bytes(s), compress::lzw::order::msb, 8));
     }
 
+    std::string unlz4(const std::string& s) {
+        return text(*compress::lz4::decompress(bytes(s)));
+    }
+
+    std::string unsnappy(const std::string& s) {
+        return text(*compress::snappy::decompress(bytes(s)));
+    }
+
+    std::string unzstd(const std::string& s) {
+        return text(*compress::zstd::decompress(bytes(s)));
+    }
+
+    std::string unbrotli(const std::string& s) {
+        return text(*compress::brotli::decompress(bytes(s)));
+    }
+
+    std::string unbzip2(const std::string& s) {
+        return text(*compress::bzip2::decompress(bytes(s)));
+    }
+
     // A writer moved from is closed: a close does nothing, a write gives
     // io::errc::closed and is kept, and a reset gives it a new stream; the
     // one moved to goes on with the stream, and a move onto itself changes
@@ -237,6 +257,10 @@ namespace {
     auto xz_reader = [](const io::reader& in) { return compress::xz::reader(in); };
     auto lzw_reader = [](const io::reader& in) { return compress::lzw::reader(in, compress::lzw::order::msb, 8); };
     auto bzip2_reader = [](const io::reader& in) { return compress::bzip2::reader(in); };
+    auto lz4_reader = [](const io::reader& in) { return compress::lz4::reader(in); };
+    auto snappy_reader = [](const io::reader& in) { return compress::snappy::reader(in); };
+    auto zstd_reader = [](const io::reader& in) { return compress::zstd::reader(in); };
+    auto brotli_reader = [](const io::reader& in) { return compress::brotli::reader(in); };
 
     // Each format's bytes of `plain`, with the reader that reads them
     template<class F>
@@ -269,6 +293,22 @@ namespace {
             SCOPED_TRACE("bzip2");
             f(bz2(plain), bzip2_reader);
         }
+        {
+            SCOPED_TRACE("lz4");
+            f(text(compress::lz4::compress(bytes(plain), {.block_size = compress::lz4::block_size::kb64, .linked_blocks = true})), lz4_reader);
+        }
+        {
+            SCOPED_TRACE("snappy");
+            f(text(compress::snappy::compress(bytes(plain))), snappy_reader);
+        }
+        {
+            SCOPED_TRACE("zstd");
+            f(text(compress::zstd::compress(bytes(plain))), zstd_reader);
+        }
+        {
+            SCOPED_TRACE("brotli");
+            f(text(compress::brotli::compress(bytes(plain), {.level = 5})), brotli_reader);
+        }
     }
 }
 
@@ -281,6 +321,11 @@ TEST(CompressBoundaries_Tests, MovedWriters) {
     moved_writer([](io::buffer& s) { return compress::lzma::writer(s, {.level = 1}); }, unlzma);
     moved_writer([](io::buffer& s) { return compress::xz::writer(s, {.level = 1, .delta = 2}); }, unxz);
     moved_writer([](io::buffer& s) { return compress::lzw::writer(s, compress::lzw::order::msb, 8); }, unlzw);
+    moved_writer([](io::buffer& s) { return compress::lz4::writer(s, {.level = 9}); }, unlz4);
+    moved_writer([](io::buffer& s) { return compress::snappy::writer(s); }, unsnappy);
+    moved_writer([](io::buffer& s) { return compress::zstd::writer(s, {.level = 9}); }, unzstd);
+    moved_writer([](io::buffer& s) { return compress::brotli::writer(s, {.level = 5}); }, unbrotli);
+    moved_writer([](io::buffer& s) { return compress::bzip2::writer(s, {.level = 1}); }, unbzip2);
 }
 
 TEST(CompressBoundaries_Tests, MovedReaders) {
@@ -325,6 +370,17 @@ TEST(CompressBoundaries_Tests, NoDataAndOneByte) {
     EXPECT_EQ(compress::xz::decompress(bytes(none)).error().code(), compress::errc::unexpected_end);
     EXPECT_EQ(compress::bzip2::decompress(bytes(none)).error().code(), compress::errc::unexpected_end);
     EXPECT_EQ(compress::lzw::decompress(bytes(none), compress::lzw::order::lsb, 8).error().code(), compress::errc::unexpected_end);
+    EXPECT_EQ(compress::lz4::decompress(bytes(none)).error().code(), compress::errc::unexpected_end);
+    EXPECT_EQ(compress::snappy::decompress(bytes(none)).error().code(), compress::errc::unexpected_end);
+    EXPECT_EQ(compress::snappy::decompress_block(bytes(none)).error().code(), compress::errc::unexpected_end);
+    EXPECT_EQ(compress::snappy::decompress(bytes(std::string("\xff", 1))).error().code(), compress::errc::unexpected_end);
+    EXPECT_EQ(compress::lz4::decompress(bytes(std::string("\x04", 1))).error().code(), compress::errc::unexpected_end);
+    EXPECT_EQ(compress::zstd::decompress(bytes(none)).error().code(), compress::errc::unexpected_end);
+    EXPECT_EQ(compress::zstd::decompress(bytes(std::string("\x28", 1))).error().code(), compress::errc::unexpected_end);
+    EXPECT_EQ(compress::brotli::decompress(bytes(none)).error().code(), compress::errc::unexpected_end);
+    EXPECT_EQ(compress::brotli::decompress(bytes(std::string("\x01", 1))).error().code(), compress::errc::unexpected_end);
+    EXPECT_FALSE(compress::zstd::content_size(bytes(none)));
+    EXPECT_EQ(compress::zstd::dictionary_id(bytes(none)), 0u);
     // one byte: a final fixed block cut before its end code; two make the empty stream
     EXPECT_EQ(compress::flate::decompress(bytes(std::string("\x03", 1))).error().code(), compress::errc::unexpected_end);
     EXPECT_EQ(compress::flate::decompress(bytes(std::string("\x03\x00", 2)))->size(), 0u);
@@ -356,10 +412,19 @@ TEST(CompressBoundaries_Tests, AWriteAfterTheCloseIsKept) {
         EXPECT_TRUE(closed.error() == late.error());
         EXPECT_EQ(sink.size(), size);
     };
-    io::buffer a, b, c;
+    io::buffer a, b, c, d;
     check(compress::lzma::writer(a), a);
     check(compress::xz::writer(b), b);
     check(compress::lzw::writer(c, compress::lzw::order::lsb, 8), c);
+    check(compress::lz4::writer(d), d);
+    io::buffer e;
+    check(compress::snappy::writer(e), e);
+    io::buffer f;
+    check(compress::zstd::writer(f), f);
+    io::buffer g;
+    check(compress::brotli::writer(g, {.level = 1}), g);
+    io::buffer h;
+    check(compress::bzip2::writer(h, {.level = 1}), h);
 }
 
 // Nothing written: each writer's empty stream, which reads as no bytes; a
@@ -371,7 +436,16 @@ TEST(CompressBoundaries_Tests, EmptyStreams) {
         EXPECT_GT(sink.size(), 0u);
         EXPECT_EQ(decode(contents(sink)), "");
     };
-    io::buffer a, b, c, d, e, f;
+    io::buffer a, b, c, d, e, f, g;
+    check(compress::lz4::writer(g), g, unlz4);
+    io::buffer h;
+    check(compress::snappy::writer(h), h, unsnappy);
+    io::buffer i;
+    check(compress::zstd::writer(i), i, unzstd);
+    io::buffer j;
+    check(compress::brotli::writer(j), j, unbrotli);
+    io::buffer k;
+    check(compress::bzip2::writer(k), k, unbzip2);
     check(compress::flate::writer(a), a, unflate);
     check(compress::zlib::writer(b), b, unzlib);
     check(compress::gzip::writer(c), c, gunzip);
@@ -406,7 +480,16 @@ TEST(CompressBoundaries_Tests, AnOutputThatFailsHalfWay) {
         EXPECT_EQ(out.failures, 1);
         EXPECT_LE(out.taken, 1000u);
     };
-    failing_after a(1000), b(1000), c(1000), d(1000), e(1000), f(1000);
+    failing_after a(1000), b(1000), c(1000), d(1000), e(1000), f(1000), g(1000);
+    check(compress::lz4::writer(g, {.block_size = compress::lz4::block_size::kb64}), g);
+    failing_after h(1000);
+    check(compress::snappy::writer(h), h);
+    failing_after i(1000);
+    check(compress::zstd::writer(i, {.level = 1}), i);
+    failing_after j(1000);
+    check(compress::brotli::writer(j, {.level = 1}), j);
+    failing_after k(1000);
+    check(compress::bzip2::writer(k, {.level = 1}), k);
     check(compress::flate::writer(a), a);
     check(compress::zlib::writer(b), b);
     check(compress::gzip::writer(c), c);
@@ -929,6 +1012,28 @@ TEST(CompressBoundaries_Tests, DecompressAtTheSizeLimit) {
     auto xu = contents(xs);   // the block's sizes not in its header
     auto w = text(compress::lzw::compress(bytes(plain), compress::lzw::order::lsb, 8));
     auto b = bz2(plain);
+    auto z4 = text(compress::lz4::compress(bytes(plain)));
+    io::buffer z4s;
+    compress::lz4::writer z4w(z4s, {.block_size = compress::lz4::block_size::kb64});
+    ASSERT_TRUE(z4w.write(plain));
+    ASSERT_TRUE(z4w.close());
+    auto z4u = contents(z4s);   // its size not in the header
+    check("lz4", [&](const compress::limits& lim) { return compress::lz4::decompress(bytes(z4), lim); });
+    check("lz4 unsized", [&](const compress::limits& lim) { return compress::lz4::decompress(bytes(z4u), lim); });
+    auto sn = text(compress::snappy::compress(bytes(plain)));
+    auto snb = text(compress::snappy::compress_block(bytes(plain)));
+    check("snappy", [&](const compress::limits& lim) { return compress::snappy::decompress(bytes(sn), lim); });
+    check("snappy block", [&](const compress::limits& lim) { return compress::snappy::decompress_block(bytes(snb), lim); });
+    auto zs = text(compress::zstd::compress(bytes(plain)));
+    io::buffer zss;
+    compress::zstd::writer zsw(zss);
+    ASSERT_TRUE(zsw.write(plain));
+    ASSERT_TRUE(zsw.close());
+    auto zsu = contents(zss);   // its size not in the header
+    check("zstd", [&](const compress::limits& lim) { return compress::zstd::decompress(bytes(zs), lim); });
+    check("zstd unsized", [&](const compress::limits& lim) { return compress::zstd::decompress(bytes(zsu), lim); });
+    auto br = text(compress::brotli::compress(bytes(plain), {.level = 4}));
+    check("brotli", [&](const compress::limits& lim) { return compress::brotli::decompress(bytes(br), lim); });
     check("flate", [&](const compress::limits& lim) { return compress::flate::decompress(bytes(f), lim); });
     check("zlib", [&](const compress::limits& lim) { return compress::zlib::decompress(bytes(z), lim); });
     check("gzip", [&](const compress::limits& lim) { return compress::gzip::decompress(bytes(g), lim); });
@@ -948,6 +1053,12 @@ TEST(CompressBoundaries_Tests, DecompressAtTheSizeLimit) {
     EXPECT_TRUE(compress::xz::decompress(compress::xz::compress(""), zero));
     EXPECT_TRUE(compress::lzw::decompress(compress::lzw::compress(bytes(std::string()), compress::lzw::order::lsb, 8), compress::lzw::order::lsb, 8, zero));
     EXPECT_TRUE(compress::bzip2::decompress(bytes(bz2("")), zero));
+    EXPECT_TRUE(compress::lz4::decompress(compress::lz4::compress(""), zero));
+    EXPECT_EQ(compress::lz4::decompress(compress::lz4::compress(bytes(one)), zero).error().code(), compress::errc::too_large);
+    EXPECT_TRUE(compress::zstd::decompress(compress::zstd::compress(""), zero));
+    EXPECT_EQ(compress::zstd::decompress(compress::zstd::compress(bytes(one)), zero).error().code(), compress::errc::too_large);
+    EXPECT_TRUE(compress::brotli::decompress(compress::brotli::compress(""), zero));
+    EXPECT_EQ(compress::brotli::decompress(compress::brotli::compress(bytes(one)), zero).error().code(), compress::errc::too_large);
     EXPECT_EQ(compress::flate::decompress(compress::flate::compress(bytes(one)), zero).error().code(), compress::errc::too_large);
     EXPECT_EQ(compress::gzip::decompress(compress::gzip::compress(bytes(one)), zero).error().code(), compress::errc::too_large);
     EXPECT_EQ(compress::lzma::decompress(compress::lzma::compress(bytes(one)), zero).error().code(), compress::errc::too_large);

@@ -13,8 +13,10 @@ namespace sgcl::codec {
 ```
 
 Decodes a file of any of the module's formats, told by its signature ([sniff](sniff.md)): [png](png/README.md),
-[jpeg](jpeg/README.md), [webp](webp/README.md), the first frame of a [gif](gif/README.md), and HEIF and AVIF through the system's codec
-([heif](heif/README.md)). Once the format is known it is that format's own `decode`, with the same options; a file of no
+[jpeg](jpeg/README.md), [webp](webp/README.md), the first frame of a [gif](gif/README.md), the first page of a
+[tiff](tiff/README.md), the largest entry of an [ico](ico/README.md), [bmp](bmp/README.md), [qoi](qoi/README.md),
+[pnm](pnm/README.md), and HEIF, AVIF and JPEG XL through the system's codec ([heif](heif/README.md),
+[jxl](jxl/README.md)). Once the format is known it is that format's own `decode`, with the same options; a file of no
 format the module reads is `errc::unsupported`. It is Go's `image.Decode` with the decoders registered, and what
 [load](load.md) does with the bytes of a file.
 
@@ -53,9 +55,9 @@ Linear in the size of the file and of the image.
 
 ## Notes
 
-A stream is read as it comes, so that the memory a decoding takes is the image and a constant, not the file. Two
-formats keep more: a progressive JPEG keeps its coefficients whole until its last scan, and HEIF and AVIF are read to
-the end of the stream before the system's codec sees them.
+A stream is read as it comes, so that the memory a decoding takes is the image and a constant, not the file. Some
+formats keep more: a progressive JPEG keeps its coefficients whole until its last scan, and HEIF, AVIF, JPEG XL, TIFF and
+ICO are read to the end of the stream before they are decoded.
 
 ## Example
 

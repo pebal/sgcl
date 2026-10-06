@@ -13,6 +13,7 @@
 // begins. A body whose end moves with how it was read is a smuggled
 // request.
 #include "sgcl/net/http/http.h"
+#include "tests/fuzz/input.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -42,7 +43,9 @@ namespace {
         Result r;
         size_t fed = 0;
         while (fed < in.size() && !r.done && !r.error) {
-            std::string_view p = in.substr(fed, std::min(piece, in.size() - fed));
+            // each piece in a buffer of its own size (tests/fuzz/input.h)
+            const sgcl_fuzz::exact bytes(in.substr(fed, std::min(piece, in.size() - fed)));
+            std::string_view p = bytes.view();
             size_t at = 0;
             while (at < p.size()) {
                 auto st = d.step(p.substr(at), room);
@@ -89,7 +92,11 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     }
     size_t piece = 1 + data[size - 2];
     size_t room = 1 + size_t(data[size - 1]) * 16;
-    std::string_view in(reinterpret_cast<const char*>(data), size - 2);
+    // the input less its last two bytes, in a buffer of its own size: the
+    // piece of libFuzzer's would end before them, where a read past it goes
+    // unseen (tests/fuzz/input.h)
+    const sgcl_fuzz::exact copy(reinterpret_cast<const char*>(data), size - 2);
+    std::string_view in = copy.view();
     Result whole = decode(in, in.size() ? in.size() : 1, 1 << 20);
     Result pieces = decode(in, piece, room);
     check(whole.error == pieces.error);

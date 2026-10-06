@@ -1,0 +1,2 @@
+{"jsonrpc":"2.0","id":"a","method":"fail","params":{"x":1}}
+[{"jsonrpc":"2.0","method":"note"},{"jsonrpc":"2.0","id":2,"method":"echo","params":[]}]

@@ -6,7 +6,8 @@
 expected<bool, error> match(const string& pattern_text, const string& name_text) noexcept;
 ```
 
-Checks whether the whole name matches a shell pattern, Go's `filepath.Match`. The pattern and the name are taken
+Checks whether the whole name matches a shell pattern, Go's `filepath.Match`: without `**`, braces or hidden names,
+which [io::glob_pattern](../glob_pattern/README.md) matches as Python's glob does. The pattern and the name are taken
 element by element, so `*` and `?` never match a separator and the two must have as many elements:
 
 | Pattern | Matches |
@@ -77,5 +78,6 @@ src/*.cpp src/a/b.cpp: false
 
 ## See also
 
+- [io::glob_pattern](../glob_pattern/README.md): `**`, braces and hidden names, as Python's glob
 - [glob](glob.md): the paths of the file system that match a pattern
 - [sgcl::io::path](README.md)

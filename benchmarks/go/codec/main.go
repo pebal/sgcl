@@ -3,6 +3,10 @@
 // and golang.org/x/image/webp, the same cases on the same files, one case a
 // run, 0.4 s timed after 0.1 s thrown away; prints "case|ms/op|MP/s". Go has
 // no optimized Huffman tables for JPEG: jpeg-enc-opt is not a case here.
+// gif-enc and gif-enc-nodither quantize to gif.Encode's default palette
+// (Plan9), where the module makes a palette for the image (median cut).
+// tiff-dec, tiff-enc-deflate, bmp-dec and bmp-enc through x/image's tiff
+// and bmp (no LZW encoder in x/image/tiff).
 // Also the inputs Go makes for run.sh.
 //
 //	codec <case> <data dir>
@@ -26,6 +30,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/image/bmp"
+	"golang.org/x/image/tiff"
 	"golang.org/x/image/webp"
 )
 
@@ -123,6 +129,48 @@ func main() {
 		return b
 	}
 	switch {
+	case c == "gif-enc" || c == "gif-enc-nodither":
+		// gif.Encode's default palette (Plan9), with Floyd-Steinberg or
+		// drawn as it is
+		im, err := png.Decode(bytes.NewReader(read("rgb8.png")))
+		must(err)
+		b := im.Bounds()
+		o := &gif.Options{NumColors: 256, Drawer: draw.FloydSteinberg}
+		if c == "gif-enc-nodither" {
+			o.Drawer = draw.Src
+		}
+		var buf bytes.Buffer
+		run(c, float64(b.Dx()*b.Dy()), func() {
+			buf.Reset()
+			must(gif.Encode(&buf, im, o))
+		})
+	case c == "tiff-dec":
+		decodeCase(c, read("lzw.tif"), tiff.Decode)
+	case c == "bmp-dec":
+		decodeCase(c, read("rgb8.bmp"), bmp.Decode)
+	case c == "tiff-enc-deflate" || c == "bmp-enc":
+		im, err := png.Decode(bytes.NewReader(read("rgb8.png")))
+		must(err)
+		b := im.Bounds()
+		var buf bytes.Buffer
+		run(c, float64(b.Dx()*b.Dy()), func() {
+			buf.Reset()
+			if c == "bmp-enc" {
+				must(bmp.Encode(&buf, im))
+			} else {
+				must(tiff.Encode(&buf, im, &tiff.Options{Compression: tiff.Deflate, Predictor: true}))
+			}
+		})
+	case c == "gif-enc-exact":
+		// the indices of image.gif again: an image.Paletted, no quantizing
+		im, err := gif.Decode(bytes.NewReader(read("image.gif")))
+		must(err)
+		b := im.Bounds()
+		var buf bytes.Buffer
+		run(c, float64(b.Dx()*b.Dy()), func() {
+			buf.Reset()
+			must(gif.Encode(&buf, im, nil))
+		})
 	case c == "png-enc" || c == "jpeg-enc":
 		im, err := png.Decode(bytes.NewReader(read("rgb8.png")))
 		must(err)

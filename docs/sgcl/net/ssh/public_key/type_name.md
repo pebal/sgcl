@@ -6,7 +6,7 @@
 string type_name() const noexcept;
 ```
 
-The name of its type as the blob holds it: `ssh-ed25519`, `ecdsa-sha2-nistp256`, `ecdsa-sha2-nistp384`, `ssh-rsa`, or a certificate's, `ssh-ed25519-cert-v01@openssh.com` and the others.
+The name of its type as the blob holds it: `ssh-ed25519`, `ecdsa-sha2-nistp256`, `ecdsa-sha2-nistp384`, `ecdsa-sha2-nistp521`, `ssh-rsa`, or a certificate's, `ssh-ed25519-cert-v01@openssh.com` and the others.
 
 ## Parameters
 

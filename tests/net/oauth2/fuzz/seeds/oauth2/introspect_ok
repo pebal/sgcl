@@ -1,0 +1,5 @@
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 110
+
+{"active":true,"client_id":"web","sub":"ann","aud":["a","b"],"exp":1999999999,"iat":1700000000,"scope":"read"}

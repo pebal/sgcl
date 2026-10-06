@@ -24,7 +24,7 @@ type `value()` has.
    takes `args`.
 
 - (1–2) With arguments after the data, a seed or a key, for a class whose hash takes one and which declares a
-  one-shot of its own ([the rules](README.md#rules)): `xxh3_64::of(data, seed)`, `maphash::of(data, seed)`,
+  one-shot of its own ([the rules](README.md#rules)): `xxh3_64::of(data, seed)`, `xxh64::of(data, seed)`, `maphash::of(data, seed)`,
   `siphash::of(data, key)`. Such a class hashes in one call with no hasher made. Without arguments `of` exists only
   for a class made without them, so `siphash::of(data)` does not compile; and only such a class takes an argument,
   so a CRC does not go on from a value through `of`: `crc32::of(data, v)` does not compile, and

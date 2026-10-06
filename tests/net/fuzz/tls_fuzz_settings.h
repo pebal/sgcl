@@ -231,4 +231,58 @@ namespace tls_fuzz {
     // handshake message has): the client's change_cipher_spec() in place of
     // a feed
     inline constexpr uint8_t ChangeCipherSpec = 0xFF;
+
+    // Encrypted Client Hello (tls_ech_fuzz.cpp): the server's key, an
+    // X25519 key derived from a fixed seed, and its ECHConfig (id 7, the
+    // public name "public.test", HKDF-SHA256 with AES-128-GCM and
+    // ChaCha20-Poly1305, names padded to 32)
+    inline const sgcl::crypto::hpke::private_key& ech_private_key() {
+        static const auto k = [] {
+            uint8_t ikm[32];
+            for (size_t i = 0; i < sizeof ikm; ++i) {
+                ikm[i] = uint8_t(0xEC ^ i);
+            }
+            return sgcl::crypto::hpke::private_key::derive(sgcl::crypto::hpke::kem::dhkem_x25519, tls::bytes_of(ikm, sizeof ikm));
+        }();
+        return k;
+    }
+
+    inline std::vector<sgcl::byte> ech_config() {
+        auto pub = ech_private_key().public_key().bytes();
+        return tls::write_ech_config(7, 0x0020, tls::bytes_of(pub.data(), pub.size()), {0x00010001, 0x00010003}, 32, "public.test");
+    }
+
+    // The ECHConfigList of the config
+    inline std::vector<sgcl::byte> ech_config_list() {
+        auto c = ech_config();
+        std::vector<sgcl::byte> l = {sgcl::byte(c.size() >> 8), sgcl::byte(c.size())};
+        l.insert(l.end(), c.begin(), c.end());
+        return l;
+    }
+
+    // The server of a mode (server_settings) with the key, its config sent
+    // as retry_configs
+    inline tls::ServerSettings ech_server_settings(uint8_t mode) {
+        tls::ServerSettings s = server_settings(mode);
+        tls::EchServerKey k;
+        k.config = ech_config();
+        k.id = 7;
+        k.kem = 0x0020;
+        k.suites = {0x00010001, 0x00010003};
+        k.key = &ech_private_key();
+        s.ech_keys.push_back(std::move(k));
+        s.ech_retry_configs = ech_config_list();
+        return s;
+    }
+
+    // A client of the config: "example.test" sealed, ALPN; `list` the
+    // ECHConfigList it was given (another key's to be rejected)
+    inline tls::ClientSettings ech_client_settings(const std::vector<sgcl::byte>& list) {
+        tls::ClientSettings s;
+        s.server_name = sgcl::string("example.test");
+        s.insecure_skip_verify = true;
+        s.alpn = {sgcl::string("h2"), sgcl::string("http/1.1")};
+        s.ech = tls::choose_ech(tls::bytes_of(list.data(), list.size()));
+        return s;
+    }
 }

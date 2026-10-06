@@ -240,6 +240,53 @@ TEST(Flate_Tests, TheLimitStopsABomb) {
     EXPECT_EQ(whole->size(), zeros.size());
 }
 
+// A sync flush after every piece, at every level: each flush ends a block
+// whose codes are built for the few symbols it has (one literal and the
+// end; a block with no match, whose distance table has no symbol; one
+// with a single distance; the fixed codes chosen for the smallest), a
+// flush with nothing new after it, and records of one shape (the HTTP
+// middleware's live JSON in 16 pieces); zlib inflates every stream
+TEST(Flate_Tests, AFlushAfterEveryPiece) {
+    std::string json = "[";
+    for (size_t i = 0; json.size() < 65536; ++i) {
+        json += "{\"id\":" + std::to_string(i) + ",\"name\":\"item " + std::to_string(i) + "\",\"ok\":true},";
+    }
+    json.resize(65536);
+    std::vector<std::pair<std::string, std::string>> inputs = {{"json", json}, {"run", std::string(5000, 'a')}, {"one", "x"}};
+    for (auto& [name, t] : corpus()) {
+        if (name == "compress/gettysburg.txt" || name == "random" || name == "len32769") {
+            inputs.push_back({name, t.substr(0, 40000)});
+        }
+    }
+    for (auto& [name, t] : inputs) {
+        for (int level : {0, 1, 3, 4, 5, 6, 7, 9, compress::level::huffman_only}) {
+            for (size_t step : {size_t(1), size_t(3), size_t(37), size_t(4096)}) {
+                if (step < 37 && t.size() > 6000) {
+                    continue;   // a block a byte: the small inputs alone
+                }
+                sgcl::io::buffer sink;
+                flate::writer w(sink, {.level = level});
+                for (size_t i = 0; i < t.size(); i += step) {
+                    ASSERT_TRUE(w.write(bytes(t.substr(i, step))));
+                    ASSERT_TRUE(w.flush());
+                    if (i == 0) {
+                        ASSERT_TRUE(w.flush());   // nothing new: an empty stored block alone
+                    }
+                }
+                ASSERT_TRUE(w.close());
+                std::string c(reinterpret_cast<const char*>(sink.data().data()), sink.size());
+                ASSERT_GE(c.size(), 5u) << name;
+                std::string back;
+                ASSERT_TRUE(z_inflate(c, -15, back)) << name << " level " << level << " step " << step;
+                ASSERT_EQ(back, t) << name << " level " << level << " step " << step;
+                auto ours = flate::decompress(bytes(c));
+                ASSERT_TRUE(ours) << name;
+                ASSERT_EQ(text(*ours), t) << name;
+            }
+        }
+    }
+}
+
 // A flush makes what came before it decodable there: a reader gets it
 // all before any byte after the flush is written
 TEST(Flate_Tests, AFlushIsDecodableWhereItIs) {

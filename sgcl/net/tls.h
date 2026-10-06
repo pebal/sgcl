@@ -6,6 +6,7 @@
 #pragma once
 
 #include "connection.h"
+#include "dns.h"
 #include "socket.h"
 #include "tls/error.h"
 #include "tls/detail/impl.h"
@@ -13,6 +14,7 @@
 #include "../crypto/ed25519.h"
 #include "../crypto/p256.h"
 #include "../crypto/p384.h"
+#include "../crypto/pkcs12.h"
 #include "../crypto/rsa.h"
 #include "../crypto/x509.h"
 #include "../crypto/x509_revocation.h"
@@ -31,7 +33,7 @@
 // for servers without 1.3, unless config::min_version says otherwise; the
 // server speaks 1.3 alone. The groups
 // X25519MLKEM768 (post-quantum hybrid, first by default), X25519, P-256,
-// P-384; the cipher suites AES-128-GCM, ChaCha20-Poly1305, AES-256-GCM;
+// P-384, P-521 (when listed); the cipher suites AES-128-GCM, ChaCha20-Poly1305, AES-256-GCM;
 // the server's chain verified by crypto::x509 against the system's roots
 // or the pool given, for the server's name or address; client
 // certificates (mTLS: config::client_auth, the client's identities);
@@ -52,6 +54,7 @@ namespace sgcl::net::tls {
         x25519 = 0x001D,
         secp256r1 = 0x0017,
         secp384r1 = 0x0018,
+        secp521r1 = 0x0019,
     };
 
     enum class cipher : uint16_t {
@@ -98,6 +101,7 @@ namespace sgcl::net::tls {
     };
 
     class identity;
+    class ech_key;
     class session_cache;
     class ticket_keys;
     class revocation_cache;
@@ -109,6 +113,7 @@ namespace sgcl::net::tls {
             optional<crypto::ed25519::private_key> ed25519;
             optional<crypto::p256::private_key> p256;
             optional<crypto::p384::private_key> p384;
+            optional<crypto::p521::private_key> p521;
             optional<crypto::rsa::private_key> rsa;
         };
 
@@ -182,6 +187,10 @@ namespace sgcl::net::tls {
                     k.p384.emplace(std::move(*p));
                     return true;
                 }
+                if (auto p = crypto::p521::private_key::from_pkcs8_der(der)) {
+                    k.p521.emplace(std::move(*p));
+                    return true;
+                }
                 if (auto r = crypto::rsa::private_key::from_pkcs8_der(der)) {
                     k.rsa.emplace(std::move(*r));
                     return true;
@@ -195,6 +204,10 @@ namespace sgcl::net::tls {
                 }
                 if (auto p = crypto::p384::private_key::from_sec1_der(der)) {
                     k.p384.emplace(std::move(*p));
+                    return true;
+                }
+                if (auto p = crypto::p521::private_key::from_sec1_der(der)) {
+                    k.p521.emplace(std::move(*p));
                     return true;
                 }
                 return false;
@@ -225,6 +238,9 @@ namespace sgcl::net::tls {
             } else if (k.p384) {
                 scheme = uint16_t(tls::detail::SignatureScheme::ecdsa_secp384r1_sha384);
                 tls::detail::sign(w, scheme, *k.p384, content);
+            } else if (k.p521) {
+                scheme = uint16_t(tls::detail::SignatureScheme::ecdsa_secp521r1_sha512);
+                tls::detail::sign(w, scheme, *k.p521, content);
             } else if (k.rsa) {
                 scheme = uint16_t(tls::detail::SignatureScheme::rsa_pss_rsae_sha256);
                 tls::detail::sign(w, scheme, *k.rsa, content);
@@ -275,12 +291,52 @@ namespace sgcl::net::tls {
                 return unexpected(io::error(block.error().code(), "identity", block.error().message()));
             }
             if (!detail::read_key(*s->key, block->label, block->der)) {
-                return unexpected(_error("no private key of a kind TLS 1.3 signs with (Ed25519, P-256, P-384, RSA)"));
+                return unexpected(_error("no private key of a kind TLS 1.3 signs with (Ed25519, P-256, P-384, P-521, RSA)"));
             }
             if (!detail::key_matches(*s->key, s->certificates[0])) {
                 return unexpected(_error("the private key is not the leaf certificate's"));
             }
             return identity(std::move(s));
+        }
+
+        // The key and the chain of a PKCS #12 file read (crypto::pkcs12): the
+        // chain as the file holds it, the leaf first; the key must be the
+        // leaf's. crypto::errc::malformed as an io::error of op "identity"
+        // for a file without a key or a certificate
+        static expected<identity, io::error> from_pkcs12(const crypto::pkcs12& file) noexcept {
+            if (file.key_kind() == crypto::x509::key_kind::none || file.certificates().empty()) {
+                return unexpected(_error("a PKCS #12 file without a key and its certificate"));
+            }
+            auto s = make_tracked<detail::IdentityState>();
+            s->key = std::make_unique<detail::IdentityKey>();
+            s->certificates = file.certificates();
+            auto pkcs8 = file.key_pkcs8();
+            if (!detail::read_key(*s->key, "PRIVATE KEY", pkcs8.as_slice())) {
+                return unexpected(_error("no private key of a kind TLS 1.3 signs with (Ed25519, P-256, P-384, P-521, RSA)"));
+            }
+            if (!detail::key_matches(*s->key, s->certificates[0])) {
+                return unexpected(_error("the private key is not the leaf certificate's"));
+            }
+            return identity(std::move(s));
+        }
+
+        // A PKCS #12 file's bytes and its password in one line: the file
+        // read (its errors as an io::error of op "identity"), then as above
+        static expected<identity, io::error> from_pkcs12(const slice<const byte>& file, const slice<const byte>& password) noexcept {
+            auto p = crypto::pkcs12::parse(file, password);
+            if (!p) {
+                return unexpected(io::error(p.error().code(), "identity", p.error().message()));
+            }
+            return from_pkcs12(*p);
+        }
+
+        // The same, a broken one thrown (std::invalid_argument)
+        SGCL_INLINE_HOT explicit identity(const crypto::pkcs12& file) {
+            auto r = from_pkcs12(file);
+            if (!r) {
+                throw std::invalid_argument(std::string(r.error().message().view()));
+            }
+            _s = r->_s;
         }
 
         // The same, a broken one thrown (std::invalid_argument)
@@ -363,6 +419,19 @@ namespace sgcl::net::tls {
             return id._s->staple;
         }
 
+        // The state of an ech_key: the ECHConfig, read once, and the HPKE
+        // private key in unmanaged memory, zeroed when the state is collected
+        struct EchKeyState {
+            EchConfig config;
+            std::unique_ptr<crypto::hpke::private_key> key;
+            bool retry = true;
+        };
+
+        struct EchKeyAccess {
+            static const EchKeyState& state(const ech_key& k) noexcept;
+            static tracked_ptr<const void> word(const ech_key& k) noexcept;
+        };
+
         struct SessionCacheAccess {
             static const tracked_ptr<SessionCacheState>& state(const session_cache& c) noexcept;
         };
@@ -381,6 +450,191 @@ namespace sgcl::net::tls {
             static TicketKeys& keys(const ticket_keys& k) noexcept;
             static tracked_ptr<const void> word(const ticket_keys& k) noexcept;
         };
+    }
+
+    // A server's key of Encrypted Client Hello (RFC 9849): an ECHConfig —
+    // its id, its KEM's public key, the HPKE suites it takes, the public
+    // name the outer hello names — and the HPKE private key that opens the
+    // hellos sealed to it. A handle of one word whose state is made in the
+    // constructor; the private key lives in unmanaged memory, never copied,
+    // zeroed when the last handle's state is collected. What a server
+    // publishes is ech_config_list of its keys (DNS's HTTPS record, RFC 9848)
+    class ech_key {
+    public:
+        // What a new key is made of
+        struct options {
+            optional<uint8_t> config_id;                              // nullopt: random
+            crypto::hpke::kem kem = crypto::hpke::kem::dhkem_x25519;
+            vector<crypto::hpke::suite> suites;                       // empty: HKDF-SHA256 with AES-128-GCM, AES-256-GCM and ChaCha20-Poly1305
+            uint8_t max_name_length = 0;                              // the longest server name of the hellos (RFC 9849 §6.1.3); 0: none named
+            bool retry = true;                                        // sent in retry_configs when ECH is rejected
+        };
+
+        // A new key of the public name: a fresh HPKE key and its ECHConfig.
+        // A public name that is no DNS name (an address, a label of other
+        // characters than letters, digits and '-') is std::invalid_argument
+        static ech_key generate(const string& public_name) {
+            return generate(public_name, options());
+        }
+
+        static ech_key generate(const string& public_name, const options& o) {
+            if (!detail::ech_public_name_ok(public_name.view())) {
+                throw std::invalid_argument("sgcl::net::tls::ech_key::generate: a public name that is no DNS name");
+            }
+            auto key = crypto::hpke::private_key::generate(o.kem);
+            uint8_t id = 0;
+            if (o.config_id) {
+                id = *o.config_id;
+            } else {
+                crypto::random::fill(slice<byte>(reinterpret_cast<byte*>(&id), 1));
+            }
+            std::vector<uint32_t> suites;
+            if (o.suites.empty()) {
+                suites = {0x00010001, 0x00010002, 0x00010003};
+            }
+            for (const auto& x : o.suites) {
+                if (x.aead == crypto::hpke::aead::export_only) {
+                    throw std::invalid_argument("sgcl::net::tls::ech_key::generate: an export_only suite seals no hello");
+                }
+                suites.push_back(uint32_t(x.kdf) << 16 | uint16_t(x.aead));
+            }
+            auto pub = key.public_key().bytes();
+            auto config = detail::write_ech_config(id, uint16_t(o.kem), pub.as_slice(), suites, o.max_name_length, public_name.view());
+            auto k = from_bytes(slice<const byte>(config.data(), config.size()), key.bytes(), o.retry);
+            return *k;
+        }
+
+        // A key of an ECHConfig (version 0xfe0d) and its private key, as
+        // Go's EncryptedClientHelloKey has them: crypto::errc::malformed for
+        // a config that does not read, crypto::errc::invalid_key for a key
+        // that is not the config's, as an io::error of op "ech key"
+        static expected<ech_key, io::error> from_bytes(const slice<const byte>& config, const slice<const byte>& private_key, bool retry = true) noexcept {
+            std::vector<byte> list;
+            list.reserve(config.size() + 2);
+            list.push_back(byte(config.size() >> 8));
+            list.push_back(byte(config.size()));
+            list.insert(list.end(), config.data(), config.data() + config.size());
+            auto configs = detail::read_ech_configs(detail::bytes_of(list.data(), list.size()));
+            if (!configs || configs->size() != 1 || !detail::ech_kem_known(configs->front().kem)) {
+                return unexpected(io::error(crypto::errc::malformed, "ech key", string("not one ECHConfig of version 0xfe0d and a KEM of the module")));
+            }
+            auto s = make_tracked<detail::EchKeyState>();
+            s->config = std::move(configs->front());
+            auto key = crypto::hpke::private_key::from_bytes(crypto::hpke::kem(s->config.kem), private_key);
+            if (!key) {
+                return unexpected(io::error(crypto::errc::invalid_key, "ech key", string("a private key that does not read")));
+            }
+            auto pub = key->public_key().bytes();
+            if (pub.size() != s->config.public_key.size() || !std::equal(pub.begin(), pub.end(), s->config.public_key.begin())) {
+                return unexpected(io::error(crypto::errc::invalid_key, "ech key", string("a private key that is not the ECHConfig's")));
+            }
+            s->key = std::make_unique<crypto::hpke::private_key>(std::move(*key));
+            s->retry = retry;
+            return ech_key(std::move(s));
+        }
+
+        // The ECHConfig
+        vector<byte> config() const {
+            return vector<byte>(_s->config.raw.data(), _s->config.raw.data() + _s->config.raw.size());
+        }
+
+        // The HPKE private key (SerializePrivateKey), in plain memory
+        crypto::secret_bytes private_key() const {
+            return _s->key->bytes();
+        }
+
+        uint8_t config_id() const noexcept {
+            return _s->config.id;
+        }
+
+        string public_name() const {
+            return string(std::string_view(_s->config.public_name));
+        }
+
+        // Whether the key's config is sent in retry_configs
+        bool retry() const noexcept {
+            return _s->retry;
+        }
+
+    private:
+        friend struct detail::EchKeyAccess;
+        friend struct sgcl::detail::HandleWord;
+
+        SGCL_INLINE_HOT explicit ech_key(tracked_ptr<detail::EchKeyState> s) noexcept
+        : _s(std::move(s)) {
+        }
+
+        SGCL_INLINE_HOT ech_key(sgcl::detail::FromWord, const tracked_ptr<detail::EchKeyState>& w) noexcept
+        : _s(w) {
+        }
+
+        SGCL_INLINE_HOT tracked_ptr<detail::EchKeyState>& _handle_word() noexcept {
+            return _s;
+        }
+
+        SGCL_INLINE_HOT const tracked_ptr<detail::EchKeyState>& _handle_word() const noexcept {
+            return _s;
+        }
+
+        tracked_ptr<detail::EchKeyState> _s;
+    };
+
+    namespace detail {
+        SGCL_INLINE_HOT const EchKeyState& EchKeyAccess::state(const ech_key& k) noexcept {
+            return *k._s;
+        }
+
+        SGCL_INLINE_HOT tracked_ptr<const void> EchKeyAccess::word(const ech_key& k) noexcept {
+            return tracked_ptr<const void>(k._s);
+        }
+
+        // The ECHConfigList of the keys' configs (those of `retry` alone when asked)
+        inline std::vector<byte> ech_list_of(const vector<tls::ech_key>& keys, bool retry_only) noexcept {
+            std::vector<byte> out(2);
+            for (const auto& k : keys) {
+                const auto& st = EchKeyAccess::state(k);
+                if (retry_only && !st.retry) {
+                    continue;
+                }
+                out.insert(out.end(), st.config.raw.begin(), st.config.raw.end());
+            }
+            out[0] = byte((out.size() - 2) >> 8);
+            out[1] = byte(out.size() - 2);
+            return out.size() == 2 ? std::vector<byte>() : out;
+        }
+    }
+
+    // The ECHConfigList of the keys (RFC 9849 §4): what a server publishes
+    // in its DNS HTTPS record's "ech" (RFC 9848) and what a client's
+    // config::ech_config_list takes; empty for no keys
+    inline vector<byte> ech_config_list(const vector<ech_key>& keys) {
+        auto l = detail::ech_list_of(keys, false);
+        return vector<byte>(l.data(), l.data() + l.size());
+    }
+
+    namespace detail {
+        // The marker of a rejecting server's retry_configs in an
+        // ech_required error's text: RFC 9460's presentation form of the
+        // same bytes in a DNS HTTPS record
+        inline constexpr std::string_view EchRetryMarker = " ech=";
+    }
+
+    // The retry_configs of a server that rejected a client's Encrypted
+    // Client Hello (Go's ECHRejectionError.RetryConfigList): an ECHConfigList
+    // for config::ech_config_list, of an alert::ech_required error of
+    // client() or connect(); empty for any other error and for a server that
+    // sent none
+    inline vector<byte> ech_retry_configs(const io::error& e) noexcept {
+        if (e.code() != make_error_code(alert::ech_required)) {
+            return {};
+        }
+        const std::string_view p = e.path().view();
+        const size_t at = p.rfind(detail::EchRetryMarker);
+        if (at == std::string_view::npos) {
+            return {};
+        }
+        auto b = encoding::base64::standard.decode(string(p.substr(at + detail::EchRetryMarker.size())));
+        return b ? *b : vector<byte>();
     }
 
     // The sessions a client may resume (RFC 8446 §2.2; TLS 1.2's, RFC 5246
@@ -577,6 +831,10 @@ namespace sgcl::net::tls {
         optional<tls::revocation_cache> revocation_cache;       // what the online checks fetched; none: the process's
         bool ocsp_stapling = false;                             // a server's: its identities' OCSP responses fetched, stapled, refreshed
         identity_function identity_for;                         // a server's: its identity for each hello, in place of `identities`; empty: none
+        vector<byte> ech_config_list;                           // a client's: the server's ECHConfigList (RFC 9849, DNS's HTTPS "ech"); empty: no ECH
+        vector<tls::ech_key> ech_keys;                          // a server's: the keys of Encrypted Client Hello; empty: no ECH
+        bool ech_from_dns = false;                              // a client's: with ech_config_list empty, the list of the server name's DNS HTTPS record; none: no ECH
+        net::dns::options ech_dns;                              // a client's: how that record is looked up; empty: /etc/resolv.conf's servers
     };
 
     // What the handshake settled
@@ -590,6 +848,7 @@ namespace sgcl::net::tls {
         bool resumed = false;                                   // a session resumed, no certificate exchanged
         optional<crypto::x509::revocation_status> revocation;   // the peer's chain's as checked; none: not checked
         tls::revocation_source revocation_source = revocation_source::none;   // where the leaf's came from
+        bool ech_accepted = false;                              // the hello answered was the encrypted ClientHelloInner (RFC 9849)
     };
 
     namespace detail {
@@ -631,6 +890,19 @@ namespace sgcl::net::tls {
             }
             s.alpn = c.alpn;
             s.status_request = c.revocation != revocation_mode::off && !c.insecure_skip_verify;
+            if (!c.ech_config_list.empty()) {
+                // ECH (RFC 9849): the first config the module can use, TLS 1.3 alone
+                s.ech = choose_ech(bytes_of(c.ech_config_list.data(), c.ech_config_list.size()));
+                s.tls12 = false;
+                if (s.tls13) {
+                    s.ciphers.clear();
+                    for (auto x : c.ciphers) {
+                        if (known(Cipher(x))) {
+                            s.ciphers.push_back(uint16_t(x));
+                        }
+                    }
+                }
+            }
             return s;
         }
 
@@ -656,6 +928,8 @@ namespace sgcl::net::tls {
                     out.push_back(identity_of(chain, *k.p256));
                 } else if (k.p384) {
                     out.push_back(identity_of(chain, *k.p384));
+                } else if (k.p521) {
+                    out.push_back(identity_of(chain, *k.p521));
                 } else {
                     out.push_back(identity_of(chain, *k.rsa));
                 }
@@ -732,7 +1006,7 @@ namespace sgcl::net::tls {
             ClientSetup s;
             s.settings = client_settings(c);
             identities_of(c.identities, s.settings.identities, s.keep);
-            if (c.session_cache) {
+            if (c.session_cache && c.ech_config_list.empty()) {
                 s.cache = SessionCacheAccess::state(*c.session_cache);
                 s.key = session_key(c.server_name, transport.remote_endpoint().port(), c.alpn);
                 s.settings.session = s.cache->take(s.key, time::now().unix_milli());
@@ -760,14 +1034,26 @@ namespace sgcl::net::tls {
             if (!s.tls13) {
                 bool curve = false;
                 for (auto g : c.groups) {
-                    curve |= g == group::x25519 || g == group::secp256r1 || g == group::secp384r1;
+                    curve |= g == group::x25519 || g == group::secp256r1 || g == group::secp384r1 || g == group::secp521r1;
                 }
                 if (!curve) {
-                    return config_error("a config of TLS 1.2 alone without a group of it (X25519, P-256, P-384)");
+                    return config_error("a config of TLS 1.2 alone without a group of it (X25519, P-256, P-384, P-521)");
                 }
             }
             if (c.server_name.empty() && !c.insecure_skip_verify) {
                 return config_error("a config without a server name to verify");
+            }
+            if (!c.ech_config_list.empty()) {
+                if (!s.tls13) {
+                    return config_error("an ECH config list with a config that does not offer TLS 1.3");
+                }
+                if (!s.ech) {
+                    // the list's own fault, as identity::from_pem reports a PEM's
+                    const bool reads = bool(read_ech_configs(bytes_of(c.ech_config_list.data(), c.ech_config_list.size())));
+                    return io::error(reads ? crypto::errc::unsupported : crypto::errc::malformed, "tls",
+                                     string(reads ? "an ECH config list with no config of a KEM, a suite and a public name the module takes"
+                                                  : "an ECH config list that does not read"));
+                }
             }
             if (uint8_t(c.revocation) > uint8_t(revocation_mode::hard_fail)) {
                 return config_error("a revocation of no value of its enumeration");
@@ -780,15 +1066,92 @@ namespace sgcl::net::tls {
             return nullopt;
         }
 
-        inline expected<net::connection, io::error> block_client(const net::connection& transport, const config& c, time_point deadline) {
-            if (auto e = check_client(c)) {
+        // An ech_required error with the server's retry_configs, when it
+        // sent some (net::tls::ech_retry_configs reads them back)
+        inline io::error ech_rejection(const io::error& e, const std::vector<byte>& retry) {
+            if (retry.empty() || e.code() != make_error_code(alert::ech_required)) {
+                return e;
+            }
+            string b64 = encoding::base64::standard.encode(bytes_of(retry.data(), retry.size()));
+            return io::error(e.code(), e.op(), e.path() + string(EchRetryMarker) + b64, e.count());
+        }
+
+        // config::ech_from_dns: the ECHConfigList of the server name's HTTPS
+        // records (RFC 9460, RFC 9848), looked up when the config asks for it,
+        // has no list of its own and offers TLS 1.3, for a name that is no
+        // address. The list is the first ServiceMode record's, in their
+        // order, whose "ech" holds a config the module can use and whose
+        // mandatory keys are all keys dns reads into fields (1..7); a lookup
+        // that fails or finds none gives none, and the handshake goes on
+        // without ECH, as without a record (RFC 9849 §6.1)
+        SGCL_INLINE_HOT bool wants_dns_ech(const config& c) noexcept {
+            return c.ech_from_dns && c.ech_config_list.empty() && !c.server_name.empty() && client_settings(c).tls13
+                && !net::detail::IpText::parse(net::detail::IpText::view(c.server_name));
+        }
+
+        inline vector<byte> ech_of_records(const expected<vector<net::dns::svcb>, io::error>& found) noexcept {
+            if (!found) {
+                return {};
+            }
+            for (const auto& r : *found) {
+                if (r.priority == 0 || r.ech.empty()) {
+                    continue;
+                }
+                bool known = true;
+                for (uint16_t k : r.mandatory) {
+                    known &= k >= 1 && k <= 7;
+                }
+                if (known && choose_ech(bytes_of(r.ech.data(), r.ech.size()))) {
+                    return r.ech;
+                }
+            }
+            return {};
+        }
+
+        // The name asked (RFC 9460 §9.1): the server name for port 443,
+        // "_port._https.name" for another; absolute, so that no search
+        // domain makes it another host's
+        inline string ech_query_name(const string& server_name, uint16_t port) noexcept {
+            std::string q;
+            if (port != 443) {
+                q = "_" + std::to_string(port) + "._https.";
+            }
+            q += server_name.view();
+            if (q.back() != '.') {
+                q += '.';
+            }
+            return string(std::string_view(q));
+        }
+
+        // The lookup, given up at half the time left to the handshake's
+        // deadline: a DNS server that does not answer costs ECH, never the
+        // connection
+        inline async::task<vector<byte>> co_ech_from_dns(string server_name, uint16_t port, net::dns::options o, time_point deadline) noexcept {
+            async::stop_source bound;
+            const auto left = deadline - sgcl::clock::now();
+            bound.stop_after(left > decltype(left)::zero() ? duration(left / 2) : duration());
+            auto found = co_await net::dns::async_lookup_https(ech_query_name(server_name, port), o, bound.token());
+            co_return ech_of_records(found);
+        }
+
+        inline expected<net::connection, io::error> block_client(const net::connection& transport, const config& given, time_point deadline) {
+            if (auto e = check_client(given)) {
                 return unexpected(*e);
             }
+            optional<config> looked;
+            if (wants_dns_ech(given)) {
+                looked = given;
+                looked->ech_config_list = co_ech_from_dns(given.server_name, transport.remote_endpoint().port(), given.ech_dns, deadline).wait();
+            }
+            const config& c = looked ? *looked : given;
             auto setup = client_setup(c, transport);
             auto impl = make_tracked<TlsImpl>(transport, setup.settings, setup.keep, setup.cache, setup.key);
             auto r = impl->handshake(deadline);
             if (!r) {
                 (void)transport.close();
+                if (impl->result().ech_rejected) {
+                    return unexpected(ech_rejection(r.error(), impl->result().ech_retry_configs));
+                }
                 return unexpected(r.error());
             }
             if (client_checks_revocation(c, *impl)) {
@@ -804,11 +1167,17 @@ namespace sgcl::net::tls {
             if (auto e = check_client(c)) {
                 co_return unexpected(*e);
             }
+            if (wants_dns_ech(c)) {
+                c.ech_config_list = co_await co_ech_from_dns(c.server_name, transport.remote_endpoint().port(), c.ech_dns, deadline);
+            }
             auto setup = client_setup(c, transport);
             auto impl = make_tracked<TlsImpl>(transport, setup.settings, setup.keep, setup.cache, setup.key);
             auto r = co_await impl->async_handshake(deadline);
             if (!r) {
                 (void)transport.close();
+                if (impl->result().ech_rejected) {
+                    co_return unexpected(ech_rejection(r.error(), impl->result().ech_retry_configs));
+                }
                 co_return unexpected(r.error());
             }
             if (client_checks_revocation(c, *impl)) {
@@ -839,11 +1208,34 @@ namespace sgcl::net::tls {
                 co_return unexpected(cfg.error());
             }
             const time_point deadline = sgcl::clock::now() + c.handshake_timeout;
+            // ECH from DNS: the HTTPS record asked beside the TCP connect
+            async::task<vector<byte>> ech;
+            const bool dns_ech = wants_dns_ech(*cfg);
+            if (dns_ech) {
+                auto target = net::detail::parse_target(address, "dial tls");
+                ech = async::spawn(co_ech_from_dns(cfg->server_name, target ? target->port : uint16_t(443), cfg->ech_dns, deadline));
+            }
             auto t = co_await net::tcp::async_connect(address, c.handshake_timeout);
             if (!t) {
-                co_return unexpected(t.error());
+                co_return unexpected(t.error());   // the lookup, dropped, ends at its own bound
             }
-            co_return co_await co_client(*t, *cfg, deadline);
+            if (dns_ech) {
+                cfg->ech_config_list = co_await ech;
+                cfg->ech_from_dns = false;   // asked once: co_client does not ask again
+            }
+            auto r = co_await co_client(*t, *cfg, deadline);
+            vector<byte> retry = r ? vector<byte>() : ech_retry_configs(r.error());
+            if (r || retry.empty()) {
+                co_return r;
+            }
+            // ECH rejected with retry_configs from a server authenticated for
+            // the public name: once more with them (RFC 9849 §6.1.6)
+            cfg->ech_config_list = retry;
+            auto again = co_await net::tcp::async_connect(address, c.handshake_timeout);
+            if (!again) {
+                co_return unexpected(again.error());
+            }
+            co_return co_await co_client(*again, *cfg, deadline);
         }
     }
 
@@ -982,6 +1374,20 @@ namespace sgcl::net::tls {
             }
             if (c.ocsp_stapling) {
                 s.stapled = c.identities;
+            }
+            for (const auto& k : c.ech_keys) {
+                const auto& st = EchKeyAccess::state(k);
+                EchServerKey e;
+                e.config = st.config.raw;
+                e.id = st.config.id;
+                e.kem = st.config.kem;
+                e.suites = st.config.suites;
+                e.key = st.key.get();
+                s.settings.ech_keys.push_back(std::move(e));
+                s.keep.push_back(EchKeyAccess::word(k));
+            }
+            if (!c.ech_keys.empty()) {
+                s.settings.ech_retry_configs = ech_list_of(c.ech_keys, true);
             }
             return s;
         }
@@ -1228,6 +1634,7 @@ namespace sgcl::net::tls {
             s.resumed = r.resumed;
             s.revocation = t->revocation();
             s.revocation_source = tls::revocation_source(t->revocation_source());
+            s.ech_accepted = r.ech_accepted;
             return s;
         }
         const auto& r = t->result();
@@ -1240,6 +1647,7 @@ namespace sgcl::net::tls {
         s.resumed = r.resumed;
         s.revocation = t->revocation();
         s.revocation_source = tls::revocation_source(t->revocation_source());
+        s.ech_accepted = r.ech_accepted;
         return s;
     }
 }

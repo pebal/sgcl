@@ -109,14 +109,66 @@ namespace {
         check(utf8::count(s) == points.size());
         check(utf8::all_ascii(s) == (utf8::ascii_run(s) == s.size()));
         string text(s);
-        check(text.rune_count() == points.size());
-        check(text.is_valid_utf8() == valid);
+        // the text interface (mixin::text) on the string and on a slice of
+        // the input itself, a buffer of its own size outside the managed
+        // heap, where ASan sees a read past its end (a string's would not
+        // show: tests/fuzz/input.h)
+        auto shared = [&](const auto& t) {
+            check(t.rune_count() == points.size());
+            check(t.is_valid_utf8() == valid);
+            size_t k = 0;
+            for (auto it = t.runes().begin(); it != t.runes().end(); ++it) {
+                check(k < points.size() && *it == points[k]);
+                ++k;
+            }
+            check(k == points.size());
+            // equal_fold: a text equals itself and its own case changes; an
+            // ill-formed byte equals only itself, so a text with one byte
+            // changed into another ill-formed one is not equal
+            check(t.equal_fold(s));
+            check(t.equal_fold(text.to_lower().view()) && t.equal_fold(text.to_upper().view()));
+            for (size_t i = 0; i < s.size(); i += utf8::decode(s, i).second) {
+                if (utf8::decode(s, i) == pair<char32_t, size_t>(utf8::replacement, 1)) {
+                    std::string other(s);
+                    other[i] = uint8_t(other[i]) == 0xFF ? char(0xFE) : char(0xFF);   // ill-formed anywhere
+                    check(!t.equal_fold(other));
+                    break;
+                }
+            }
+            // a value that is no code point is in no text, U+FFFD included
+            for (char32_t bad : {char32_t(0xD800), char32_t(0xDFFF), char32_t(0x110000)}) {
+                check(t.find(bad) == npos && !t.contains(bad) && t.rfind(bad) == npos);
+            }
+            if (!points.empty()) {
+                // a backward search from any byte starts with the code point
+                // that begins at or before it, a forward one with the first
+                // that begins at or after it: against the starts walked forward,
+                // in any text, ill-formed bytes being code points of their own
+                std::vector<size_t> starts;
+                for (size_t i = 0; i < s.size(); i += utf8::decode(s, i).second) {
+                    starts.push_back(i);
+                }
+                char32_t target = points[points.size() / 2];
+                std::u32string_view set(&target, 1);
+                for (size_t pos = 0; pos < s.size(); pos += 1 + pos / 8) {
+                    size_t expected_of = npos, expected_not = npos;
+                    for (size_t j = 0; j < starts.size() && starts[j] <= pos; ++j) {
+                        (points[j] == target ? expected_of : expected_not) = starts[j];
+                    }
+                    check(t.find_last_of(set, pos) == expected_of);
+                    check(t.find_last_not_of(set, pos) == expected_not);
+                    size_t first_of = npos, first_not = npos;
+                    for (size_t j = starts.size(); j-- > 0 && starts[j] >= pos;) {
+                        (points[j] == target ? first_of : first_not) = starts[j];
+                    }
+                    check(t.find_first_of(set, pos) == first_of);
+                    check(t.find_first_not_of(set, pos) == first_not);
+                }
+            }
+        };
+        shared(text);
+        shared(slice<const char>(s.data(), s.size()));
         size_t k = 0;
-        for (auto it = text.runes().begin(); it != text.runes().end(); ++it) {
-            check(k < points.size() && *it == points[k]);
-            ++k;
-        }
-        check(k == points.size());
         // split by nothing: a code point a piece, the pieces the text again
         size_t pieces = 0, covered = 0;
         for (auto piece : text.split("")) {
@@ -125,49 +177,6 @@ namespace {
             ++pieces;
         }
         check(pieces == points.size() && covered == s.size());
-        // equal_fold: a text equals itself and its own case changes; an
-        // ill-formed byte equals only itself, so a text with one byte
-        // changed into another ill-formed one is not equal
-        check(text.equal_fold(s));
-        check(text.equal_fold(text.to_lower()) && text.equal_fold(text.to_upper()));
-        for (size_t i = 0; i < s.size(); i += utf8::decode(s, i).second) {
-            if (utf8::decode(s, i) == pair<char32_t, size_t>(utf8::replacement, 1)) {
-                std::string other(s);
-                other[i] = uint8_t(other[i]) == 0xFF ? char(0xFE) : char(0xFF);   // ill-formed anywhere
-                check(!text.equal_fold(other));
-                break;
-            }
-        }
-        // a value that is no code point is in no text, U+FFFD included
-        for (char32_t bad : {char32_t(0xD800), char32_t(0xDFFF), char32_t(0x110000)}) {
-            check(text.find(bad) == npos && !text.contains(bad) && text.rfind(bad) == npos);
-        }
-        if (!points.empty()) {
-            // a backward search from any byte starts with the code point
-            // that begins at or before it, a forward one with the first
-            // that begins at or after it: against the starts walked forward,
-            // in any text, ill-formed bytes being code points of their own
-            std::vector<size_t> starts;
-            for (size_t i = 0; i < s.size(); i += utf8::decode(s, i).second) {
-                starts.push_back(i);
-            }
-            char32_t target = points[points.size() / 2];
-            std::u32string_view set(&target, 1);
-            for (size_t pos = 0; pos < s.size(); pos += 1 + pos / 8) {
-                size_t expected_of = npos, expected_not = npos;
-                for (size_t j = 0; j < starts.size() && starts[j] <= pos; ++j) {
-                    (points[j] == target ? expected_of : expected_not) = starts[j];
-                }
-                check(text.find_last_of(set, pos) == expected_of);
-                check(text.find_last_not_of(set, pos) == expected_not);
-                size_t first_of = npos, first_not = npos;
-                for (size_t j = starts.size(); j-- > 0 && starts[j] >= pos;) {
-                    (points[j] == target ? first_of : first_not) = starts[j];
-                }
-                check(text.find_first_of(set, pos) == first_of);
-                check(text.find_first_not_of(set, pos) == first_not);
-            }
-        }
         if (valid) {
             // from the end, the same code points reversed
             size_t end = s.size();
@@ -256,7 +265,9 @@ namespace {
                 well_formed = false;
             }
         }
-        string text = txt::from_utf16(units);
+        // the conversion reads the units from a buffer of their own size
+        // (raw, which units equals), where ASan sees an overread
+        string text = txt::from_utf16(slice<const char16_t>(raw.data(), raw.size()));
         check(utf8::valid(text.view()));
         // the code points of the units: a surrogate pair is one, a lone
         // surrogate one; split by nothing gives them a piece each
@@ -268,6 +279,7 @@ namespace {
             }
         }
         check(wide.rune_count() == steps);
+        check(slice<const char16_t>(raw.data(), raw.size()).rune_count() == steps);
         size_t pieces = 0, covered = 0;
         for (auto piece : wide.split(u"")) {
             check(piece.size() == 1 || piece.size() == 2);
@@ -292,7 +304,7 @@ namespace {
         for (auto c : raw32) {
             points.push_back(c);
         }
-        string t32 = txt::from_utf32(points);
+        string t32 = txt::from_utf32(slice<const char32_t>(raw32.data(), raw32.size()));   // points, in a buffer of its size
         check(utf8::valid(t32.view()));
         check(txt::to_utf32(t32).size() == points.size());
     }

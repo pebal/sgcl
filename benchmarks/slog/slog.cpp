@@ -19,11 +19,19 @@
 //   text_buffered       text_info3 through options::buffered, to io::discard
 //   text_file           text_info3 to a file opened for appending (path)
 //   text_file_buffered  the same through options::buffered
+//   syslog_unix         text_info3 through slog::syslog to a datagram socket at path that a thread drains
+//                       (RFC 3164, the local format; Go: log/syslog.Dial("unixgram", path) under slog's text)
+//   text_rotating       text_info3 to a rotating_file at path (16 MB a file, 3 kept: rotations within the run;
+//                       Go: a rotating writer of lumberjack's shape written out, a mutex, a size, a rename)
 //   parallel_text       text_info3 from 8 threads at once, to io::discard: ns per record of the whole
 //
 // The loop runs for about two seconds after a quarter of a second thrown away.
 #include "benchmarks/common.h"
 #include "sgcl/sgcl.h"
+
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <unistd.h>
 
 #include <atomic>
 #include <chrono>
@@ -136,6 +144,53 @@ int main(int argc, char** argv) {
         auto log = slog::logger(slog::options{.out = *f, .buffered = (what == "text_file_buffered")});
         run(what.c_str(), [&] { log.info("request", "method", method, "status", 200, "took", took); }, 1.0);
         log.flush();
+        (void)f->close();
+    } else if (what == "syslog_unix") {
+        if (argc < 3) {
+            std::fprintf(stderr, "a path for the socket\n");
+            return 2;
+        }
+        int fd = ::socket(AF_UNIX, SOCK_DGRAM, 0);
+        sockaddr_un a{};
+        a.sun_family = AF_UNIX;
+        std::snprintf(a.sun_path, sizeof a.sun_path, "%s", argv[2]);
+        ::unlink(argv[2]);
+        if (::bind(fd, reinterpret_cast<sockaddr*>(&a), sizeof a) != 0) {
+            std::perror("bind");
+            return 1;
+        }
+        std::atomic<bool> stop{false};
+        std::thread drain([&] {
+            char buf[4096];
+            timeval tv{0, 100000};
+            ::setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
+            while (!stop.load()) {
+                (void)::recv(fd, buf, sizeof buf, 0);
+            }
+        });
+        auto h = slog::detail::SyslogAccess::at(argv[2], {.app_name = "bench", .format = slog::syslog::format::rfc3164});
+        if (!h) {
+            std::fprintf(stderr, "%s\n", h.error().message().data());
+            return 1;
+        }
+        auto log = slog::logger(*h);
+        run("syslog_unix", [&] { log.info("request", "method", method, "status", 200, "took", took); }, 1.0);
+        stop.store(true);
+        drain.join();
+        ::close(fd);
+        ::unlink(argv[2]);
+    } else if (what == "text_rotating") {
+        if (argc < 3) {
+            std::fprintf(stderr, "a path for the file\n");
+            return 2;
+        }
+        auto f = slog::rotating_file::open(string(argv[2]), {.max_size = 16 << 20, .keep = 3});
+        if (!f) {
+            std::fprintf(stderr, "%s\n", f.error().message().data());
+            return 1;
+        }
+        auto log = slog::logger(slog::options{.out = *f});
+        run(what.c_str(), [&] { log.info("request", "method", method, "status", 200, "took", took); }, 1.0);
         (void)f->close();
     } else if (what == "parallel_text") {
         auto log = slog::logger(io::discard);

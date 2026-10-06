@@ -15,8 +15,12 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"log/syslog"
+	"net"
 	"os"
+	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -79,6 +83,47 @@ func main() {
 		log := slog.New(slog.NewTextHandler(f, nil))
 		run(what, func() { log.Info("request", "method", method, "status", 200, "took", took) }, 1)
 		f.Close()
+	case "syslog_unix":
+		path := os.Args[2]
+		os.Remove(path)
+		conn, err := net.ListenUnixgram("unixgram", &net.UnixAddr{Name: path, Net: "unixgram"})
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		var stop atomic.Bool
+		go func() {
+			buf := make([]byte, 4096)
+			for !stop.Load() {
+				conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+				conn.Read(buf)
+			}
+		}()
+		w, err := syslog.Dial("unixgram", path, syslog.LOG_INFO|syslog.LOG_USER, "bench")
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		log := slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+			if len(groups) == 0 && (a.Key == slog.TimeKey || a.Key == slog.LevelKey) {
+				return slog.Attr{} // syslog's header carries them, as the C++ side's
+			}
+			return a
+		}}))
+		run(what, func() { log.Info("request", "method", method, "status", 200, "took", took) }, 1)
+		stop.Store(true)
+		w.Close()
+		conn.Close()
+		os.Remove(path)
+	case "text_rotating":
+		w, err := newRotating(os.Args[2], 16<<20, 3)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		log := slog.New(slog.NewTextHandler(w, nil))
+		run(what, func() { log.Info("request", "method", method, "status", 200, "took", took) }, 1)
+		w.f.Close()
 	case "parallel_text":
 		log := slog.New(slog.NewTextHandler(io.Discard, nil))
 		var stop atomic.Bool
@@ -108,4 +153,51 @@ func main() {
 		fmt.Fprintln(os.Stderr, "no such case:", what)
 		os.Exit(2)
 	}
+}
+
+// A rotating log file of lumberjack's shape (gopkg.in/natefinch/lumberjack is not in the standard library): a
+// mutex around the file, its size, and at a write that would pass the limit a rename to name-time.ext, a new file
+// opened, and the oldest beyond keep removed
+type rotating struct {
+	mu    sync.Mutex
+	path  string
+	f     *os.File
+	size  int64
+	max   int64
+	keep  int
+	names []string
+}
+
+func newRotating(path string, max int64, keep int) (*rotating, error) {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		return nil, err
+	}
+	info, _ := f.Stat()
+	return &rotating{path: path, f: f, size: info.Size(), max: max, keep: keep}, nil
+}
+
+func (r *rotating) Write(p []byte) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.size > 0 && r.size+int64(len(p)) > r.max {
+		ext := filepath.Ext(r.path)
+		name := strings.TrimSuffix(r.path, ext) + "-" + time.Now().Format("2006-01-02T15-04-05.000") + ext
+		r.f.Close()
+		os.Rename(r.path, name)
+		r.names = append(r.names, name)
+		for len(r.names) > r.keep {
+			os.Remove(r.names[0])
+			r.names = r.names[1:]
+		}
+		f, err := os.OpenFile(r.path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+		if err != nil {
+			return 0, err
+		}
+		r.f = f
+		r.size = 0
+	}
+	n, err := r.f.Write(p)
+	r.size += int64(n)
+	return n, err
 }

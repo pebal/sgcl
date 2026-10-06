@@ -85,6 +85,10 @@ namespace sgcl::detail {
             // BarrierRegion); the collector waits for it to drop after the
             // flip (collector.h: _wait_barriers)
             std::atomic<uint32_t> in_barrier = {0};
+            // The stack pointer the thread recorded in a cycle, written at
+            // its allocations (heap.h: record_stack), read by the collector
+            // before it scans the stack (collector.h: _mark_stack_roots)
+            StackRecord stack_record;
         };
 
         Thread()
@@ -174,6 +178,11 @@ namespace sgcl::detail {
             return _data->stack_begin;
         }
 
+        // The thread's stack record (prototype proto-stack-sp: the tests)
+        SGCL_INLINE_HOT const StackRecord& stack_record() const noexcept {
+            return _data->stack_record;
+        }
+
         // seq_cst on purpose: the hazard protocol publishes the pointer and
         // then reads the atomic again, and the read must not be performed
         // before the publication is visible, so both sides are seq_cst
@@ -247,7 +256,7 @@ namespace sgcl::detail {
             using Type = typename Allocator::ValueType;
             auto& a = _allocators[_slot_index(TypeInfo<Type>::record.slot)];
             if (!a) {
-                a.reset(new Allocator(_data->pages));
+                a.reset(new Allocator(_data->pages, _data->stack_record));
             }
             return a.get();
         }
@@ -256,7 +265,7 @@ namespace sgcl::detail {
         SGCL_NOINLINE ObjectAllocatorBase* _make_pool_allocator(std::atomic<unsigned>& slot, Metadata& m) {
             auto& a = _allocators[_slot_index(slot)];
             if (!a) {
-                a.reset(new ObjectPoolAllocatorBase(*_page_allocator, _data->pages, m));
+                a.reset(new ObjectPoolAllocatorBase(*_page_allocator, _data->pages, _data->stack_record, m));
             }
             return a.get();
         }

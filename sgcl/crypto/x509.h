@@ -46,7 +46,7 @@
 // What verification is: a chain built from the leaf through the
 // intermediates given to a root of the pool (at most ten intermediates,
 // no certificate twice, no more than a hundred signatures tried), every
-// signature checked (RSA PKCS #1 v1.5 and PSS, ECDSA on P-256 and P-384,
+// signature checked (RSA PKCS #1 v1.5 and PSS, ECDSA on P-256, P-384, P-521,
 // Ed25519; over SHA-256, SHA-384, SHA-512; MD5 and SHA-1 never), every
 // certificate valid at the time asked, every issuer a CA (basicConstraints,
 // keyUsage keyCertSign where there is a keyUsage), the path lengths, the
@@ -134,12 +134,13 @@ namespace sgcl::crypto::x509 {
                 return unexpected<error>(error(errc::malformed, uint64_t(0), string("sgcl::crypto::x509: a certificate larger than 128 KiB")));
             }
             auto d = make_tracked<detail::CertData>();
-            const byte* p = der.data();
-            d->raw = vector<byte>(p, p + der.size());
-            detail::CertParser parser{*d};
+            detail::CertParser parser{*d, der};
             if (auto r = parser.run(); !r) {
                 return unexpected<error>(r.error());
             }
+            // copied after the parse: the parse reads the caller's bytes, which a fuzzer gives at their exact size
+            const byte* p = der.data();
+            d->raw = vector<byte>(p, p + der.size());
             return certificate(tracked_ptr<const detail::CertData>(std::move(d)));
         }
 

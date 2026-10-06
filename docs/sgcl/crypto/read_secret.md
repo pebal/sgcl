@@ -69,6 +69,7 @@ open tests/net/tls_testdata/no.key: No such file or directory
 
 ## See also
 
+- [read_password](read_password.md): a password typed on the terminal, as a secret
 - [secret_bytes](secret_bytes/README.md): the secret it reads into
 - [ed25519::private_key](ed25519-private_key/README.md), [x25519::private_key](x25519-private_key/README.md): `from_pem`
 - [encoding::pem](../encoding/pem/README.md): PEM that is not a secret, certificates

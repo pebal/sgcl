@@ -6,7 +6,7 @@
 // Certificates and certificate requests made (x509::create_certificate,
 // create_certificate_request) and requests read (certificate_request), held
 // to OpenSSL's libcrypto: what is made parses there, its signature verifies
-// there under the issuer's key (every kind: P-256, P-384, Ed25519, RSA), its
+// there under the issuer's key (every kind: P-256, P-384, P-521, Ed25519, RSA), its
 // extensions read there as written, a chain of it verifies with
 // X509_verify_cert; a request OpenSSL makes reads here and its signature
 // verifies; the templates that cannot be written refused, requests that are
@@ -63,10 +63,11 @@ namespace {
         return ReqPtr(d2i_X509_REQ(nullptr, &p, long(der.size())));
     }
 
-    // The four kinds of key, each with its PKCS #8 for OpenSSL
+    // The five kinds of key, each with its PKCS #8 for OpenSSL
     struct Keys {
         crypto::p256::private_key p256 = crypto::p256::private_key::generate();
         crypto::p384::private_key p384 = crypto::p384::private_key::generate();
+        crypto::p521::private_key p521 = crypto::p521::private_key::generate();
         crypto::ed25519::private_key ed25519 = crypto::ed25519::private_key::generate();
         crypto::rsa::private_key rsa = crypto::rsa::private_key::generate(2048);
     };
@@ -173,10 +174,12 @@ TEST(X509Create, ChainsOfEveryKindOfIssuerKey) {
     auto leaf_spki = k.p256.public_key().to_pkix_der();
     chain_of(k.p256, k.p256, leaf_spki);
     chain_of(k.p384, k.p256, leaf_spki);
+    chain_of(k.p521, k.p256, leaf_spki);
     chain_of(k.ed25519, k.p256, leaf_spki);
     chain_of(k.rsa, k.p256, leaf_spki);
     // a leaf of each kind of subject key
-    for (auto spki : {k.p384.public_key().to_pkix_der(), k.ed25519.public_key().to_pkix_der(), k.rsa.public_key().to_pkix_der()}) {
+    for (auto spki : {k.p384.public_key().to_pkix_der(), k.p521.public_key().to_pkix_der(), k.ed25519.public_key().to_pkix_der(),
+                      k.rsa.public_key().to_pkix_der()}) {
         chain_of(k.p256, k.p256, spki);
     }
 }
@@ -329,6 +332,7 @@ TEST(X509Create, RequestsOfEveryKindHeldToOpenSsl) {
     };
     check(x509::create_certificate_request(t, k.p256));
     check(x509::create_certificate_request(t, k.p384));
+    check(x509::create_certificate_request(t, k.p521));
     check(x509::create_certificate_request(t, k.ed25519));
     check(x509::create_certificate_request(t, k.rsa));
     // a request with nothing but a key: no attribute

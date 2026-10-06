@@ -7,15 +7,15 @@
 ```
 
 Compression and archives: what Go has in `compress/flate`, `compress/gzip`, `compress/zlib`, `compress/bzip2`,
-`compress/lzw`, `archive/zip` and `archive/tar`, XZ Utils' `.lzma` and `.xz` (LZMA, LZMA2 and their filters), and
-7-Zip's `.7z`. The module depends on [core](../core/README.md), [io](../io/README.md) (the streams, the files),
-[async](../async/README.md) (the task forms, through io), [hash](../hash/README.md) (CRC-32, CRC-64 and Adler-32),
+`compress/lzw`, `archive/zip` and `archive/tar`, XZ Utils' `.lzma` and `.xz` (LZMA, LZMA2 and their filters), LZ4, Snappy,
+and 7-Zip's `.7z`. The module depends on [core](../core/README.md), [io](../io/README.md) (the streams, the files),
+[async](../async/README.md) (the task forms, through io), [hash](../hash/README.md) (CRC-32, CRC-32C, CRC-64, Adler-32 and XXH32),
 [crypto](../crypto/README.md) (SHA-256, the check of xz; AES-256, SHA-256 and random salts and IVs for 7z's
 passwords) and [time](../time/README.md) (the times in headers and archives); [net](../net/README.md) is to take gzip
 from it for HTTP's `Content-Encoding`. The index of the whole interface is [the modules](../README.md).
 
 A format of one stream ([flate](flate/README.md), [zlib](zlib/README.md), [gzip](gzip/README.md), [bzip2](bzip2/README.md), [lzw](lzw/README.md),
-[lzma](lzma/README.md), [xz](xz/README.md)) is one class with one shape: the whole of the data in memory either way, `compress`
+[lzma](lzma/README.md), [xz](xz/README.md), [lz4](lz4/README.md), [snappy](snappy/README.md), [zstd](zstd/README.md), [brotli](brotli/README.md)) is one class with one shape: the whole of the data in memory either way, `compress`
 and `decompress`, and a stream each way, a `writer` that compresses what is written to it into another
 [io writer](../io/writer/README.md) and a `reader` of what the data read from another io reader decompresses to. The
 archives ([zip](zip.md), [tar](tar.md), [sevenzip](sevenzip.md)) are namespaces with an archive to read, a writer,
@@ -24,9 +24,9 @@ anything is written. Data from outside is bounded by [limits](limits.md), and ev
 [compress::error](error/README.md) that says what and at which byte.
 
 Every algorithm is written from its specification (RFC 1950, 1951 and 1952, PKWARE's APPNOTE 6.3.10, POSIX pax, the
-LZMA SDK's lzma-specification.txt and 7zFormat.txt, xz-file-format 1.2) or, where there is none (PPMd var. H, BCJ2,
+LZMA SDK's lzma-specification.txt and 7zFormat.txt, xz-file-format 1.2, the LZ4 block and frame format descriptions, Snappy's format_description.txt and framing_format.txt, RFC 8878, RFC 7932) or, where there is none (PPMd var. H, BCJ2,
 7zAES, Deflate64), from the LZMA SDK's Methods.txt and the formats' published descriptions; zlib, libbz2, liblzma,
-7-Zip (`7zz`), libarchive (`bsdtar`), Python and Go are the oracles of the tests and nothing more.
+liblz4, libzstd, libbrotli, 7-Zip (`7zz`), libarchive (`bsdtar`), Python and Go are the oracles of the tests and nothing more.
 
 ## The rules
 
@@ -40,7 +40,7 @@ LZMA SDK's lzma-specification.txt and 7zFormat.txt, xz-file-format 1.2) or, wher
    reader for lines). A writer's `close()` ends the data and leaves its output open (a zip archive or an HTTP body
    goes on after it); a reader's `close()` closes its source. A writer keeps its first error, so a stream is written
    freely and checked once, at the close; a reader's `last_error()` holds the whole [error](error/README.md) of the data.
-   The writers and readers of flate, zlib, gzip, lzma and xz have `reset(stream)`, a new stream with the memory
+   The writers and readers of flate, zlib, gzip, lzma, xz, lz4, snappy, zstd, brotli and bzip2 have `reset(stream)`, a new stream with the memory
    they have.
 3. **Work and waiting.** Compressing is work for the processor, not a wait: the task's forms do it on the worker
    and let it go every 64 KB (a yield), writing and reading alike, so that a large stream does not starve the other
@@ -89,17 +89,21 @@ LZMA SDK's lzma-specification.txt and 7zFormat.txt, xz-file-format 1.2) or, wher
 
 | Class | Header | Description |
 |---|---|---|
-| [bzip2](bzip2/README.md) | `bzip2.h` | bzip2 1.0, read: `.bz2`, `.tar.bz2`; inside 7z |
+| [brotli](brotli/README.md) | `brotli.h` | Brotli, RFC 7932, both ways: qualities 0 to 11, literals by context, the static dictionary; `.br`, HTTP's `Content-Encoding: br` |
+| [bzip2](bzip2/README.md) | `bzip2.h` | bzip2 1.0, both ways: blocks of 100 to 900 KB, the Burrows-Wheeler transform; `.bz2`, `.tar.bz2`; inside 7z |
 | [error](error/README.md) | `error.h` | what went wrong in compressed data or an archive, and at which byte |
 | [flate](flate/README.md) | `flate.h` | DEFLATE, RFC 1951, both ways: inside zip, PNG and gzip; HTTP's `deflate` as browsers read it |
 | [gzip](gzip/README.md) | `gzip.h` | RFC 1952, both ways: DEFLATE, CRC-32, a name, a time, several members; `.gz`, HTTP's `Content-Encoding: gzip` |
 | [gzip_header](gzip_header.md) | `gzip.h` | the header of a gzip member: a name, a comment, a time, an extra field |
 | [level](level/README.md) | `level.h` | how hard a compressor works: 0 to 9, `huffman_only` |
 | [limits](limits.md) | `limits.h` | the bounds on what data from outside makes: the output, a decoder's memory, a 7z header's entries |
+| [lz4](lz4/README.md) | `lz4.h` | LZ4, both ways: the frame format (XXH32 checksums, linked or independent blocks, a dictionary) and the block format alone; levels 1 to 12 and acceleration; `.lz4` |
 | [lzma](lzma/README.md) | `lzma.h` | LZMA alone, both ways: the range coder, an optimal parser, xz's levels 0 to 9 and `-e`; `.lzma` |
 | [lzw](lzw/README.md) | `lzw.h` | LZW, both ways, bits least or most significant first: GIF, TIFF, PDF |
+| [snappy](snappy/README.md) | `snappy.h` | Snappy, both ways: the framing format (chunks with a masked CRC-32C) and the block format; `.sz`, LevelDB, Parquet |
 | [xz](xz/README.md) | `xz.h` | xz-file-format 1.2, both ways: LZMA2, the branch converters and Delta, CRC-32, CRC-64 or SHA-256; `.xz`, `.tar.xz` |
 | [zlib](zlib/README.md) | `zlib.h` | RFC 1950, both ways: DEFLATE, Adler-32, a preset dictionary; PNG's image data, PDF |
+| [zstd](zstd/README.md) | `zstd.h` | Zstandard, RFC 8878, both ways: FSE and Huffman, levels 1 to 22 and `--fast`, dictionaries, XXH64; `.zst`, HTTP's `Content-Encoding: zstd` |
 
 ## Namespaces
 
@@ -117,7 +121,8 @@ LZMA SDK's lzma-specification.txt and 7zFormat.txt, xz-file-format 1.2) or, wher
 
 ## See also
 
-- [Benchmarks](benchmarks.md): DEFLATE against zlib and Go, LZMA and xz against liblzma, bzip2 against libbz2
+- [Benchmarks](benchmarks.md): DEFLATE against zlib and Go, LZMA and xz against liblzma, bzip2 against libbz2, LZ4
+  against liblz4, zstd against libzstd, brotli against libbrotli
 - [io](../io/README.md): the streams the readers and writers are; [hash](../hash/README.md): the checksums
 - `tests/compress`: every format against its oracle both ways, every archive of Go's test data read as Go reads it;
   `tests/compress/fuzz`: the harnesses (libFuzzer's ABI, with a driver of its own where libFuzzer is missing)

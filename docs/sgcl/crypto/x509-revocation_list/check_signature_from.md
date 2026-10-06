@@ -6,7 +6,7 @@
 expected<void, error> check_signature_from(const certificate& issuer) const noexcept;
 ```
 
-Checks whether `issuer` signed the list: its subject the list's issuer, its keyUsage, where it has one, with `cRLSign`, its subject key identifier the list's authority key identifier when both have one, and the signature valid under its key (RSA PKCS #1 v1.5 and PSS, ECDSA on P-256 and P-384, Ed25519, over SHA-2; never MD5 or SHA-1). Go's `RevocationList.CheckSignatureFrom`.
+Checks whether `issuer` signed the list: its subject the list's issuer, its keyUsage, where it has one, with `cRLSign`, its subject key identifier the list's authority key identifier when both have one, and the signature valid under its key (RSA PKCS #1 v1.5 and PSS, ECDSA on P-256, P-384 and P-521, Ed25519, over SHA-2; never MD5 or SHA-1). Go's `RevocationList.CheckSignatureFrom`.
 
 ## Parameters
 

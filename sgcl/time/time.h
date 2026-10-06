@@ -9,9 +9,11 @@
 // take one too.
 #pragma once
 
+#include "cron.h"
 #include "date.h"
 #include "datetime.h"
 #include "error.h"
 #include "layout.h"
+#include "localized.h"
 #include "stopwatch.h"
 #include "zone.h"

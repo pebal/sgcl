@@ -9,6 +9,7 @@
 #include "../../../crypto/ed25519.h"
 #include "../../../crypto/p256.h"
 #include "../../../crypto/p384.h"
+#include "../../../crypto/p521.h"
 #include "../../../crypto/rsa.h"
 #include "../../../crypto/sha256.h"
 #include "../../../crypto/sha512.h"
@@ -52,6 +53,7 @@ namespace sgcl::net::tls::detail {
         switch (SignatureScheme(s)) {
             case SignatureScheme::ecdsa_secp256r1_sha256:
             case SignatureScheme::ecdsa_secp384r1_sha384:
+            case SignatureScheme::ecdsa_secp521r1_sha512:
             case SignatureScheme::rsa_pss_rsae_sha256:
             case SignatureScheme::rsa_pss_rsae_sha384:
             case SignatureScheme::rsa_pss_rsae_sha512:
@@ -107,6 +109,17 @@ namespace sgcl::net::tls::detail {
         return {};
     }
 
+    SGCL_INLINE_HOT expected<void, Alert> verify(uint16_t scheme, const crypto::p521::public_key& key, const Bytes& content, const Bytes& signature) noexcept {
+        if (SignatureScheme(scheme) != SignatureScheme::ecdsa_secp521r1_sha512) {
+            return unexpected<Alert>(sig::illegal("a signature scheme of another kind of key than P-521"));
+        }
+        auto d = crypto::sha512::of(content);
+        if (!key.verify_digest(bytes_of(d.data(), d.size()), signature)) {
+            return unexpected<Alert>(sig::bad());
+        }
+        return {};
+    }
+
     // RSA: RSASSA-PSS with a salt as long as the digest (rsa_pss_rsae_*);
     // rsa_pkcs1_* is a certificate's, never CertificateVerify's (§4.2.3)
     inline expected<void, Alert> verify(uint16_t scheme, const crypto::rsa::public_key& key, const Bytes& content, const Bytes& signature) noexcept {
@@ -153,6 +166,7 @@ namespace sgcl::net::tls::detail {
             case key_kind::ed25519: return verify(scheme, key.ed25519(), content, signature);
             case key_kind::p256: return verify(scheme, key.p256(), content, signature);
             case key_kind::p384: return verify(scheme, key.p384(), content, signature);
+            case key_kind::p521: return verify(scheme, key.p521(), content, signature);
             case key_kind::rsa: return verify(scheme, key.rsa(), content, signature);
             case key_kind::none: break;
         }
@@ -171,17 +185,20 @@ namespace sgcl::net::tls::detail {
             case key_kind::ed25519:
                 return verify(scheme, key.ed25519(), content, signature);
             case key_kind::p256:
-            case key_kind::p384: {
+            case key_kind::p384:
+            case key_kind::p521: {
                 bool ok = false;
                 auto check = [&](const auto& d) noexcept {
                     const auto digest = bytes_of(d.data(), d.size());
-                    ok = key.kind() == key_kind::p256 ? key.p256().verify_digest(digest, signature) : key.p384().verify_digest(digest, signature);
+                    ok = key.kind() == key_kind::p256   ? key.p256().verify_digest(digest, signature)
+                       : key.kind() == key_kind::p384 ? key.p384().verify_digest(digest, signature)
+                                                       : key.p521().verify_digest(digest, signature);
                 };
                 if (s == SignatureScheme::ecdsa_secp256r1_sha256) {
                     check(crypto::sha256::of(content));
                 } else if (s == SignatureScheme::ecdsa_secp384r1_sha384) {
                     check(crypto::sha384::of(content));
-                } else if (scheme == 0x0603) {   // ecdsa_secp521r1_sha512: SHA-512 on the key's curve
+                } else if (s == SignatureScheme::ecdsa_secp521r1_sha512) {   // SHA-512 on the key's curve
                     check(crypto::sha512::of(content));
                 } else {
                     return unexpected<Alert>(sig::illegal("a signature scheme of another kind of key than ECDSA"));
@@ -246,6 +263,14 @@ namespace sgcl::net::tls::detail {
         assert(SignatureScheme(scheme) == SignatureScheme::ecdsa_secp384r1_sha384);
         (void)scheme;
         auto d = crypto::sha384::of(content);
+        auto s = key.sign_digest(bytes_of(d.data(), d.size()));
+        w.bytes(s.data(), s.size());
+    }
+
+    SGCL_INLINE_HOT void sign(Builder& w, uint16_t scheme, const crypto::p521::private_key& key, const Bytes& content) noexcept {
+        assert(SignatureScheme(scheme) == SignatureScheme::ecdsa_secp521r1_sha512);
+        (void)scheme;
+        auto d = crypto::sha512::of(content);
         auto s = key.sign_digest(bytes_of(d.data(), d.size()));
         w.bytes(s.data(), s.size());
     }

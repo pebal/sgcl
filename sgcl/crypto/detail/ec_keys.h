@@ -89,6 +89,11 @@ namespace sgcl::crypto::detail {
         using type = sha384;
     };
 
+    template<>
+    struct EcdsaDrbgHash<P521> {
+        using type = sha512;
+    };
+
     // HMAC-DRBG as RFC 6979 §3.2 runs it (steps b to h) over the private
     // key x and the reduced digest h1, with additional data k' after them
     // (§3.6): empty k' gives RFC 6979's deterministic k, random k' the
@@ -176,10 +181,11 @@ namespace sgcl::crypto::detail {
         using sc = limbs<C::words>;
         static constexpr size_t size = C::size;
 
-        // The leftmost bits of a digest, as many as n has (8 * size for
-        // both curves): the first size bytes of a longer digest, all of a
-        // shorter one (FIPS 186-5 §6.4.1 step 4, RFC 6979 §2.3.2); below
-        // 2^(8 size), so below 2n
+        // The leftmost bits of a digest, as many as n has (C::bits: 256,
+        // 384, 521): the first size bytes of a longer digest, all of a
+        // shorter one, and P-521's 66 bytes shifted down by the 7 bits past
+        // its 521 (FIPS 186-5 §6.4.1 step 4, RFC 6979 §2.3.2); below
+        // 2^bits, so below 2n
         SGCL_INLINE_HOT static sc bits2int(const unsigned char* digest, size_t len) noexcept {
             unsigned char b[size] = {};
             if (len >= size) {
@@ -187,7 +193,16 @@ namespace sgcl::crypto::detail {
             } else if (len != 0) {
                 sgcl::detail::copy_bytes(b + size - len, digest, len);
             }
-            return limbs_from_be<C::words>(b);
+            sc r = ec_from_be<C>(b);
+            if constexpr (8 * size != C::bits) {
+                if (8 * len > C::bits) {
+                    constexpr unsigned shift = unsigned(8 * size - C::bits);
+                    for (size_t i = 0; i < C::words; ++i) {
+                        r[i] = r[i] >> shift | (i + 1 < C::words ? r[i + 1] << (64 - shift) : 0);
+                    }
+                }
+            }
+            return r;
         }
 
         // a mod n for a below 2n, with no branch
@@ -212,8 +227,8 @@ namespace sgcl::crypto::detail {
             sc e = reduce_n(bits2int(digest, dlen));
             unsigned char x_oct[size];
             unsigned char h_oct[size];
-            limbs_to_be(x_oct, d);
-            limbs_to_be(h_oct, e);
+            ec_to_be<C>(x_oct, d);
+            ec_to_be<C>(h_oct, e);
             HmacDrbg<H> drbg(x_oct, h_oct, size, extra, elen);
             secure_zero(x_oct, size);
             sc dm = S::to_mont(d);
@@ -221,8 +236,13 @@ namespace sgcl::crypto::detail {
             unsigned char kb[size];
             sc k, km, kinv, rm, t, sm, s, r;
             for (;;) {
+                // k = bits2int(T): T's leftmost C::bits bits (P-521: the
+                // 528 bits of T shifted by 7), its bytes again for base_mult
                 drbg.next(kb, size);
-                k = limbs_from_be<C::words>(kb);
+                k = bits2int(kb, size);
+                if constexpr (8 * size != C::bits) {
+                    ec_to_be<C>(kb, k);
+                }
                 if (!in_range(k)) {
                     continue;
                 }
@@ -245,8 +265,8 @@ namespace sgcl::crypto::detail {
                 }
                 break;
             }
-            limbs_to_be(sig, r);
-            limbs_to_be(sig + size, s);
+            ec_to_be<C>(sig, r);
+            ec_to_be<C>(sig + size, s);
             secure_zero(kb, size);
             secure_zero(&k, sizeof k);
             secure_zero(&km, sizeof km);
@@ -293,8 +313,8 @@ namespace sgcl::crypto::detail {
         // Montgomery form): 1 <= r, s < n and x(u1 G + u2 Q) mod n = r.
         // Nothing here is secret
         static bool verify(const typename E::affine& q, const unsigned char* digest, size_t dlen, const unsigned char* rb, const unsigned char* sb) noexcept {
-            sc r = limbs_from_be<C::words>(rb);
-            sc s = limbs_from_be<C::words>(sb);
+            sc r = ec_from_be<C>(rb);
+            sc s = ec_from_be<C>(sb);
             if (!in_range(r) || !in_range(s)) {
                 return false;
             }
@@ -306,8 +326,8 @@ namespace sgcl::crypto::detail {
             S::mul(u2, r, w);
             unsigned char u1b[size];
             unsigned char u2b[size];
-            limbs_to_be(u1b, u1);
-            limbs_to_be(u2b, u2);
+            ec_to_be<C>(u1b, u1);
+            ec_to_be<C>(u2b, u2);
             typename E::jacobian x = E::double_mult_vartime(u1b, q, u2b);
             if (E::is_zero(x.z)) {
                 return false;
@@ -432,46 +452,50 @@ namespace sgcl::crypto::detail {
         // d from size big-endian bytes and the public point from it; false
         // (and the core zeroed) when d is 0 or not below n
         bool set(const unsigned char* bytes) noexcept {
-            d = limbs_from_be<C::words>(bytes);
+            d = ec_from_be<C>(bytes);
             if (!Ecdsa<C>::in_range(d)) {
                 wipe();
                 return false;
             }
             typename E::affine a = E::to_affine(E::base_mult(bytes));
             pub[0] = 0x04;
-            limbs_to_be(pub.data() + 1, F::from_mont(a.x));
-            limbs_to_be(pub.data() + 1 + size, F::from_mont(a.y));
+            ec_to_be<C>(pub.data() + 1, F::from_mont(a.x));
+            ec_to_be<C>(pub.data() + 1 + size, F::from_mont(a.y));
             return true;
         }
 
         SGCL_INLINE_HOT void scalar_bytes(unsigned char* out) const noexcept {
-            limbs_to_be(out, d);
+            ec_to_be<C>(out, d);
         }
 
         // "sgcl::crypto::p256", what every message of the curve starts with
         SGCL_INLINE_HOT static std::string name() noexcept {
-            return std::string("sgcl::crypto::") + (C::size == 32 ? "p256" : "p384");
+            return std::string("sgcl::crypto::") + C::module;
         }
 
         SGCL_INLINE_HOT static std::string prefix() noexcept {
             return name() + ": ";
         }
 
-        static error key_error(errc code, const char* what) noexcept {
+        static error key_error(errc code, const std::string& what) noexcept {
             return error(code, string(prefix() + what));
         }
 
-        static error der_error(errc code, size_t offset, const char* what) noexcept {
+        static error der_error(errc code, size_t offset, const std::string& what) noexcept {
             return error(code, uint64_t(offset), string(prefix() + what));
         }
 
-        // A random key: size random bytes drawn again until they are a
-        // scalar in range (a draw is refused with probability below 2^-32)
+        // A random key: size random bytes (P-521's top byte cut to its one
+        // bit of the 521) drawn again until they are a scalar in range (a
+        // draw is refused with probability below 2^-32)
         static EcKeyCore generate() noexcept {
             EcKeyCore c;
             unsigned char b[size];
             do {
                 random::fill(slice<byte>(reinterpret_cast<byte*>(b), size));
+                if constexpr (8 * size != C::bits) {
+                    b[0] &= static_cast<unsigned char>((1u << (C::bits - 8 * (size - 1))) - 1);
+                }
             } while (!c.set(b));
             secure_zero(b, size);
             return c;
@@ -479,7 +503,7 @@ namespace sgcl::crypto::detail {
 
         SGCL_INLINE_HOT static expected<EcKeyCore, error> from_bytes(const slice<const byte>& data) noexcept {
             if (data.size() != size) {
-                return unexpected<error>(key_error(errc::invalid_key, C::size == 32 ? "a private key is 32 bytes" : "a private key is 48 bytes"));
+                return unexpected<error>(key_error(errc::invalid_key, "a private key is " + std::to_string(size) + " bytes"));
             }
             EcKeyCore c;
             if (!c.set(bytes(data.data()))) {
@@ -569,7 +593,7 @@ namespace sgcl::crypto::detail {
                 return unexpected<error>(der_error(errc::unsupported, alg.offset(), "not an elliptic-curve key"));
             }
             if (!alg.read_exact(der::object_identifier, C::oid, sizeof C::oid) || !alg.empty()) {
-                return unexpected<error>(der_error(errc::unsupported, alg.offset(), C::size == 32 ? "not a P-256 key" : "not a P-384 key"));
+                return unexpected<error>(der_error(errc::unsupported, alg.offset(), std::string("not a ") + C::name + " key"));
             }
             return {};
         }
@@ -713,8 +737,8 @@ namespace sgcl::crypto::detail {
             fe x;
             fe y;
             if (n == size && p[0] == 0x04) {
-                x = limbs_from_be<C::words>(p + 1);
-                y = limbs_from_be<C::words>(p + 1 + cs);
+                x = ec_from_be<C>(p + 1);
+                y = ec_from_be<C>(p + 1 + cs);
                 if (!limbs_less_mask(x, F::k.m) || !limbs_less_mask(y, F::k.m)) {
                     return unexpected<error>(Core::key_error(errc::invalid_key, "a coordinate is not below p"));
                 }
@@ -724,7 +748,7 @@ namespace sgcl::crypto::detail {
                     return unexpected<error>(Core::key_error(errc::invalid_key, "the point is not on the curve"));
                 }
             } else if (n == compressed_size && (p[0] == 0x02 || p[0] == 0x03)) {
-                x = limbs_from_be<C::words>(p + 1);
+                x = ec_from_be<C>(p + 1);
                 if (!limbs_less_mask(x, F::k.m)) {
                     return unexpected<error>(Core::key_error(errc::invalid_key, "a coordinate is not below p"));
                 }
@@ -741,8 +765,8 @@ namespace sgcl::crypto::detail {
             }
             EcPublicKey k;
             k._point[0] = 0x04;
-            limbs_to_be(k._point.data() + 1, F::from_mont(x));
-            limbs_to_be(k._point.data() + 1 + cs, F::from_mont(y));
+            ec_to_be<C>(k._point.data() + 1, F::from_mont(x));
+            ec_to_be<C>(k._point.data() + 1 + cs, F::from_mont(y));
             return k;
         }
 
@@ -840,8 +864,8 @@ namespace sgcl::crypto::detail {
 
         SGCL_INLINE_HOT typename E::affine _affine() const noexcept {
             typename E::affine a;
-            a.x = F::to_mont(limbs_from_be<C::words>(_point.data() + 1));
-            a.y = F::to_mont(limbs_from_be<C::words>(_point.data() + 1 + C::size));
+            a.x = F::to_mont(ec_from_be<C>(_point.data() + 1));
+            a.y = F::to_mont(ec_from_be<C>(_point.data() + 1 + C::size));
             return a;
         }
 
@@ -1116,14 +1140,14 @@ namespace sgcl::crypto::detail {
             _check();
             unsigned char b[size];
             _core.scalar_bytes(b);
-            typename E::point p = E::scalar_mult(typename E::point{F::to_mont(limbs_from_be<C::words>(peer._point.data() + 1)), F::to_mont(limbs_from_be<C::words>(peer._point.data() + 1 + size)), F::one()}, b);
+            typename E::point p = E::scalar_mult(typename E::point{F::to_mont(ec_from_be<C>(peer._point.data() + 1)), F::to_mont(ec_from_be<C>(peer._point.data() + 1 + size)), F::one()}, b);
             secure_zero(b, size);
             if (E::identity_mask(p) != 0) {
                 return unexpected<error>(Core::key_error(errc::invalid_key, "the shared point is the identity"));
             }
             typename E::affine a = E::to_affine(p);
             secret<size> s = SecretAccess::make<size>();
-            limbs_to_be(SecretAccess::data(s), F::from_mont(a.x));
+            ec_to_be<C>(SecretAccess::data(s), F::from_mont(a.x));
             secure_zero(&p, sizeof p);
             secure_zero(&a, sizeof a);
             return s;

@@ -72,4 +72,6 @@ true
 
 - [at_path](at_path.md): the value at a pointer
 - [set](set.md), [push_back](push_back.md): one step
+- [erase_path](erase_path.md): without the value at a pointer
+- [patch](patch.md): RFC 6902
 - [sgcl::encoding::json](README.md)

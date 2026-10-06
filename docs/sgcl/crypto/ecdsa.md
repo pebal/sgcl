@@ -20,14 +20,18 @@ namespace sgcl::crypto {
         using private_key = /* unspecified */;
         using public_key = /* unspecified */;
     }
+
+    namespace p521 {
+        using private_key = /* unspecified */;
+        using public_key = /* unspecified */;
+    }
 }
 ```
 
-ECDSA (FIPS 186-5 §6), Go's `crypto/ecdsa`, over the NIST curves [P-256](p256.md) and [P-384](p384.md): a
+ECDSA (FIPS 186-5 §6), Go's `crypto/ecdsa`, over the NIST curves [P-256](p256.md), [P-384](p384.md) and [P-521](p521.md): a
 [private_key](p256-private_key/README.md) signs a digest, its [public_key](p256-public_key/README.md) verifies. This page is how
-signing and verifying work, on both curves; the keys, their formats and their members are on the pages of the
-classes. The header `ecdsa.h` brings both curves; the tag `deterministic` comes with either
-curve's header.
+signing and verifying work, on the three curves; the keys, their formats and their members are on the pages of the
+classes. The header `ecdsa.h` brings the three curves; the tag `deterministic` comes with any curve's header.
 
 Signing takes a digest the program made, not a message: [sign_digest](p256-private_key/sign_digest.md) gives the
 signature in DER, Go's `SignASN1`, and [sign_digest_raw](p256-private_key/sign_digest_raw.md) as r ‖ s;
@@ -40,16 +44,18 @@ an independent cryptographic audit.**
 - **A digest, not a message**: `sign_digest(digest)` signs what the program hashed — `sha256::of(message)` for ES256,
   `sha384::of(message)` for ES384, a certificate's TBS digest by the algorithm the certificate names
   ([hash_id](hash_id.md)). ECDSA takes a digest of any length of one byte or more and uses its leftmost bits, as many
-  as the curve's order has (256 or 384), as FIPS 186-5 §6.4.1 has it: a longer digest is cut, a shorter one is the
+  as the curve's order has (256, 384 or 521), as FIPS 186-5 §6.4.1 has it: a longer digest is cut, a shorter one is the
   number it is. The length is not checked against any hash, as neither Go nor OpenSSL checks it; pair the curve with
   the digest the protocol names. An empty digest is `std::invalid_argument` and verifies nothing, as Go has it: a
   signature of nothing is a program's mistake (the arguments swapped, a digest never made).
 - **Two encodings of a signature**: `sign_digest` gives the DER `ECDSA-Sig-Value` (a SEQUENCE of two INTEGERs, what
-  X.509, TLS and Go's `SignASN1` use; at most 72 bytes for P-256, 104 for P-384, `max_signature_size`),
-  `sign_digest_raw` the fixed-size r ‖ s (IEEE P1363: JWS, WebAuthn, PKCS #11, COSE; 64 or 96 bytes,
+  X.509, TLS and Go's `SignASN1` use; at most 72 bytes for P-256, 104 for P-384, 140 for P-521,
+  `max_signature_size`), `sign_digest_raw` the fixed-size r ‖ s (IEEE P1363: JWS, WebAuthn, PKCS #11, COSE; 64, 96
+  or 132 bytes,
   `signature_size`). `verify_digest` takes only DER and `verify_digest_raw` only r ‖ s: a signature in the other form
   is false.
-- **The nonce k is RFC 6979's, hedged**: an HMAC-DRBG (SHA-256 for P-256, SHA-384 for P-384) over the private key,
+- **The nonce k is RFC 6979's, hedged**: an HMAC-DRBG (SHA-256 for P-256, SHA-384 for P-384, SHA-512 for P-521) over
+  the private key,
   the reduced digest and fresh random bytes (RFC 6979 §3.6), as Go makes it. If the system's random bytes were ever
   bad, k is still unpredictable and never repeats for two digests (the failure that exposed the keys of the
   PlayStation 3 and of Android Bitcoin wallets); when they are good, two signatures of the same digest differ.
@@ -127,7 +133,7 @@ sgcl::crypto::p384: the point is not on the curve
 
 - [p256::private_key](p256-private_key/README.md): signing, the key's formats
 - [p256::public_key](p256-public_key/README.md): verifying
-- [p256](p256.md), [p384](p384.md): the curves
+- [p256](p256.md), [p384](p384.md), [p521](p521.md): the curves
 - [hash_id](hash_id.md): a digest named when the program runs
 - [sha256](sha256/README.md), [sha512](sha512/README.md) (SHA-384), [error](error/README.md)
 - [ed25519](ed25519.md), [rsa](rsa.md): the other signatures of the module

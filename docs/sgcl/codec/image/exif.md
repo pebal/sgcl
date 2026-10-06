@@ -12,8 +12,8 @@ The EXIF block of the file the image was decoded from, as the file had it: a TIF
 block. It is empty, too, when the file had none, when [decode_options](../decode_options.md)`.metadata` was false
 and for an image the program made, until [set_exif](set_exif.md) sets one.
 
-The module reads and writes one field of it, the orientation ([orientation](orientation.md)); the rest is the
-program's to read. [convert](convert.md) and [clone](clone.md) carry it to the new image as it is,
+The image reads and writes one field of it, the orientation ([orientation](orientation.md));
+[metadata::from_exif](../metadata/from_exif.md) reads the rest, typed. [convert](convert.md) and [clone](clone.md) carry it to the new image as it is,
 [oriented](oriented.md) with its orientation tag set to 1, and [png::encode](../png/encode.md) and
 [jpeg::encode](../jpeg/encode.md) write it back into the file, JPEG's when it fits one segment, 65 527 bytes.
 
@@ -79,4 +79,5 @@ orientation 6
 - [orientation](orientation.md): the one field the module reads
 - [set_exif](set_exif.md): sets the EXIF block
 - [icc](icc.md): the color profile
+- [metadata](../metadata/README.md): the fields of the block, typed
 - [sgcl::codec::image](README.md)

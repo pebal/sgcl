@@ -10,16 +10,19 @@ namespace sgcl::codec {
 }
 ```
 
-`sgcl::codec::webp` reads WebP: the container of RFC 9649, simple and extended (VP8X, ICCP, EXIF, ANIM and ANMF),
-lossless images (VP8L) and lossy ones (VP8, RFC 6386, with their alpha in an ALPH chunk: raw or lossless, and each of
-its filters). XMP is passed over. [decode](decode.md) gives a still image, or an animation's first frame on its
-canvas, as an [image](../image/README.md); [frames](frames.md) gives every frame, read one by one as the program asks for
-them. Every member is static, and there is no encoder. [codec::decode](../decode.md) and
-[codec::decode_frames](../decode_frames.md) read WebP too, told by its signature.
+`sgcl::codec::webp` reads and writes WebP: the container of RFC 9649, simple and extended (VP8X, ICCP, EXIF, ANIM
+and ANMF), lossless images (VP8L) and lossy ones (VP8, RFC 6386, with their alpha in an ALPH chunk: raw or lossless,
+and each of its filters). XMP is passed over. [decode](decode.md) gives a still image, or an animation's first frame
+on its canvas, as an [image](../image/README.md); [frames](frames.md) gives every frame, read one by one as the program
+asks for them; [encode](encode.md) writes an image or an animation, lossless or lossy at a quality of
+[options](../webp-options.md). Every member is static. [codec::decode](../decode.md) and
+[codec::decode_frames](../decode_frames.md) read WebP too, told by its signature, and [save](../save.md) writes it for
+a path ending in `.webp`.
 
 The decoder is the module's own and gives the pixels of libwebp, the decoder of Chrome; Go's `x/image/webp` gives the
 same for a lossless file. An animation's canvas is composed here too, by RFC 9649's rules
-([frames](frames.md)), each frame the whole canvas as it is shown.
+([frames](frames.md)), each frame the whole canvas as it is shown. The encoder is the module's own too, written from
+the same specifications: Go has none, and what it writes libwebp decodes to the module's pixels.
 
 ## Rules
 
@@ -71,15 +74,27 @@ same for a lossless file. An animation's canvas is composed here too, by RFC 964
   read whole from a stream, since its partitions are read side by side. From a stream, the file is read a block at a
   time and the bitstream is never copied whole. The decoder's buffers are kept from one frame to the next: after the
   first frame, nothing is allocated per frame but the image handed out.
-- **SIMD.** The lossless decoder's inverse transforms, the lossy one's upsampling and conversion of colors, and the
-  conversion of words to RGBA use 128-bit vectors: NEON on arm64, SSE2 on x86-64, which is what the compiler assumes
-  without a flag. `SGCL_CODEC_PORTABLE` builds the plain loops instead, and the tests run both.
+- **SIMD.** The lossless decoder's inverse transforms, the lossy one's upsampling and conversion of colors, the
+  conversion of words to RGBA, and the lossy encoder's forward DCT, quantization and squared errors use 128-bit
+  vectors: NEON on arm64, SSE2 on x86-64, which is what the compiler assumes without a flag. `SGCL_CODEC_PORTABLE`
+  builds the plain loops instead, and the tests run both.
+- **Writing.** Lossless is exact: every pixel comes back as it was, the color of a transparent one too. Lossy keeps
+  the alpha exact (an ALPH chunk compressed by VP8L) and sets the color's quality as cwebp's `-q` does. The image's
+  EXIF block and ICC profile are written with it. A stream gets the file once it is whole, since RIFF's size comes
+  first.
+
+## Member types
+
+| Type | Definition |
+|---|---|
+| [options](../webp-options.md) | the encoder's settings: lossless or not, the quality or effort, an animation's loop count |
 
 ## Member functions
 
 | Function | Description |
 |---|---|
 | [decode](decode.md) | a still image, or an animation's first frame on its canvas (static) |
+| [encode](encode.md) | a WebP of an image or of an animation, lossless or lossy, as bytes or into a stream (static) |
 | [frames](frames.md) | every frame, read one by one; a still image is one frame (static) |
 
 ## Example

@@ -25,7 +25,7 @@ call. It is Go's `hash.Hash`, asked for statically.
 - every hasher of this module: [crc32](../crc32/README.md), [crc32c](../crc32c/README.md), [crc64](../crc64/README.md),
   [crc64_iso](../crc64_iso/README.md), [adler32](../adler32/README.md), [fnv32](../fnv32/README.md), [fnv32a](../fnv32a/README.md),
   [fnv64](../fnv64/README.md), [fnv64a](../fnv64a/README.md), [fnv128](../fnv128/README.md), [fnv128a](../fnv128a/README.md),
-  [xxh3_64](../xxh3_64/README.md), [xxh3_128](../xxh3_128/README.md), [maphash](../maphash/README.md), [siphash](../siphash/README.md);
+  [xxh3_64](../xxh3_64/README.md), [xxh3_128](../xxh3_128/README.md), [xxh32](../xxh32/README.md), [xxh64](../xxh64/README.md), [maphash](../maphash/README.md), [siphash](../siphash/README.md);
 - the digests of crypto: [sha1](../../crypto/sha1/README.md), [sha224 and sha256](../../crypto/sha256/README.md), [sha384, sha512
   and sha512_256](../../crypto/sha512/README.md), [sha3_224, sha3_256, sha3_384 and sha3_512](../../crypto/sha3_256/README.md), and
   [hmac\<H\>](../../crypto/hmac/README.md);

@@ -73,5 +73,7 @@ xterm 80x24
 ## See also
 
 - [pty](../pty.md)
+- [window_changes](window_changes.md): told of the client's window changes
+- [io::pty](../../../io/pty/README.md): a program run on a pseudo-terminal of this size
 - [session::request_pty](../session/request_pty.md)
 - [sgcl::net::ssh::server_session](README.md)

@@ -1,0 +1,13 @@
+sgcl-http-cache 1
+9:http://a/
+1:1
+15:accept-encoding
+4:gzip
+3:200
+3:100
+3:101
+1:0
+1:5
+1:1
+13:Cache-Control
+10:max-age=60

@@ -52,6 +52,7 @@ the handler's return (its streams are closed then).
 | [command](command.md) | exec's command |
 | [subsystem](subsystem.md) | the subsystem's name |
 | [pty](pty.md) | the terminal asked for |
+| [window_changes](window_changes.md) | a notification of every window change |
 | [env](env.md) | the variables the client set |
 | [last_signal](last_signal.md) | the last signal the client sent |
 | [stop](stop.md) | stopped when the session ends |

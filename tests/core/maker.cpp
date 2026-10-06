@@ -83,6 +83,9 @@ namespace {
 }
 
 TEST(Maker_Tests, ABufferGetsTheSmallestClassThatHoldsIt) {
+#if defined(SGCL_ASAN)
+    GTEST_SKIP() << "under the address sanitizer a buffer is the capacity asked for, in a class with a redzone (maker.h)";
+#endif
     size_t checked = 0;
     for (size_t n = 1; n <= 70000; n += 7) {
         auto capacity = class_capacity(n);
@@ -199,6 +202,9 @@ namespace {
 }
 
 TEST(Maker_Tests, EveryClassBoundaryForEveryElementSize) {
+#if defined(SGCL_ASAN)
+    GTEST_SKIP() << "under the address sanitizer a buffer is the capacity asked for, in a class with a redzone (maker.h)";
+#endif
     auto first = make_tracked<int>(1);   // the heap made on this thread first
     std::atomic<int> ready = {0};
     std::vector<std::thread> threads;
@@ -380,7 +386,11 @@ TEST(Maker_Tests, ManyThreadsMakeManyNewTypesAtOnce) {
             EXPECT_EQ(seen[t][n].pointers, first.pointers) << "type " << n << " thread " << t;
             EXPECT_EQ(seen[t][n].page_metadata, first.metadata) << "type " << n << " thread " << t;
         }
+#if defined(SGCL_ASAN)
+        EXPECT_EQ(first.metadata->user_size, 8 + 8 * (n + 1) + sizeof(tracked_ptr<int>)) << n;   // object_size is the slot, with its redzone (page_info.h: SlotSize)
+#else
         EXPECT_EQ(first.metadata->object_size, 8 + 8 * (n + 1) + sizeof(tracked_ptr<int>)) << n;
+#endif
         EXPECT_EQ(first.pointers->map.size(), 1u) << n;
     }
     collector::clear_stack();

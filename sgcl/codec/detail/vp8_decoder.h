@@ -965,6 +965,10 @@ namespace sgcl::codec::detail::vp8 {
     // macroblock) and U, V (8 a macroblock), the macroblocks whole (the
     // picture's width and height cropped by the reader of the planes)
     class Decoder {
+        // the encoder (vp8_encoder.h) predicts as the decoder does, with
+        // its own functions
+        friend class Encoder;
+
     public:
         // The frame of `size` bytes at `data` (a VP8 chunk's payload): the
         // header checked (key frame, version 0..3, shown, the start code, a

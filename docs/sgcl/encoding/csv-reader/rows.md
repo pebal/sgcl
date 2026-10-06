@@ -26,7 +26,8 @@ Constant; walking it, linear in the length of the input.
 
 ## Exceptions
 
-None. The reads made as the range is walked throw what [next()](next.md) throws, out of the step of the loop.
+None. The reads made as the range is walked throw what [next()](next.md) throws, out of the iterator's look at a
+record, which reads it.
 
 ## Example
 

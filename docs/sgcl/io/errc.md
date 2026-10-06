@@ -19,7 +19,8 @@ namespace sgcl::io {
         unsupported,
         insecure_path,
         invalid_argument,
-        help_requested
+        help_requested,
+        library
     };
 }
 
@@ -48,6 +49,7 @@ operation and the path.
 | `insecure_path` | "insecure path": a name that would leave its directory once joined to it, from [path::under](path/under.md) (Go's `ErrInsecurePath`) |
 | `invalid_argument` | "invalid command line": a command line the [flags](flags/README.md) do not take, Go's message about it in the error's path |
 | `help_requested` | "help requested": `-h` or `-help` on the command line of the [flags](flags/README.md) (Go's `flag.ErrHelp`); its message is `flag: help requested` |
+| `library` | "dynamic library error": the dynamic loader refused [open_library](open_library.md) or a [symbol](library/symbol.md); its text is the error's path |
 
 ## Example
 

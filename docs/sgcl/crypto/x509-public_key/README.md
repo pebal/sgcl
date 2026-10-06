@@ -14,7 +14,7 @@ namespace sgcl::crypto::x509 {
 
 `sgcl::crypto::x509::public_key` is the public key of a [certificate](../x509-certificate/README.md) as one of the module's key
 types, or none: [kind](kind.md) says which, and [rsa](rsa.md),
-[p256](p256.md), [p384](p384.md) and [ed25519](ed25519.md) give it.
+[p256](p256.md), [p384](p384.md), [ed25519](ed25519.md) and [p521](p521.md) give it.
 [algorithm](algorithm.md) is the OID of the SubjectPublicKeyInfo whatever the kind.
 
 Go's `Certificate.PublicKey` is an `any` that a program asserts to a type; here the kinds are a closed list, a
@@ -31,7 +31,7 @@ Go's `Certificate.PublicKey` is an `any` that a program asserts to a type; here 
 
 | Type | Definition |
 |---|---|
-| `value_type` | `variant<monostate, crypto::rsa::public_key, crypto::p256::public_key, crypto::p384::public_key, crypto::ed25519::public_key>` |
+| `value_type` | `variant<monostate, crypto::rsa::public_key, crypto::p256::public_key, crypto::p384::public_key, crypto::ed25519::public_key, crypto::p521::public_key>` |
 
 ## Member functions
 
@@ -48,6 +48,7 @@ Go's `Certificate.PublicKey` is an `any` that a program asserts to a type; here 
 | [rsa](rsa.md) | the RSA key |
 | [p256](p256.md) | the P-256 key |
 | [p384](p384.md) | the P-384 key |
+| [p521](p521.md) | the P-521 key |
 | [ed25519](ed25519.md) | the Ed25519 key |
 | [value](value.md) | the key as the variant |
 | [algorithm](algorithm.md) | the OID of the key's algorithm |

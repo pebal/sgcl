@@ -15,6 +15,7 @@
 #include "../../core/string.h"
 #include "../../core/tracked_ptr.h"
 #include "../../core/vector.h"
+#include "../../io/functions.h"
 #include "../../io/stream.h"
 
 #include <cstdint>
@@ -34,6 +35,11 @@ namespace sgcl::net::http {
             optional<net::url> url;
             optional<uint64_t> content_length;
             tracked_ptr<Body> body;
+            io::reader decoded;              // what the body is read through when set: the client's decoding, the cache's copy
+            bool reads_decoded = false;
+            bool uncompressed = false;
+            uint8_t cache = 0;               // response::cache_status
+            optional<int64_t> age;           // a response of the cache: its age, seconds
         };
 
         struct ResponseAccess;
@@ -72,8 +78,38 @@ namespace sgcl::net::http {
             return _impl->fields;
         }
 
+        // Content-Length as the response gave it; nullopt for chunked, none,
+        // and a body the client decoded (uncompressed())
         SGCL_INLINE_HOT optional<uint64_t> content_length() const noexcept {
             return _impl->content_length;
+        }
+
+        // How the client's cache (client::cache) answered: none (no cache, or
+        // a request it does not take), miss (stored now, or not storable),
+        // hit (fresh, no request sent), revalidated (a 304 refreshed the
+        // stored response), stale (served stale: stale-while-revalidate, or
+        // stale-if-error when the server failed)
+        enum class cache_status : uint8_t { none, miss, hit, revalidated, stale };
+
+        SGCL_INLINE_HOT cache_status from_cache() const noexcept {
+            return cache_status(_impl->cache);
+        }
+
+        // The age of a response the cache served (RFC 9111 §4.2.3), its Age
+        // field; nullopt for one from the network
+        SGCL_INLINE_HOT optional<duration> age() const noexcept {
+            if (!_impl->age) {
+                return nullopt;
+            }
+            return duration(std::chrono::seconds(*_impl->age));
+        }
+
+        // Whether the client decoded the body by itself: it asked for a
+        // coding (client::decompress) and the response came in it; its
+        // Content-Encoding and Content-Length then removed (Go's
+        // Response.Uncompressed)
+        SGCL_INLINE_HOT bool uncompressed() const noexcept {
+            return _impl->uncompressed;
         }
 
         // The cookies of the Set-Cookie fields, in their order (Go's
@@ -128,9 +164,10 @@ namespace sgcl::net::http {
         expected<uint64_t, io::error> save(const string& path) const;
         async::task<expected<uint64_t, io::error>> async_save(string path) const noexcept;
 
-        // The body as a stream; its end gives the connection back
+        // The body as a stream (decoded, when uncompressed()); its end
+        // gives the connection back
         SGCL_INLINE_HOT io::reader body() const noexcept {
-            return io::reader(_impl->body);
+            return _impl->reads_decoded ? _impl->decoded : io::reader(_impl->body);
         }
 
         // The trailers of a chunked body, once it has been read to its end
@@ -157,10 +194,16 @@ namespace sgcl::net::http {
         tracked_ptr<detail::ResponseImpl> _impl;
 
         static async::task<expected<vector<byte>, io::error>> _co_bytes(tracked_ptr<detail::ResponseImpl> impl) noexcept {
+            if (impl->reads_decoded) {
+                co_return co_await io::async_read_all(impl->decoded);
+            }
             co_return co_await impl->body->read_everything();
         }
 
         static async::task<expected<string, io::error>> _co_text(tracked_ptr<detail::ResponseImpl> impl) noexcept {
+            if (impl->reads_decoded) {
+                co_return co_await io::async_read_all_text(impl->decoded);
+            }
             co_return co_await impl->body->read_text();   // straight into the string
         }
 

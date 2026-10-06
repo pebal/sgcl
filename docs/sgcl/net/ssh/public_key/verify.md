@@ -8,7 +8,7 @@
 
 Whether `signature`, a signature blob (its algorithm's name and its bytes: what [private_key::sign](../private_key/sign.md)
 and an agent give), signs `data` under the key (a certificate's: under the key it certifies). The algorithm must be one
-of the key's: ssh-ed25519, ecdsa-sha2-nistp256 or -nistp384, rsa-sha2-256 or rsa-sha2-512; an `ssh-rsa` signature
+of the key's: ssh-ed25519, ecdsa-sha2-nistp256, -nistp384 or -nistp521, rsa-sha2-256 or rsa-sha2-512; an `ssh-rsa` signature
 (SHA-1) is never taken.
 
 ## Parameters

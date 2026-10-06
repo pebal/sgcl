@@ -106,7 +106,7 @@ instant of the date there.
 | Function | Description |
 |---|---|
 | [parse](parse.md) | reads ISO 8601's date, or a date in a pattern of `%` (static) |
-| [format](format.md) | writes the date in a pattern of `%` |
+| [format](format.md) | writes the date in a pattern of `%`, or as a locale writes it, in its styles or for a skeleton |
 | [to_string](to_string.md) | ISO 8601's extended calendar date, `"2026-09-24"` |
 
 ## Non-member functions

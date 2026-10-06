@@ -10,11 +10,14 @@
 #include "image.h"
 #include "options.h"
 #include "detail/gif_decoder.h"
+#include "detail/gif_encoder.h"
 #include "detail/input.h"
+#include "detail/output.h"
 #include "../core/aliases.h"
 #include "../core/expected.h"
 #include "../core/make_tracked.h"
 #include "../core/slice.h"
+#include "../core/vector.h"
 #include "../io/stream.h"
 
 #include <chrono>
@@ -127,8 +130,17 @@ namespace sgcl::codec {
     // transparency and disposal (detail/gif_decoder.h), the loop count of
     // NETSCAPE2.0. decode gives the first frame as an image, frames all of
     // them; each rgba8 unless decode_options.want asks for another format.
+    //
+    // Encoding (GIF89a, detail/gif_encoder.h): a still image, or an
+    // animation of whole canvases (frames as frames::next gives them), each
+    // frame with a palette of its own: the image's colors as they are when
+    // they fit, else median cut and, unless options.dither is false,
+    // Floyd–Steinberg; alpha below 128 transparent. An animation's frames
+    // after the first cover what changed, their disposal chosen here.
     class gif {
     public:
+        using options = detail::GifOptions;
+
         // The first frame, the file in memory read in place
         SGCL_INLINE_HOT static expected<image, error> decode(const slice<const byte>& data, const decode_options& o = {}) noexcept {
             detail::MemoryInput in(data);
@@ -152,6 +164,49 @@ namespace sgcl::codec {
         // and a block of the stream, not the file
         SGCL_INLINE_HOT static expected<codec::frames, error> frames(const io::reader& in, const decode_options& o = {}) {
             return detail::gif_frames<detail::ReaderInput>(slice<const byte>(), in, o);
+        }
+
+        // The file of a still image as bytes: errc::invalid_argument for a
+        // side past 65535 pixels (the logical screen's 16 bits) or
+        // options.colors outside 2..256 (any other image encodes)
+        SGCL_INLINE_HOT static expected<vector<byte>, error> encode(const image& im, const options& o = {}) noexcept {
+            vector<byte> out;
+            detail::VectorSink sink{out, nullopt};
+            if (!detail::GifEncoder<detail::VectorSink>(sink, o).still(im)) {
+                return unexpected(*sink.failure);
+            }
+            return out;
+        }
+
+        // The file into a stream: the same refusals, nothing written;
+        // errc::io when the stream fails, at the offset of the bytes
+        // written before
+        SGCL_INLINE_HOT static expected<void, error> encode(const image& im, const io::writer& out, const options& o = {}) {
+            detail::WriterSink sink{out, 0, nullopt};
+            if (!detail::GifEncoder<detail::WriterSink>(sink, o).still(im)) {
+                return unexpected(*sink.failure);
+            }
+            return {};
+        }
+
+        // An animation of whole canvases as bytes, each frame shown for its
+        // delay, played options.loop_count times: errc::invalid_argument
+        // also for no frame or a frame of another size than the first
+        SGCL_INLINE_HOT static expected<vector<byte>, error> encode(const slice<const frame>& animation, const options& o = {}) noexcept {
+            vector<byte> out;
+            detail::VectorSink sink{out, nullopt};
+            if (!detail::GifEncoder<detail::VectorSink>(sink, o).animation(animation)) {
+                return unexpected(*sink.failure);
+            }
+            return out;
+        }
+
+        SGCL_INLINE_HOT static expected<void, error> encode(const slice<const frame>& animation, const io::writer& out, const options& o = {}) {
+            detail::WriterSink sink{out, 0, nullopt};
+            if (!detail::GifEncoder<detail::WriterSink>(sink, o).animation(animation)) {
+                return unexpected(*sink.failure);
+            }
+            return {};
         }
     };
 }

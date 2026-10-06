@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
 // X.509, verification: chains made by OpenSSL in the test (RSA PKCS #1 v1.5
-// and PSS, ECDSA on P-256 and P-384, Ed25519, with intermediates) verified
+// and PSS, ECDSA on P-256, P-384 and P-521, Ed25519, with intermediates) verified
 // here and by X509_verify_cert, the verdict and the reason compared — valid
 // chains of every algorithm, expired and not yet valid certificates at each
 // level, broken signatures, SHA-1 and MD5, intermediates that are no CA or
@@ -65,7 +65,8 @@ TEST(Crypto_X509_Verify, EveryAlgorithm) {
                    alg{key_type::rsa2048, sig::pss256}, alg{key_type::rsa2048, sig::pss384}, alg{key_type::rsa2048, sig::pss512},
                    alg{key_type::rsa1024, sig::sha256}, alg{key_type::p256, sig::sha256}, alg{key_type::p256, sig::sha384},
                    alg{key_type::p256, sig::sha512}, alg{key_type::p384, sig::sha256}, alg{key_type::p384, sig::sha384},
-                   alg{key_type::p384, sig::sha512}, alg{key_type::ed25519, sig::sha256}}) {
+                   alg{key_type::p384, sig::sha512}, alg{key_type::ed25519, sig::sha256}, alg{key_type::p521, sig::sha512},
+                   alg{key_type::p521, sig::sha256}}) {
         SCOPED_TRACE(std::string(key_name(a.key)) + " " + std::to_string(int(a.s)));
         auto c = simple(a.key, a.s);
         expect_verdict(c, reason::none, "valid");

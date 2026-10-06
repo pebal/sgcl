@@ -18,6 +18,34 @@
 #include <cstring>
 #include <vector>
 
+namespace {
+    // The bytes copied into malloc memory of exactly their size: a read
+    // past their end is ASan's to see, which a managed buffer or a
+    // vector's spare capacity hides
+    struct exact {
+        uint8_t* p;
+        size_t n;
+
+        exact(const void* src, size_t size)
+        : p(static_cast<uint8_t*>(std::malloc(size ? size : 1))), n(size) {
+            if (size) {
+                std::memcpy(p, src, size);
+            }
+        }
+
+        exact(const exact&) = delete;
+        exact& operator=(const exact&) = delete;
+
+        ~exact() {
+            std::free(p);
+        }
+
+        sgcl::slice<const std::byte> bytes() const {
+            return sgcl::slice<const std::byte>(reinterpret_cast<const std::byte*>(p), n);
+        }
+    };
+}
+
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     if (size < 2) {
         return 0;
@@ -40,7 +68,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         }
     }
     d.finish(out);
-    auto back = compress::flate::decompress(slice<const std::byte>(reinterpret_cast<const std::byte*>(out.data()), out.size()));
+    auto back = compress::flate::decompress(exact(out.data(), out.size()).bytes());
     if (!back || back->size() != size || (size && std::memcmp(back->data(), data, size) != 0)) {
         std::abort();
     }

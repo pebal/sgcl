@@ -3,11 +3,12 @@
 # sgcl::generator\<T\>::end
 
 ```cpp
-iterator end() noexcept;
+std::default_sentinel_t end() const noexcept;
 ```
 
-The end iterator: an [iterator](../generator-iterator.md) that refers to no generator, which an iterator of this
-generator equals once the coroutine has ended. It does not run the coroutine.
+The end of a range-for over the generator: `std::default_sentinel`, which an [iterator](../generator-iterator.md)
+of this generator compares equal to once the coroutine has ended. The comparison is a look: an iterator that holds
+no value yet runs the coroutine to its next `co_yield` to tell whether it has ended. `end` itself runs nothing.
 
 ## Parameters
 
@@ -15,7 +16,7 @@ None.
 
 ## Return value
 
-The end iterator.
+`std::default_sentinel`.
 
 ## Complexity
 
@@ -51,5 +52,5 @@ true
 
 ## See also
 
-- [begin](begin.md): runs the coroutine to its first value
+- [begin](begin.md): the iterator, which runs the coroutine at its first look
 - [sgcl::generator\<T\>](README.md)

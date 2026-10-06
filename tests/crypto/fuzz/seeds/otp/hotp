@@ -1,0 +1,1 @@
+otpauth://hotp/ACME%20Co:%20john%2Bdoe@x.org?secret=jbswy3dpehpk3pxp====&algorithm=sha256&digits=8&counter=42

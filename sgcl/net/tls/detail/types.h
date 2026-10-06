@@ -93,18 +93,21 @@ namespace sgcl::net::tls::detail {
     enum class Group : uint16_t {
         secp256r1 = 0x0017,
         secp384r1 = 0x0018,
+        secp521r1 = 0x0019,
         x25519 = 0x001D,
         x25519_mlkem768 = 0x11EC,
     };
 
-    // The signature schemes of v1 (§4.2.3): the first six sign and verify
-    // CertificateVerify; the rsa_pkcs1 ones only verify certificates
+    // The signature schemes of v1 (§4.2.3): the ECDSA, RSA-PSS and Ed25519
+    // ones sign and verify CertificateVerify; the rsa_pkcs1 ones only verify
+    // certificates
     enum class SignatureScheme : uint16_t {
         rsa_pkcs1_sha256 = 0x0401,
         rsa_pkcs1_sha384 = 0x0501,
         rsa_pkcs1_sha512 = 0x0601,
         ecdsa_secp256r1_sha256 = 0x0403,
         ecdsa_secp384r1_sha384 = 0x0503,
+        ecdsa_secp521r1_sha512 = 0x0603,
         rsa_pss_rsae_sha256 = 0x0804,
         rsa_pss_rsae_sha384 = 0x0805,
         rsa_pss_rsae_sha512 = 0x0806,

@@ -18,12 +18,21 @@
 //   mail smtp_serve sgcl         net::smtp::server on the loopback, a handler that takes each
 //                                message: prints "port N", serves until killed; the Go client
 //                                (`mail smtp_send ADDR n`) feeds it, as it feeds the Go server
+//   mail dkim_sign_rsa sgcl [n]  a message of 4 KB signed by net::dkim, relaxed/relaxed, RSA 2048:
+//                                per message (benchmarks/go/mailauth, a minimal DKIM by hand: Go
+//                                has none)
+//   mail dkim_sign_ed25519 sgcl [n]  the same with Ed25519
+//   mail dkim_verify_rsa sgcl [n]    its signature checked without the key's DNS lookup: the field
+//                                parsed, the body and the head hashed again, the signature verified
+//   mail dkim_verify_ed25519 sgcl [n]  the same with Ed25519
+//   mail dkim_body sgcl [n]      a body of 1 MB canonicalized (relaxed) into SHA-256: per body
 #include "../common.h"
 #include "sgcl/async.h"
 #include "sgcl/core.h"
 #include "sgcl/encoding.h"
 #include "sgcl/net.h"
 #include "sgcl/net/smtp.h"
+#include "sgcl/net/dkim.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -84,14 +93,112 @@ namespace {
     }
 }
 
+namespace {
+    // The message both sides sign: the same bytes (benchmarks/go/mailauth)
+    std::string dkim_message() {
+        std::string b = "From: Alice <alice@example.com>\r\nTo: Bob <bob@example.org>\r\nSubject: Quarterly  report\r\n"
+                        "Date: Tue, 06 Oct 2026 12:00:00 +0000\r\nMessage-ID: <bench@example.com>\r\n"
+                        "MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n";
+        while (b.size() < 4096) {
+            b += "The quick brown fox  jumps over\tthe lazy dog, line after line.  \r\n";
+        }
+        return b + "\r\n\r\n";
+    }
+
+    std::string dkim_big_body() {
+        std::string b;
+        while (b.size() < (1u << 20)) {
+            b += "The quick brown fox  jumps over\tthe lazy dog, line after line.  \r\n";
+        }
+        return b;
+    }
+
+    net::dkim::signer dkim_signer(bool ed) {
+        if (ed) {
+            std::string seed(32, '\x2a');
+            auto k = crypto::ed25519::private_key::from_seed(slice<const byte>(reinterpret_cast<const byte*>(seed.data()), seed.size()));
+            return net::dkim::signer("example.com", "s1", k->to_pem());
+        }
+        return net::dkim::signer::generate("example.com", "s1");
+    }
+
+    // net::dkim's verification without its lookup: the key given
+    bool dkim_check(const string& m, const net::dkim::signer& s) {
+        namespace dk = sgcl::net::dkim::detail;
+        dk::DkimText text(m.view());
+        auto split = net::detail::mail_split(text.view);
+        dk::DkimSignature sig;
+        net::dkim::result r;
+        if (!dk::dkim_parse_signature(split.fields[0].raw, 0, sig, r)) {
+            return false;
+        }
+        dk::DkimPublic key;
+        const char* why = nullptr;
+        if (dk::dkim_parse_key(s.record().view(), sig, key, why) != net::dkim::status::pass) {
+            return false;
+        }
+        uint64_t total = 0;
+        auto bh = dk::dkim_body_hash(split.body, sig.body, sig.length, total);
+        if (!std::equal(bh.begin(), bh.end(), sig.bh.begin(), sig.bh.end())) {
+            return false;
+        }
+        auto hh = dk::dkim_head_hash(split.fields, sig.names, split.fields[0].raw, sig.head);
+        slice<const byte> digest(hh.data(), hh.size());
+        return key.rsa ? key.rsa->verify_digest(crypto::hash_id::sha256, digest, sig.b) : key.ed->verify(digest, sig.b);
+    }
+}
+
 int main(int argc, char** argv) {
     if (argc < 3 || std::string(argv[2]) != "sgcl") {
-        std::fprintf(stderr, "usage: mail <mime_build|mime_parse|smtp_client ADDR|smtp_serve> sgcl [n]\n");
+        std::fprintf(stderr, "usage: mail <mime_build|mime_parse|smtp_client ADDR|smtp_serve|dkim_sign_rsa|dkim_sign_ed25519|dkim_verify_rsa|dkim_verify_ed25519|dkim_body> sgcl [n]\n");
         return 2;
     }
     std::string what = argv[1];
     bool ok = true;
-    if (what == "mime_build") {
+    if (what == "dkim_sign_rsa" || what == "dkim_sign_ed25519") {
+        bool ed = what == "dkim_sign_ed25519";
+        long n = argc > 3 ? std::atol(argv[3]) : (ed ? 50000 : 2000);
+        auto s = dkim_signer(ed);
+        string m(dkim_message());
+        net::dkim::sign_options o;
+        o.time = time::datetime::from_unix(1791246000, time::zone::utc());
+        size_t total = 0;
+        auto t0 = bench::Clock::now();
+        for (long i = 0; i < n; ++i) {
+            auto r = s.sign(m, o);
+            if (!r) {
+                return 1;
+            }
+            total += r->size();
+        }
+        report(what.c_str(), bench::seconds_since(t0), double(n));
+        ok = total > size_t(n) * m.size();
+    } else if (what == "dkim_verify_rsa" || what == "dkim_verify_ed25519") {
+        bool ed = what == "dkim_verify_ed25519";
+        long n = argc > 3 ? std::atol(argv[3]) : 50000;
+        auto s = dkim_signer(ed);
+        auto m = s.sign(string(dkim_message()));
+        auto t0 = bench::Clock::now();
+        for (long i = 0; i < n; ++i) {
+            if (!dkim_check(*m, s)) {
+                std::fprintf(stderr, "does not verify\n");
+                return 1;
+            }
+        }
+        report(what.c_str(), bench::seconds_since(t0), double(n));
+    } else if (what == "dkim_body") {
+        long n = argc > 3 ? std::atol(argv[3]) : 500;
+        std::string body = dkim_big_body();
+        unsigned sum = 0;
+        auto t0 = bench::Clock::now();
+        for (long i = 0; i < n; ++i) {
+            uint64_t total = 0;
+            auto h = sgcl::net::dkim::detail::dkim_body_hash(body, net::dkim::canonicalization::relaxed, UINT64_MAX, total);
+            sum ^= unsigned(h[0]);
+        }
+        report("dkim_body", bench::seconds_since(t0), double(n));
+        ok = sum != 1000;
+    } else if (what == "mime_build") {
         long n = argc > 3 ? std::atol(argv[3]) : 2000;
         string text(body_text()), html(body_html());
         auto file = attachment();

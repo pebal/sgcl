@@ -27,7 +27,14 @@ mkdir -p "$out/bin" "$out/corpus/$name" "$out/crash/$name"
 # ignored
 flags="-std=c++20 -O1 -g -fsanitize=fuzzer,address,undefined -fno-sanitize-recover=undefined -fsanitize-address-use-after-return=never -Qunused-arguments"
 "$llvm/bin/clang++" $flags -I"$root" ${SGCL_FUZZ_LIBS} -c "$root/$src" -o "$out/bin/$name.o"
-"$llvm/bin/clang++" $flags "$out/bin/$name.o" ${SGCL_FUZZ_LIBS} -o "$out/bin/$name"
+# the system frameworks the library links on macOS (TLS roots and the
+# Keychain: Security, CoreFoundation; io::watch: CoreServices; codec:
+# ImageIO, CoreGraphics; Accelerate), unused ones dropped by the linker
+syslibs=""
+if [ "$(uname)" = Darwin ]; then
+    syslibs="-framework Security -framework CoreFoundation -framework CoreServices -framework ImageIO -framework CoreGraphics -framework Accelerate"
+fi
+"$llvm/bin/clang++" $flags "$out/bin/$name.o" ${SGCL_FUZZ_LIBS} $syslibs -o "$out/bin/$name"
 seeds=$(dirname "$root/$src")/seeds/$name
 dict=$root/tests/fuzz/dict/$name.dict
 set -- -max_total_time="$seconds" -timeout=5 -rss_limit_mb=4096 -detect_leaks=0 -use_value_profile=1 \

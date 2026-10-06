@@ -1,0 +1,3 @@
+Origin: https://a.example
+Access-Control-Request-Method: PUT
+Access-Control-Request-Headers: x-a, content-type

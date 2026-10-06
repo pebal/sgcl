@@ -436,8 +436,16 @@ namespace {
         using Info = detail::TypeInfo<T>;
         auto& m = Info::private_metadata();
         EXPECT_EQ(&m, &Info::private_metadata()) << "made once";
+#if defined(SGCL_ASAN)
+        // the slot holds a redzone past the object (page_info.h: SlotSize)
+        EXPECT_EQ(m.user_size, object_size) << typeid(T).name();
+        EXPECT_EQ(m.object_size, Info::SlotSize) << typeid(T).name();
+        EXPECT_EQ(m.object_count, Info::ObjectCount) << typeid(T).name();
+        (void)object_count;
+#else
         EXPECT_EQ(m.object_size, object_size) << typeid(T).name();
         EXPECT_EQ(m.object_count, object_count) << typeid(T).name();
+#endif
         EXPECT_EQ(m.pool_allocated, pool) << typeid(T).name();
         EXPECT_EQ(m.destroy != nullptr, destroy) << typeid(T).name();
         EXPECT_EQ(m.destroy, Info::get_destroy_function()) << typeid(T).name();
@@ -505,10 +513,18 @@ TEST(Heap_Tests, TheMetadataOfEachKindOfType) {
     EXPECT_EQ(sm.type_info, sm.child_pointers.type);
     EXPECT_EQ(sm.child_pointers.map.size(), 0u);
     EXPECT_NE(std::string(sm.type_info.name()).find("StringSlot"), std::string::npos);
+#if defined(SGCL_ASAN)
+    EXPECT_EQ(&sm, StringPools::metadata[(sm.user_size / 4) - 1].load());   // object_size is the slot, with its redzone (page_info.h: SlotSize)
+#else
     EXPECT_EQ(&sm, StringPools::metadata[(sm.object_size / 4) - 1].load());
+#endif
 
     // a size class of the buffers: 10 ints in the class of 48 bytes
+#if defined(SGCL_ASAN)
+    sgcl::vector<int> small(8);   // 32 bytes and the redzone of 16 the class is chosen with (maker.h)
+#else
     sgcl::vector<int> small(10);
+#endif
     auto& bm = *Page::page_of(small.data())->metadata;
     EXPECT_TRUE(bm.is_array);
     EXPECT_FALSE(bm.is_string || bm.is_weak_cell || bm.is_cell_block || bm.is_root_holder);
@@ -569,7 +585,11 @@ TEST(Heap_Tests, TheMetadataOfEachKindOfType) {
     for (auto m : seen) {
         EXPECT_EQ(m, seen[0]);
     }
+#if defined(SGCL_ASAN)
+    EXPECT_EQ(seen[0]->user_size, 24u);   // object_size is the slot, with its redzone (page_info.h: SlotSize)
+#else
     EXPECT_EQ(seen[0]->object_size, 24u);
+#endif
 }
 
 // What a slot holds before its constructor runs, where the collector may
@@ -975,6 +995,10 @@ TEST(Heap_Tests, ABufferOfPointersReusingADeadVectorsSlotIsZeroed) {
 // the collector frees go back to the heap without a write on its thread, so
 // it keeps up with the allocators (the zeroing of every freed page on the
 // collector's thread let the heap grow without bound under 8 threads).
+// The bound assumes the collector's threads get a core: the allocating
+// threads never wait for it, so on a machine loaded by other programs the
+// peak grows past it (712 MB at a load of 22; docs/garbage_collector/
+// overview.md, Memory). A failure here under load is that, not a leak.
 TEST(Heap_Tests, ManyThreadsAllocatingPlainDataStayBounded) {
     struct Small {
         int64_t w[2];

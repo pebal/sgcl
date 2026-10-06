@@ -13,7 +13,10 @@
 #include <type_traits>
 
 // Arithmetic modulo an odd number of N 64-bit words in Montgomery form:
-// the fields of the NIST curves (modulo p) and their scalars (modulo n).
+// the fields of the NIST curves (modulo p) and their scalars (modulo n);
+// P-521's field, modulo the Mersenne prime 2^521 - 1, keeps its elements
+// as they are and reduces a product by folding its high bits onto its low
+// ones (p521_reduce), behind the same interface.
 // An element is N words, least significant first, always fully reduced
 // (below the modulus). Multiplication is CIOS (Koç, Acar and Kaliski,
 // "Analyzing and comparing Montgomery multiplication algorithms", 1996)
@@ -254,12 +257,46 @@ namespace sgcl::crypto::detail {
         return c;
     }
 
+    // Whether m is P-521's prime, the Mersenne number 2^521 - 1
+    template<size_t N>
+    constexpr bool is_p521_prime(const limbs<N>& m) noexcept {
+        if constexpr (N != 9) {
+            return false;
+        } else {
+            for (size_t i = 0; i < 8; ++i) {
+                if (m[i] != ~uint64_t(0)) {
+                    return false;
+                }
+            }
+            return m[8] == 0x1ff;
+        }
+    }
+
+    // The constants of the arithmetic modulo m: Montgomery's, but for
+    // P-521's prime, whose elements are kept as they are (R = 1: the form
+    // of 1 is 1, and into the form is a product with 1) and multiplied
+    // with a reduction of their own
+    template<size_t N>
+    consteval MontConstants<N> field_constants(const limbs<N>& m) {
+        MontConstants<N> c = mont_constants<N>(m);
+        if (is_p521_prime<N>(m)) {
+            c.one = limbs<N>{};
+            c.one[0] = 1;
+            c.r2 = c.one;
+        }
+        return c;
+    }
+
     // The arithmetic modulo Params::modulus, Params a type with
     // static constexpr size_t words and static constexpr limbs<words> modulus
     template<class Params>
     struct Mont {
         static constexpr size_t N = Params::words;
-        static constexpr MontConstants<N> k = mont_constants<N>(Params::modulus);
+        static constexpr MontConstants<N> k = field_constants<N>(Params::modulus);
+
+        // P-521's prime 2^521 - 1: its elements kept as they are, the
+        // products reduced by folding (p521_reduce)
+        static constexpr bool p521_prime = is_p521_prime<N>(Params::modulus);
 
         using element = limbs<N>;
 
@@ -409,6 +446,100 @@ namespace sgcl::crypto::detail {
             p256_reduce(r, t);
         }
 
+        // t (below p^2, eighteen words) modulo 2^521 - 1: t = lo + 2^521 hi
+        // with lo and hi below 2^521, and 2^521 = 1 modulo p, so t = lo + hi,
+        // below 2^522; folded once more, below 2^521 + 1; then p
+        // subtracted through a mask when the sum is p or 2^521. No branch
+        SGCL_INLINE_HOT static constexpr void p521_reduce(element& r, const uint64_t (&t)[18]) noexcept {
+            element s{};
+            uint64_t c = 0;
+            SGCL_CRYPTO_UNROLL
+            for (size_t i = 0; i < 9; ++i) {
+                // word i of hi: bits 521 + 64 i up
+                uint64_t hi = t[8 + i] >> 9 | (i + 9 < 18 ? t[9 + i] << 55 : 0);
+                uint64_t lo = i < 8 ? t[i] : (t[8] & 0x1ff);
+                s[i] = add_carry(lo, hi, c);
+            }
+            // s below 2^522: bit 521 (word 8, bit 9) folded back as 1
+            uint64_t top = s[8] >> 9;
+            s[8] &= 0x1ff;
+            c = 0;
+            s[0] = add_carry(s[0], top, c);
+            SGCL_CRYPTO_UNROLL
+            for (size_t i = 1; i < 9; ++i) {
+                s[i] = add_carry(s[i], 0, c);
+            }
+            // now below 2^521 + 1: s - p is s + 1 - 2^521, kept when s >= p
+            element d{};
+            uint64_t borrow = limbs_sub(d, s, k.m);
+            limbs_select(r, ct_bit_mask(borrow), s, d);
+        }
+
+        SGCL_INLINE_HOT static constexpr void p521_mul(element& r, const element& a, const element& b) noexcept {
+            uint64_t t[18] = {};
+            uint64_t lo[9] = {};
+            uint64_t hi[9] = {};
+            SGCL_CRYPTO_UNROLL
+            for (size_t i = 0; i < 9; ++i) {
+                SGCL_CRYPTO_UNROLL
+                for (size_t j = 0; j < 9; ++j) {
+                    hi[j] = mul_wide(a[j], b[i], lo[j]);
+                }
+                uint64_t c = 0;
+                SGCL_CRYPTO_UNROLL
+                for (size_t j = 0; j < 9; ++j) {
+                    t[i + j] = add_carry(t[i + j], lo[j], c);
+                }
+                t[i + 9] = c;
+                c = 0;
+                SGCL_CRYPTO_UNROLL
+                for (size_t j = 0; j < 9; ++j) {
+                    t[i + 1 + j] = add_carry(t[i + 1 + j], hi[j], c);
+                }
+            }
+            p521_reduce(r, t);
+        }
+
+        SGCL_INLINE_HOT static constexpr void p521_sqr(element& r, const element& a) noexcept {
+            uint64_t t[18] = {};
+            SGCL_CRYPTO_UNROLL
+            for (size_t i = 0; i + 1 < 9; ++i) {
+                uint64_t lo[9] = {};
+                uint64_t hi[9] = {};
+                SGCL_CRYPTO_UNROLL
+                for (size_t j = i + 1; j < 9; ++j) {
+                    hi[j] = mul_wide(a[j], a[i], lo[j]);
+                }
+                uint64_t c = 0;
+                SGCL_CRYPTO_UNROLL
+                for (size_t j = i + 1; j < 9; ++j) {
+                    t[i + j] = add_carry(t[i + j], lo[j], c);
+                }
+                t[i + 9] = c;
+                c = 0;
+                SGCL_CRYPTO_UNROLL
+                for (size_t j = i + 1; j < 9; ++j) {
+                    t[i + j + 1] = add_carry(t[i + j + 1], hi[j], c);
+                }
+            }
+            uint64_t c = 0;
+            SGCL_CRYPTO_UNROLL
+            for (size_t i = 1; i < 18; ++i) {
+                t[i] = add_carry(t[i], t[i], c);
+            }
+            uint64_t sq[18] = {};
+            SGCL_CRYPTO_UNROLL
+            for (size_t i = 0; i < 9; ++i) {
+                sq[2 * i + 1] = mul_wide(a[i], a[i], sq[2 * i]);
+            }
+            c = 0;
+            SGCL_CRYPTO_UNROLL
+            for (size_t i = 0; i < 18; ++i) {
+                t[i] = add_carry(t[i], sq[i], c);
+            }
+            p521_reduce(r, t);
+        }
+
         // Montgomery's reduction of t (below m^2, 2N words), N steps of a
         // word each: q = t_i (-m^-1) mod 2^64, t + q m 2^(64i), the low
         // words of q m added in one chain of carries and the high words in
@@ -462,6 +593,9 @@ namespace sgcl::crypto::detail {
             if constexpr (p256_prime) {
                 p256_mul(r, a, b);
                 return;
+            } else if constexpr (p521_prime) {
+                p521_mul(r, a, b);
+                return;
             }
             uint64_t t[2 * N] = {};
             uint64_t lo[N] = {};
@@ -494,6 +628,9 @@ namespace sgcl::crypto::detail {
         static constexpr void sqr(element& r, const element& a) noexcept {
             if constexpr (p256_prime) {
                 p256_sqr(r, a);
+                return;
+            } else if constexpr (p521_prime) {
+                p521_sqr(r, a);
                 return;
             }
             uint64_t t[2 * N] = {};

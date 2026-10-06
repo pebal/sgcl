@@ -7,9 +7,11 @@
 
 #include "p256.h"
 #include "p384.h"
+#include "p521.h"
 
 // ECDSA (FIPS 186-5 §6) over the NIST curves, Go's crypto/ecdsa: the keys
-// are p256::private_key and p384::private_key, their public keys verify.
+// are p256::private_key, p384::private_key and p521::private_key, their
+// public keys verify.
 // Signing takes a digest the program made (sign_digest), not a message:
 // ECDSA signs any digest, its leftmost bits as many as the curve's order
 // has; the signature is DER (Go's SignASN1) or r || s (sign_digest_raw).

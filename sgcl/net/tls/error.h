@@ -44,6 +44,7 @@ namespace sgcl::net::tls {
         unknown_psk_identity = 115,
         certificate_required = 116,
         no_application_protocol = 120,
+        ech_required = 121,             // RFC 9849: the server rejected Encrypted Client Hello
     };
 
     // The failures of a TLS connection form the tls category of io::error:
@@ -90,6 +91,7 @@ namespace sgcl::net::tls {
                 case 115: return "unknown PSK identity";
                 case 116: return "certificate required";
                 case 120: return "no application protocol";
+                case 121: return "encrypted client hello required";
             }
             return nullptr;
         }

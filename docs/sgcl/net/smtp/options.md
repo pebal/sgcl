@@ -20,6 +20,8 @@ namespace sgcl::net::smtp {
         duration timeout = duration::zero();
         uint16_t port = 0;
         net::dns::options dns;
+        optional<dkim::signer> dkim;
+        dkim::sign_options dkim_options;
         async::stop_token stop;
     };
 }
@@ -47,6 +49,8 @@ STARTTLS when offered, the waits of RFC 5321.
 | `timeout` | every wait for the server; zero by default: RFC 5321 §4.5.3.2's (5 minutes for the greeting, MAIL and RCPT, 2 for DATA, 3 for each block of data, 10 for its end) |
 | `port` | [deliver](deliver.md)'s port of the exchangers; zero: 25 |
 | `dns` | [deliver](deliver.md)'s [resolver](../dns-options.md) of MX records |
+| `dkim` | a [dkim::signer](../dkim/signer/README.md): every message the client sends signed with it before DATA ([dkim::sign](../dkim/signer/sign.md)); none by default |
+| `dkim_options` | how: the [sign_options](../dkim/sign_options.md); relaxed both ways, the recommended fields, by default |
 | `stop` | ends any wait with `ECANCELED`, the connection closed |
 
 ## Example

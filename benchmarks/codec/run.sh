@@ -38,6 +38,7 @@ for d in sonoma detail; do
     $BREW/webp/bin/cwebp -quiet -q 90 $DATA/$d/src.png -o $DATA/$d/lossy.webp
     $BREW/webp/bin/cwebp -quiet -lossless $DATA/$d/src.png -o $DATA/$d/lossless.webp
     $BIN/codec_go prep-gif $DATA/$d/src.png $DATA/$d/image.gif
+    $BREW/jpeg-xl/bin/cjxl --quiet -d 1 $DATA/$d/src.png $DATA/$d/lossy.jxl
 done
 if [ "${2:-}" = --prep-only ]; then
     ls -l $DATA/sonoma $DATA/detail
@@ -45,15 +46,20 @@ if [ "${2:-}" = --prep-only ]; then
 fi
 
 CASES=(png-rgb8 png-rgba8 png-rgb16 png-rgba16 png-paeth-rgb8 png-paeth-rgba8 png-adam7-rgb8 png-enc
-       jpeg-base jpeg-prog jpeg-enc jpeg-enc-opt webp-lossy webp-lossless gif)
+       jpeg-base jpeg-prog jpeg-enc jpeg-enc-opt webp-lossy webp-lossless gif gif-enc gif-enc-nodither gif-enc-exact webp-enc webp-enc-lossless
+       tiff-dec tiff-enc tiff-enc-deflate bmp-dec bmp-enc qoi-dec qoi-enc jxl-dec qr-enc meta-read)
 ORDERS=("sgcl c go" "c go sgcl" "go sgcl c" "sgcl go c" "c sgcl go")
 OUT=$(mktemp)
 for round in 1 2 3 4 5; do
     for set in sonoma detail; do
         for side in ${=ORDERS[$round]}; do
             for c in $CASES; do
+                [ $side = c ] && [ $c = gif-enc ] && continue   # giflib has no dithering
+                [ $side = c ] && case $c in bmp-*|qoi-*) true;; *) false;; esac && continue   # no C library of these here
                 if [ $side = go ]; then
                     [ $c = jpeg-enc-opt ] && continue
+                    [ $c = webp-enc ] || [ $c = webp-enc-lossless ] && continue   # Go has no WebP encoder
+                    case $c in tiff-enc|qoi-*|jxl-dec|qr-enc|meta-read) continue;; esac   # Go has no TIFF LZW encoder, no QOI, no JPEG XL, no QR, no EXIF reader
                     line=$($BIN/codec_go $c $DATA/$set)
                 else
                     line=$($BIN/bench_codec $c $side $DATA/$set)

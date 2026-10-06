@@ -31,11 +31,12 @@ namespace sgcl::crypto::x509 {
                 return unexpected<error>(error(errc::malformed, uint64_t(0), string("sgcl::crypto::x509: a certificate request larger than 128 KiB")));
             }
             auto d = make_tracked<detail::CertData>();
-            const byte* p = der.data();
-            d->raw = vector<byte>(p, p + der.size());
-            if (auto r = _run(*d); !r) {
+            if (auto r = _run(*d, der); !r) {
                 return unexpected<error>(r.error());
             }
+            // copied after the parse: the parse reads the caller's bytes, which a fuzzer gives at their exact size
+            const byte* p = der.data();
+            d->raw = vector<byte>(p, p + der.size());
             return certificate_request(tracked_ptr<const detail::CertData>(std::move(d)));
         }
 
@@ -151,6 +152,8 @@ namespace sgcl::crypto::x509 {
                         ok = key.p256().verify_digest(crypto::digest(id, tbs), sig);
                     } else if (key.kind() == key_kind::p384) {
                         ok = key.p384().verify_digest(crypto::digest(id, tbs), sig);
+                    } else if (key.kind() == key_kind::p521) {
+                        ok = key.p521().verify_digest(crypto::digest(id, tbs), sig);
                     } else {
                         matched = false;
                     }
@@ -186,10 +189,10 @@ namespace sgcl::crypto::x509 {
         // signatureAlgorithm, signature BIT STRING }, the info SEQUENCE {
         // version 0, subject, subjectPKInfo, attributes [0] IMPLICIT SET OF
         // Attribute }
-        static expected<void, error> _run(detail::CertData& c) noexcept {
+        static expected<void, error> _run(detail::CertData& c, const slice<const byte>& der) noexcept {
             using namespace detail;
-            CertParser p{c};
-            DerReader in(c.bytes_at(0), c.raw.size());
+            CertParser p{c, der};
+            DerReader in(reinterpret_cast<const unsigned char*>(der.data()), der.size());
             DerReader req, info_el, info, alg;
             if (!in.read(der::sequence, req) || !in.empty()) {
                 return unexpected<error>(CertParser::fail(in.offset(), "not a CertificationRequest SEQUENCE, or data after it"));

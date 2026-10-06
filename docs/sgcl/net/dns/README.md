@@ -9,6 +9,8 @@ namespace sgcl::net {
     struct dns {
         struct mx;
         struct srv;
+        struct svcb;
+        struct svc_param;
         struct server;
         struct options;
     };
@@ -27,8 +29,9 @@ and each question goes to the one that answers it right:
   [config](../../core/config.md)`::blocking_threads`, and a stop token ends their wait.
 - The records go through the module's own stub resolver (RFC 1035), as Go's resolver does with `PreferGo`:
   [lookup_mx](lookup_mx.md), [lookup_txt](lookup_txt.md), [lookup_srv](lookup_srv.md), [lookup_ns](lookup_ns.md)
-  and [lookup_cname](lookup_cname.md), Go's `LookupMX`, `LookupTXT`, `LookupSRV`, `LookupNS` and `LookupCNAME`. The
-  system's resolver has no portable way to ask for them. The queries go to the servers of `/etc/resolv.conf`, which
+  and [lookup_cname](lookup_cname.md), Go's `LookupMX`, `LookupTXT`, `LookupSRV`, `LookupNS` and `LookupCNAME`, and
+  the service bindings of RFC 9460, [lookup_https](lookup_https.md) and [lookup_svcb](lookup_svcb.md), which Go's
+  resolver does not ask for. The system's resolver has no portable way to ask for them. The queries go to the servers of `/etc/resolv.conf`, which
   macOS writes from its own configuration, or to those [options](../dns-options.md) names, over UDP on the
   scheduler's sockets, so a task that waits for one holds no thread at all. [lookup](lookup.md) and
   [reverse_lookup](reverse_lookup.md) given options go through it too.
@@ -87,6 +90,8 @@ asked of the link by multicast DNS ([mdns](../mdns/README.md), RFC 6762) and of 
 |---|---|
 | [mx](../dns-mx.md) | a mail exchanger: its host and preference |
 | [srv](../dns-srv.md) | a server of a service: its target, port, priority and weight |
+| [svcb](../dns-svcb.md) | a service binding, an HTTPS or SVCB record: its priority, target and SvcParams (ALPN, port, hints, ECH) |
+| [svc_param](../dns-svc_param.md) | a SvcParam of a key svcb has no field for: its key and value |
 | [server](../dns-server.md) | a server to ask: its address with the transport (UDP, TCP, TLS, HTTPS), the name checked, the pins |
 | [options](../dns-options.md) | how a lookup goes through the module's resolver: the servers, the wait for one answer, the rounds, the profile |
 
@@ -112,9 +117,11 @@ asked of the link by multicast DNS ([mdns](../mdns/README.md), RFC 6762) and of 
 | Function | Description |
 |---|---|
 | [lookup_cname, async_lookup_cname](lookup_cname.md) | the canonical name of a name (static) |
+| [lookup_https, async_lookup_https](lookup_https.md) | the HTTPS records of a name (RFC 9460), aliases followed, by priority (static) |
 | [lookup_mx, async_lookup_mx](lookup_mx.md) | the mail exchangers of a domain, by preference (static) |
 | [lookup_ns, async_lookup_ns](lookup_ns.md) | the name servers of a domain (static) |
 | [lookup_srv, async_lookup_srv](lookup_srv.md) | the servers of a service, in RFC 2782's order (static) |
+| [lookup_svcb, async_lookup_svcb](lookup_svcb.md) | the SVCB records of a service's name (RFC 9460), aliases followed, by priority (static) |
 | [lookup_txt, async_lookup_txt](lookup_txt.md) | the TXT records of a name, each one text (static) |
 
 ## Example
@@ -165,4 +172,6 @@ lookup: no such host
   server on the loopback and its faults, the messages, `/etc/resolv.conf`, Go's resolver as the oracle
 - `tests/net/dns_tls.cpp`, `tests/net/http/dns_https.cpp`: DNS over TLS and over HTTPS against servers on the
   loopback and Go's (`tools/dns_secure_oracle.go`)
+- `tests/net/dns_https.cpp`, `tests/net/tls_ech_dns.cpp`: HTTPS and SVCB records against a server on the loopback,
+  RFC 9460's vectors and Go's `dns/dnsmessage` (`tools/svcb_oracle.go`); ECH from the record
 - [dns::server](../dns-server.md), [mdns](../mdns/README.md), [dns_sd](../dns_sd/README.md)

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"sort"
 	"strconv"
 	"sync"
 	"syscall"
@@ -23,6 +24,45 @@ func cpuSeconds() float64 {
 
 func report(what string, wall float64, ops int64) {
 	fmt.Printf("async %s ns/op=%.1f ops/s=%.0f wall=%.2fs cpu=%.2fs\n", what, wall*1e9/float64(ops), float64(ops)/wall, wall, cpuSeconds())
+}
+
+// Sleeps to a deadline n times in each of `tasks` goroutines: how late the
+// wake is (the time read once the goroutine runs again, less the deadline),
+// the median as ns/op, p90 and p99 beside it (benchmarks/async/async.cpp: sleeplat)
+func sleeplat(n int64, us int64, tasks int) {
+	d := time.Duration(us) * time.Microsecond
+	if n == 0 {
+		n = 1000000 / max(us, 1)
+		n = min(max(n, 100), 20000)
+		if tasks > 1 {
+			n = max(n/4, 50)
+		}
+	}
+	lat := make([][]int64, tasks)
+	var wg sync.WaitGroup
+	t0 := time.Now()
+	for t := 0; t < tasks; t++ {
+		wg.Add(1)
+		go func(t int) {
+			defer wg.Done()
+			v := make([]int64, n)
+			for i := int64(0); i < n; i++ {
+				deadline := time.Now().Add(d)
+				time.Sleep(time.Until(deadline))
+				v[i] = int64(time.Since(deadline))
+			}
+			lat[t] = v
+		}(t)
+	}
+	wg.Wait()
+	wall := time.Since(t0).Seconds()
+	var all []int64
+	for _, v := range lat {
+		all = append(all, v...)
+	}
+	sort.Slice(all, func(i, j int) bool { return all[i] < all[j] })
+	at := func(p int) float64 { return float64(all[len(all)*p/100]) }
+	fmt.Printf("async sleeplat d=%dus tasks=%d ns/op=%.0f p50=%.1fus p90=%.1fus p99=%.1fus wall=%.2fs cpu=%.2fs\n", us, tasks, at(50), at(50)/1e3, at(90)/1e3, at(99)/1e3, wall, cpuSeconds())
 }
 
 func counting(n int64) func(func(int64) bool) {
@@ -187,6 +227,15 @@ func main() {
 			m.Unlock()
 		}
 		report("mutex", time.Since(t0).Seconds(), n)
+	case "sleeplat": // async sleeplat [n] [us] [tasks]
+		us, tasks := int64(1000), 1
+		if len(os.Args) > 3 {
+			us, _ = strconv.ParseInt(os.Args[3], 10, 64)
+		}
+		if len(os.Args) > 4 {
+			tasks, _ = strconv.Atoi(os.Args[4])
+		}
+		sleeplat(n, us, tasks)
 	default:
 		fmt.Fprintln(os.Stderr, "unknown case", what)
 		os.Exit(2)

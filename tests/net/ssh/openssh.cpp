@@ -69,7 +69,7 @@ TEST(SshOpenSsh, ClientAgainstSshdAlgorithms) {
     }
     Sshd sshd;
     ASSERT_TRUE(sshd.running);
-    for (const char* kex : {"mlkem768x25519-sha256", "curve25519-sha256", "curve25519-sha256@libssh.org", "ecdh-sha2-nistp256", "ecdh-sha2-nistp384",
+    for (const char* kex : {"mlkem768x25519-sha256", "curve25519-sha256", "curve25519-sha256@libssh.org", "ecdh-sha2-nistp256", "ecdh-sha2-nistp384", "ecdh-sha2-nistp521",
                             "diffie-hellman-group16-sha512", "diffie-hellman-group14-sha256"}) {
         auto o = sshd_options();
         o.kex = {sgcl::string(kex)};
@@ -90,7 +90,7 @@ TEST(SshOpenSsh, ClientAgainstSshdAlgorithms) {
             }
         }
     }
-    for (const char* hk : {"ssh-ed25519", "ecdsa-sha2-nistp256", "rsa-sha2-512", "rsa-sha2-256"}) {
+    for (const char* hk : {"ssh-ed25519", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp521", "rsa-sha2-512", "rsa-sha2-256"}) {
         auto o = sshd_options();
         o.host_key_algorithms = {sgcl::string(hk)};
         auto c = net::ssh::client::connect(sshd.address(), o);
@@ -121,7 +121,7 @@ TEST(SshOpenSsh, ClientAgainstSshdUserKeysAndCertificates) {
     }
     Sshd sshd;
     ASSERT_TRUE(sshd.running);
-    for (const char* k : {"ed25519", "p256", "rsa"}) {
+    for (const char* k : {"ed25519", "p256", "p521", "rsa"}) {
         auto o = sshd_options();
         o.keys = {key(k)};
         auto c = net::ssh::client::connect(sshd.address(), o);
@@ -409,7 +409,7 @@ TEST(SshOpenSsh, SshAgainstOurServer) {
         GTEST_SKIP() << "no OpenSSH";
     }
     net::ssh::server srv = echo_server();
-    srv.host_keys = {key("ed25519"), key("p256"), key("rsa")};
+    srv.host_keys = {key("ed25519"), key("p256"), key("p521"), key("rsa")};
     srv.compression = true;
     srv.kex = {};
     for (const auto& k : net::ssh::detail::kex_table) {
@@ -418,7 +418,7 @@ TEST(SshOpenSsh, SshAgainstOurServer) {
     OurServer o(srv);
     EXPECT_EQ(o.ssh("", "hi", "input"), "cmd=hi sub= in=inputerrrc=0\n");
     EXPECT_EQ(o.ssh("", "exit 3"), "cmd=exit 3 sub= in=errrc=3\n");
-    for (const char* kex : {"mlkem768x25519-sha256", "curve25519-sha256", "ecdh-sha2-nistp256", "ecdh-sha2-nistp384", "diffie-hellman-group16-sha512",
+    for (const char* kex : {"mlkem768x25519-sha256", "curve25519-sha256", "ecdh-sha2-nistp256", "ecdh-sha2-nistp384", "ecdh-sha2-nistp521", "diffie-hellman-group16-sha512",
                             "diffie-hellman-group14-sha256"}) {
         EXPECT_EQ(o.ssh(std::string("-o KexAlgorithms=") + kex, "k"), "cmd=k sub= in=errrc=0\n") << kex;
     }
@@ -428,7 +428,7 @@ TEST(SshOpenSsh, SshAgainstOurServer) {
     for (const char* m : {"hmac-sha2-256", "hmac-sha2-512", "hmac-sha2-256-etm@openssh.com", "hmac-sha2-512-etm@openssh.com"}) {
         EXPECT_EQ(o.ssh(std::string("-c aes256-ctr -m ") + m, "m"), "cmd=m sub= in=errrc=0\n") << m;
     }
-    for (const char* hk : {"ssh-ed25519", "ecdsa-sha2-nistp256", "rsa-sha2-512", "rsa-sha2-256"}) {
+    for (const char* hk : {"ssh-ed25519", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp521", "rsa-sha2-512", "rsa-sha2-256"}) {
         EXPECT_EQ(o.ssh(std::string("-o HostKeyAlgorithms=") + hk, "h"), "cmd=h sub= in=errrc=0\n") << hk;
     }
     EXPECT_EQ(o.ssh("-C", "compressed", std::string(10000, 'a')), "cmd=compressed sub= in=" + std::string(10000, 'a') + "errrc=0\n");

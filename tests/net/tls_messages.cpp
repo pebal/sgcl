@@ -229,6 +229,8 @@ TEST(TlsMessages_Tests, EverySchemeSignsAndVerifies) {
     check(0x0403, p256, p256.public_key());
     auto p384 = sgcl::crypto::p384::private_key::generate();
     check(0x0503, p384, p384.public_key());
+    auto p521 = sgcl::crypto::p521::private_key::generate();
+    check(0x0603, p521, p521.public_key());
     auto rsa = sgcl::crypto::rsa::private_key::generate(2048);
     for (uint16_t s : {0x0804, 0x0805, 0x0806}) {
         check(s, rsa, rsa.public_key());

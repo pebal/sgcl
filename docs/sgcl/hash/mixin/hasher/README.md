@@ -41,7 +41,7 @@ state of its own, its constructor and destructor protected so that it exists onl
   one-shot of its own, a private static `_of(const slice<const byte>& data, arguments...)`, and making the mixin
   its friend. `of(data, arguments...)` then calls it with the bytes of whatever form the data came in, with no
   hasher made, and `of` with an argument exists for no other class. [xxh3_64](../../xxh3_64/README.md),
-  [xxh3_128](../../xxh3_128/README.md), [maphash](../../maphash/README.md) and [siphash](../../siphash/README.md) are made so; `siphash` declares
+  [xxh3_128](../../xxh3_128/README.md), [xxh32](../../xxh32/README.md), [xxh64](../../xxh64/README.md), [maphash](../../maphash/README.md) and [siphash](../../siphash/README.md) are made so; `siphash` declares
   no `_of` without a key and cannot be made without one, so `siphash::of(data)` and `siphash::of_file(path)` do not
   compile.
 - **A plain value.** A hasher of the module is trivially copyable, with no pointer inside and nothing for the

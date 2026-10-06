@@ -7,6 +7,7 @@
 
 #include "../core/detail/handle_word.h"
 #include "error.h"
+#include "detail/posix_tty.h"
 #include "file.h"
 #include "os.h"
 #include "path.h"
@@ -27,11 +28,13 @@
 #include <cstring>
 #include <fcntl.h>
 #include <spawn.h>
+#include <pthread.h>
 #include <string>
 #include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <vector>
 
 extern char** environ;
 
@@ -59,6 +62,7 @@ namespace sgcl::io {
     class command;
 
     namespace detail {
+        class PtyState;
         class ProcessState;
         struct ProcessAccess;
     }
@@ -480,7 +484,7 @@ namespace sgcl::io {
                 return detail::fail(arranged);
             }
             int pid = 0;
-            int rc = ::posix_spawn(&pid, path.c_str(), &spawn.actions, &spawn.attr, spawn.argv.data(), spawn.envp.data());
+            int rc = spawn.spawn(pid);
             if (rc != 0) {
                 errno = rc;
                 return detail::fail(last_error("start", path));
@@ -654,6 +658,27 @@ namespace sgcl::io {
 #ifdef POSIX_SPAWN_CLOEXEC_DEFAULT
                 flags |= POSIX_SPAWN_CLOEXEC_DEFAULT;   // every descriptor but the three arranged is closed in the child (Apple)
 #endif
+                if (!cmd._terminal.empty()) {   // pty::start: a session of its own, whose controlling terminal the first open of the terminal below makes
+#ifdef POSIX_SPAWN_SETSID
+                    flags |= POSIX_SPAWN_SETSID;
+                    // and every signal as a new login session has it, as
+                    // sshd and a terminal emulator give it: the default
+                    // disposition (a signal the program ignores is ignored
+                    // in its children too, SIGINT and SIGQUIT in whatever a
+                    // shell started in the background, and ^C would do
+                    // nothing) and none blocked
+                    sigset_t all;
+                    sigset_t none;
+                    sigfillset(&all);
+                    sigemptyset(&none);
+                    ::posix_spawnattr_setsigdefault(&attr, &all);
+                    ::posix_spawnattr_setsigmask(&attr, &none);
+                    flags |= POSIX_SPAWN_SETSIGDEF | POSIX_SPAWN_SETSIGMASK;
+#else
+                    errno = ENOTSUP;
+                    return detail::fail(last_error("start", cmd.path));
+#endif
+                }
                 ::posix_spawnattr_setflags(&attr, flags);
                 if (!cmd.dir.empty()) {
                     int rc = _addchdir(cmd.dir.c_str());
@@ -661,6 +686,7 @@ namespace sgcl::io {
                         errno = rc;
                         return detail::fail(last_error("start", cmd.dir));
                     }
+                    steps.push_back(Step{Step::chdir, -1, -1});
                 }
                 if (auto r = _input(cmd.in, 0); !r) {
                     return r;
@@ -670,6 +696,7 @@ namespace sgcl::io {
                         return r;
                     }
                     ::posix_spawn_file_actions_adddup2(&actions, 1, 2);
+                    steps.push_back(Step{Step::dup, 1, 2});
                     return {};
                 }
                 if (auto r = _output(cmd.out, 1); !r) {
@@ -685,6 +712,25 @@ namespace sgcl::io {
                 child_ends.clear();
             }
 
+            // The child made: posix_spawn with the actions arranged, its
+            // pid in `pid`; 0 or the error's errno
+            int spawn(int& pid) noexcept {
+#if defined(__APPLE__)
+                if (!cmd._terminal.empty()) {
+                    return _spawn_on_terminal(pid);
+                }
+#endif
+                return ::posix_spawn(&pid, cmd.path.c_str(), &actions, &attr, argv.data(), envp.data());
+            }
+
+            // The file actions as plain steps too, in their order: what the
+            // child of _spawn_on_terminal replays
+            struct Step {
+                enum Kind : uint8_t { dup, inherit, open_terminal, chdir } kind;
+                int fd;        // dup's source, inherit's descriptor
+                int target;    // dup's and open_terminal's
+            };
+
             command& cmd;
             posix_spawn_file_actions_t actions;
             posix_spawnattr_t attr;
@@ -696,8 +742,126 @@ namespace sgcl::io {
             vector<file> child_ends;       // the child's ends of the pipes, closed here after the spawn
             vector<file> parent_ends;      // the program's ends, closed by wait
             vector<async::task<expected<void, error>>> copies;   // the tasks copying between a stream and a pipe
+            std::vector<Step> steps;       // the file actions as steps
 
         private:
+#if defined(__APPLE__)
+            // A child on a pseudo-terminal, on macOS. Its kernel runs a
+            // spawn's file actions before POSIX_SPAWN_SETSID (measured: the
+            // terminal opened by the actions is no controlling terminal of
+            // the session made after them, /dev/tty does not open in the
+            // child, and only a program that opens its terminal again of its
+            // own accord, as bash does, gets one), and posix_spawn has no
+            // action that makes one. So this one child is made the way Go
+            // makes every child on macOS: fork, and in the child nothing but
+            // system calls up to the exec — no lock, no allocation, no code
+            // of the library or of the collector's, so that the locks of the
+            // threads the child has none of, the reason the library never
+            // forks otherwise, are never reached (vfork is fork on macOS:
+            // measured, the child's writes are its own). The child: every
+            // signal back to its default and none blocked (this thread's
+            // blocked from the fork to its return, so that no handler of the
+            // program's runs in the child), a session of its own, the file
+            // actions replayed, the terminal's first open made its
+            // controlling terminal (TIOCSCTTY), the directory, the exec. The
+            // errno of a step that fails comes back through a close-on-exec
+            // pipe, which an exec that succeeds closes empty. A descriptor
+            // the program made without close-on-exec is inherited (the
+            // library's all carry it), as in Go's os/exec.
+            int _spawn_on_terminal(int& pid) noexcept {
+                int report[2];
+                if (::pipe(report) != 0) {
+                    return errno;
+                }
+                ::fcntl(report[0], F_SETFD, FD_CLOEXEC);
+                ::fcntl(report[1], F_SETFD, FD_CLOEXEC);
+                sigset_t all;
+                sigset_t old;
+                sigfillset(&all);
+                ::pthread_sigmask(SIG_SETMASK, &all, &old);
+                const char* file = cmd.path.c_str();
+                const char* terminal = cmd._terminal.c_str();
+                const char* dir = cmd.dir.empty() ? nullptr : cmd.dir.c_str();
+                char* const* args = argv.data();
+                char* const* vars = envp.data();
+                const Step* step = steps.data();
+                const size_t count = steps.size();
+                const pid_t child = ::fork();
+                if (child == 0) {
+                    int out = report[1];
+                    ::close(report[0]);
+                    if (out < 3) {   // out of the way of the three the steps make
+                        out = ::fcntl(out, F_DUPFD_CLOEXEC, 3);
+                    }
+                    auto fail = [out]() {
+                        const int e = errno;
+                        (void)!::write(out, &e, sizeof e);
+                        ::_exit(127);
+                    };
+                    struct sigaction standard = {};
+                    standard.sa_handler = SIG_DFL;
+                    for (int sig = 1; sig < NSIG; ++sig) {
+                        (void)::sigaction(sig, &standard, nullptr);   // SIGKILL and SIGSTOP refuse: they are their default
+                    }
+                    sigset_t none;
+                    sigemptyset(&none);
+                    (void)::sigprocmask(SIG_SETMASK, &none, nullptr);
+                    if (::setsid() < 0) {
+                        fail();
+                    }
+                    bool controlling = false;
+                    for (size_t i = 0; i < count; ++i) {
+                        const Step& s = step[i];
+                        int r = 0;
+                        if (s.kind == Step::dup) {
+                            r = s.fd == s.target ? ::fcntl(s.target, F_SETFD, 0) : ::dup2(s.fd, s.target);
+                        } else if (s.kind == Step::inherit) {
+                            r = ::fcntl(s.fd, F_SETFD, 0);
+                        } else if (s.kind == Step::chdir) {
+                            r = ::chdir(dir);
+                        } else {
+                            const int t = ::open(terminal, O_RDWR);
+                            r = t;
+                            if (t >= 0 && !controlling) {
+                                r = detail::tty::tty_ioctl(t, detail::tty::SetControlling, 0);
+                                controlling = r == 0;
+                            }
+                            if (r >= 0 && t != s.target) {
+                                r = ::dup2(t, s.target);
+                                ::close(t);
+                            }
+                        }
+                        if (r < 0) {
+                            fail();
+                        }
+                    }
+                    ::execve(file, args, vars);
+                    fail();
+                }
+                const int forked = child < 0 ? errno : 0;
+                ::pthread_sigmask(SIG_SETMASK, &old, nullptr);
+                ::close(report[1]);
+                if (child < 0) {
+                    ::close(report[0]);
+                    return forked;
+                }
+                int failed = 0;
+                ssize_t n;
+                do {
+                    n = ::read(report[0], &failed, sizeof failed);
+                } while (n < 0 && errno == EINTR);
+                ::close(report[0]);
+                if (n == ssize_t(sizeof failed)) {
+                    int status;
+                    while (::waitpid(child, &status, 0) < 0 && errno == EINTR) {
+                    }
+                    return failed;
+                }
+                pid = child;
+                return 0;
+            }
+#endif
+
             SGCL_INLINE_HOT int _null() noexcept {
                 if (null_fd < 0) {
                     null_fd = ::open("/dev/null", O_RDWR | O_CLOEXEC);
@@ -778,6 +942,21 @@ namespace sgcl::io {
                 if (fd < 0) {
                     return detail::fail(last_error("start", cmd.path));
                 }
+                if (fd == cmd._terminal_fd) {
+                    steps.push_back(Step{Step::open_terminal, -1, target});
+                    // the terminal of a pty opened in the child by its name,
+                    // not inherited: a session leader without a controlling
+                    // terminal that opens one (no O_NOCTTY) acquires it, on
+                    // Linux and on macOS alike, where TIOCSCTTY after a fork
+                    // is not to be had (no fork: the collector's threads)
+                    int rc = ::posix_spawn_file_actions_addopen(&actions, target, cmd._terminal.c_str(), O_RDWR, 0);
+                    if (rc != 0) {
+                        errno = rc;
+                        return detail::fail(last_error("start", cmd.path));
+                    }
+                    return {};
+                }
+                steps.push_back(fd == target ? Step{Step::inherit, fd, target} : Step{Step::dup, fd, target});
 #ifdef __APPLE__
                 int rc = fd == target ? ::posix_spawn_file_actions_addinherit_np(&actions, fd) : ::posix_spawn_file_actions_adddup2(&actions, fd, target);
 #else
@@ -938,6 +1117,10 @@ namespace sgcl::io {
             (void)::fcntl(f.fd(), F_SETNOSIGPIPE, 0);
 #endif
         }
+
+        friend class detail::PtyState;
+        string _terminal;            // pty::start: the terminal's path, opened in the child as its controlling terminal
+        int _terminal_fd = -1;       // and the program's descriptor of it, which the child's streams that are the terminal carry
 
         vector<file> _child_ends;    // the child's ends of the pipes made by stdin_pipe and the others, closed by start() after the spawn
         vector<file> _pipes;         // the program's ends of the pipes start() made

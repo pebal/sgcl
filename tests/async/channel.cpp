@@ -10,6 +10,7 @@ using namespace sgcl::async;
 #include <atomic>
 #include <chrono>
 #include <memory>
+#include <ranges>
 #include <string>
 #include <thread>
 #include <vector>
@@ -114,6 +115,106 @@ TEST(Channel_Test, RangeFor) {
     p.join();
     EXPECT_EQ(count, 100);
     EXPECT_EQ(sum, 4950);
+}
+
+// The iterator is a std::input_iterator, so std::views take the channel
+// (it was not: operator* was not const, so not indirectly_readable); the end
+// is std::default_sentinel, so a channel of a move-only T is a range too
+static_assert(std::input_iterator<sgcl::async::channel<int>::iterator>);
+static_assert(std::ranges::input_range<sgcl::async::channel<int>&>);
+static_assert(std::ranges::input_range<const sgcl::async::channel<int>&>);
+static_assert(std::ranges::input_range<sgcl::async::receive_channel<int>&>);
+static_assert(std::ranges::input_range<sgcl::async::channel<std::unique_ptr<int>>&>);
+static_assert(std::ranges::input_range<sgcl::async::receive_channel<std::unique_ptr<int>>&>);
+static_assert(std::same_as<std::ranges::sentinel_t<sgcl::async::channel<int>&>, std::default_sentinel_t>);
+
+TEST(Channel_Test, StdViews) {
+    sgcl::async::channel<int> ch(2);
+    std::thread p([&] {
+        for (int i = 0; i < 100; ++i) {
+            ch.send(i).wait();
+        }
+        ch.close();
+    });
+    int sum = 0, count = 0;
+    auto even_squares = ch | std::views::filter([](int v) { return v % 2 == 0; })
+                           | std::views::transform([](int v) { return v * v; });
+    for (int v : even_squares) {
+        sum += v;
+        ++count;
+    }
+    p.join();
+    EXPECT_EQ(count, 50);
+    EXPECT_EQ(sum, 161700);           // 0² + 2² + ... + 98²
+}
+
+// views::take(n) receives n elements and no more: the iterator is lazy, so
+// the step past the n-th one takes nothing, and the next receiver gets it
+TEST(Channel_Test, StdViewsTakeLosesNothing) {
+    sgcl::async::channel<int> ch(10);
+    for (int i = 0; i < 10; ++i) {
+        ASSERT_TRUE(ch.try_send(i));
+    }
+    int sum = 0;
+    for (int v : ch | std::views::take(3)) {
+        sum += v;
+    }
+    EXPECT_EQ(sum, 0 + 1 + 2);
+    EXPECT_EQ(ch.size(), 7u);
+    auto next = ch.receive().wait();  // the second receiver: the fourth element
+    ASSERT_TRUE(next);
+    EXPECT_EQ(*next, 3);
+}
+
+// A break leaves the rest in the channel as well
+TEST(Channel_Test, BreakLosesNothing) {
+    sgcl::async::channel<int> ch(10);
+    for (int i = 0; i < 5; ++i) {
+        ASSERT_TRUE(ch.try_send(i));
+    }
+    for (int v : ch) {
+        if (v == 1) {
+            break;
+        }
+    }
+    auto next = ch.receive().wait();
+    ASSERT_TRUE(next);
+    EXPECT_EQ(*next, 2);
+}
+
+// A channel of a move-only element through the views, each element moved out
+TEST(Channel_Test, StdViewsMoveOnly) {
+    sgcl::async::channel<std::unique_ptr<int>> ch(2);
+    std::thread p([&] {
+        for (int i = 0; i < 10; ++i) {
+            ch.send(std::make_unique<int>(i)).wait();
+        }
+        ch.close();
+    });
+    std::vector<int> got;
+    for (auto& e : ch | std::views::filter([](const std::unique_ptr<int>& q) { return *q >= 5; })) {
+        std::unique_ptr<int> mine = std::move(e);
+        got.push_back(*mine);
+    }
+    p.join();
+    EXPECT_EQ(got, (std::vector<int>{5, 6, 7, 8, 9}));
+}
+
+// The end of a closed and drained channel, and of an empty one closed later
+TEST(Channel_Test, IteratorAtTheEnd) {
+    sgcl::async::channel<int> ch(2);
+    ch.close();
+    EXPECT_TRUE(ch.begin() == ch.end());
+    sgcl::async::channel<int> later(2);
+    ASSERT_TRUE(later.try_send(7));
+    auto it = later.begin();
+    EXPECT_EQ(later.size(), 1u);      // begin() takes nothing yet
+    EXPECT_FALSE(it == later.end());  // the look receives the 7
+    EXPECT_EQ(later.size(), 0u);
+    EXPECT_EQ(*it, 7);
+    later.close();
+    ++it;
+    EXPECT_TRUE(it == later.end());
 }
 
 TEST(Channel_Test, RendezvousWaitsForTheReceiver) {

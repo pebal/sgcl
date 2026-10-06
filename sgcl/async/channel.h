@@ -652,9 +652,14 @@ namespace sgcl::async {
             return size() == 0 && _senders.empty();
         }
 
-        // A range-for over the channel: receive() until nothing comes
+        // A range-for over the channel: receive() until nothing comes. Lazy:
+        // an element is received at the first look at it (*it, or it ==
+        // end), and ++ only marks it used, so an iterator left after its ++
+        // (views::take) has taken nothing more from the channel; the end is
+        // std::default_sentinel, so a move-only T makes an input_range too
         class iterator {
         public:
+            using iterator_concept = std::input_iterator_tag;
             using iterator_category = std::input_iterator_tag;
             using value_type = T;
             using difference_type = ptrdiff_t;
@@ -663,48 +668,60 @@ namespace sgcl::async {
 
             iterator() noexcept = default;
 
-            SGCL_INLINE_HOT reference operator*() noexcept {
+            // const, as std::input_iterator asks (indirectly_readable); the
+            // element is still a T&, which may be moved from
+            SGCL_INLINE_HOT reference operator*() const {
+                _fill();
                 return *_value;
             }
 
-            SGCL_INLINE_HOT pointer operator->() noexcept {
+            SGCL_INLINE_HOT pointer operator->() const {
+                _fill();
                 return &*_value;
             }
 
-            SGCL_INLINE_HOT iterator& operator++() {
-                _value = _ch->_receive();
-                if (!_value) {
-                    _ch = nullptr;
-                }
+            SGCL_INLINE_HOT iterator& operator++() noexcept {
+                _value.reset();
                 return *this;
             }
 
-            SGCL_INLINE_HOT void operator++(int) {
+            SGCL_INLINE_HOT void operator++(int) noexcept {
                 ++*this;
             }
 
-            SGCL_INLINE_HOT bool operator==(const iterator& o) const noexcept {
-                return _ch == o._ch;
+            // At the end once the channel is closed and drained: the look
+            // receives the element when it has none yet
+            SGCL_INLINE_HOT friend bool operator==(const iterator& it, std::default_sentinel_t) {
+                it._fill();
+                return !it._ch;
             }
 
         private:
             template<class> friend class ChannelState;
 
-            SGCL_INLINE_HOT explicit iterator(ChannelState* ch)
+            SGCL_INLINE_HOT explicit iterator(ChannelState* ch) noexcept
             : _ch(ch) {
-                ++*this;
             }
 
-            ChannelState* _ch = nullptr;
-            optional<T> _value;
+            SGCL_INLINE_HOT void _fill() const {
+                if (!_value && _ch) {
+                    _value = _ch->_receive();
+                    if (!_value) {
+                        _ch = nullptr;
+                    }
+                }
+            }
+
+            mutable ChannelState* _ch = nullptr;
+            mutable optional<T> _value;
         };
 
-        SGCL_INLINE_HOT iterator begin() {
+        SGCL_INLINE_HOT iterator begin() noexcept {
             return iterator(this);
         }
 
-        SGCL_INLINE_HOT iterator end() noexcept {
-            return iterator();
+        SGCL_INLINE_HOT std::default_sentinel_t end() const noexcept {
+            return std::default_sentinel;
         }
 
         // The cases of a select (select.h): `ch.on_receive(f)` is served
@@ -1468,12 +1485,12 @@ namespace sgcl::async {
         }
 
         // A range-for over the channel: receive() until nothing comes
-        SGCL_INLINE_HOT iterator begin() const {
+        SGCL_INLINE_HOT iterator begin() const noexcept {
             return _get()->begin();
         }
 
-        SGCL_INLINE_HOT iterator end() const noexcept {
-            return iterator();
+        SGCL_INLINE_HOT std::default_sentinel_t end() const noexcept {
+            return std::default_sentinel;
         }
 
         // The cases of a select (select.h)
@@ -1707,12 +1724,12 @@ namespace sgcl::async {
             return _get()->empty();
         }
 
-        SGCL_INLINE_HOT iterator begin() const {
+        SGCL_INLINE_HOT iterator begin() const noexcept {
             return _get()->begin();
         }
 
-        SGCL_INLINE_HOT iterator end() const noexcept {
-            return iterator();
+        SGCL_INLINE_HOT std::default_sentinel_t end() const noexcept {
+            return std::default_sentinel;
         }
 
         template<class F>

@@ -63,7 +63,12 @@ an [error](../error/README.md) with the place it failed at, never an exception.
 - **Deep values cost no stack.** Parsing, writing, comparing and hashing walk the tree with a stack of their own:
   `options::max_depth` (512) bounds what a parse takes, and a value built by hand may be deeper.
 - **JSON Pointer** ([RFC 6901](https://www.rfc-editor.org/rfc/rfc6901)) names a value inside another:
-  [at_path](at_path.md) reads it, [set_path](set_path.md) makes the value with it replaced or added.
+  [at_path](at_path.md) reads it, [set_path](set_path.md) makes the value with it replaced or added,
+  [erase_path](erase_path.md) without it, [path_of](path_of.md) makes a pointer of keys.
+- **JSON Patch** ([RFC 6902](https://www.rfc-editor.org/rfc/rfc6902)) and **JSON Merge Patch**
+  ([RFC 7396](https://www.rfc-editor.org/rfc/rfc7396)): [patch](patch.md) applies a list of operations all or
+  nothing, [merge_patch](merge_patch.md) merges an object into the value, [diff](diff.md) makes the patch from one
+  value to another.
 - **The keys of one parse are made once:** a thousand objects with the same fields share each key's string. The
   parser keeps, per thread and between calls, its stacks and a table of up to 256 keys of at most 32 bytes each,
   so that a key met in one document is shared with the next; a longer key is never kept.
@@ -87,7 +92,8 @@ an [error](../error/README.md) with the place it failed at, never an exception.
 | `map[string]any` lookups, type switches | `doc["a"]`, `as_int()`, `type()`: null for what is not there |
 | v2 `AllowDuplicateNames`, `AllowInvalidUTF8` | `options::allow_duplicate_keys`, `allow_invalid_utf8`; the defaults are v2's |
 | `SetEscapeHTML` | `style::escape_html`, off by default, as in v2 |
-| x/exp `jsonpointer` | `at_path`, `set_path`: RFC 6901 |
+| x/exp `jsonpointer` | `at_path`, `set_path`, `erase_path`, `path_of`: RFC 6901 |
+| `evanphx/json-patch`'s `Apply`, `MergePatch` | `patch` (RFC 6902), `merge_patch` (RFC 7396), `diff` |
 | `json.Valid` | `json::reader(text).skip()` and no `more()` after it ([reader](../json-reader/README.md)) |
 
 ## Member types
@@ -125,6 +131,7 @@ an [error](../error/README.md) with the place it failed at, never an exception.
 | [array](array.md) | an array of values (static) |
 | [object](object.md) | an object of members (static) |
 | [from](from.md) | the value of a program's type (static) |
+| [diff](diff.md) | the JSON Patch from one value to another (static) |
 
 #### Reading and writing
 
@@ -167,6 +174,7 @@ an [error](../error/README.md) with the place it failed at, never an exception.
 |---|---|
 | [operator[]](operator_at.md) | a member by its key, an element by its index; null when there is none |
 | [at_path](at_path.md) | the value at a JSON Pointer |
+| [path_of](path_of.md) | the JSON Pointer of keys, escaped (static) |
 | [elements](elements.md) | the elements of an array, as a slice |
 | [members](members.md) | the members of an object, as a slice |
 
@@ -191,6 +199,9 @@ an [error](../error/README.md) with the place it failed at, never an exception.
 | [erase](erase.md) | the object without a member |
 | [push_back](push_back.md) | the array with an element appended |
 | [set_path](set_path.md) | the value with the one at a JSON Pointer replaced or added |
+| [erase_path](erase_path.md) | the value without the one at a JSON Pointer |
+| [patch](patch.md) | the value with a JSON Patch applied, all or nothing |
+| [merge_patch](merge_patch.md) | the value with a JSON Merge Patch applied |
 
 #### Hashing
 

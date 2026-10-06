@@ -169,13 +169,13 @@ TEST(NetBounds_Tests, PairsOfThemselves) {
 // said to be unknown rather than read past a table; an EAI_* code in the
 // lookup category, not misread as errno
 TEST(NetBounds_Tests, TheCategoriesAtTheirEnds) {
-    for (int c = int(net::errc::invalid_address); c <= int(net::errc::sftp_protocol); ++c) {
+    for (int c = int(net::errc::invalid_address); c <= int(net::errc::malformed_dmarc); ++c) {
         auto code = net::make_error_code(net::errc(c));
         EXPECT_EQ(&code.category(), &net::category());
         EXPECT_NE(code.message(), "unknown net error") << c;
     }
     EXPECT_EQ(net::category().message(0), "unknown net error");
-    EXPECT_EQ(net::category().message(int(net::errc::sftp_protocol) + 1), "unknown net error");
+    EXPECT_EQ(net::category().message(int(net::errc::malformed_dmarc) + 1), "unknown net error");
     EXPECT_EQ(net::category().message(-1), "unknown net error");
     EXPECT_STREQ(net::category().name(), "net");
     EXPECT_STREQ(net::lookup_category().name(), "lookup");

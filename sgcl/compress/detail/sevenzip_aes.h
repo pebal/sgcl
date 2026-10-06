@@ -7,6 +7,7 @@
 
 #include "../error.h"
 #include "../../crypto/aes.h"
+#include "../../crypto/cbc.h"
 #include "../../crypto/random.h"
 #include "../../crypto/secret.h"
 #include "../../crypto/secure_zero.h"
@@ -251,50 +252,32 @@ namespace sgcl::compress::detail {
             std::vector<Made> _made;
         };
 
-        // AES-256-CBC over whole blocks, in place: decryption eight blocks
-        // at a time (crypto's aes_cbc_decrypt; the blocks are independent),
-        // encryption one after another through crypto::aes (each block
-        // waits for the one before)
+        // AES-256-CBC over whole blocks, in place, through crypto::aes_cbc:
+        // decryption eight blocks at a time (the blocks are independent),
+        // encryption one after another (each block waits for the one
+        // before), the chain carried from call to call
         class Cbc {
         public:
-            SGCL_INLINE_HOT Cbc(const crypto::secret<32>& key, const uint8_t* iv) noexcept
-            : _aes(key.bytes()) {
-                auto k = key.bytes();
-                crypto::detail::aes_setup(_enc, reinterpret_cast<const unsigned char*>(k.data()), 32);
-                crypto::detail::aes_setup_decrypt(_dec, _enc);
-                std::memcpy(_chain, iv, 16);
+            SGCL_INLINE_HOT Cbc(const crypto::secret<32>& key, const uint8_t* iv)
+            : _cbc(key.bytes(), slice<const byte>(reinterpret_cast<const byte*>(iv), 16)) {
             }
 
             Cbc(const Cbc&) = delete;
             Cbc& operator=(const Cbc&) = delete;
 
-            SGCL_INLINE_HOT ~Cbc() {
-                crypto::detail::secure_zero(_chain, sizeof(_chain));
-                crypto::detail::secure_zero(&_enc, sizeof(_enc));
-                crypto::detail::secure_zero(&_dec, sizeof(_dec));
+            // n rounded down to whole blocks, as before: the callers pass whole blocks
+            SGCL_INLINE_HOT void decrypt(uint8_t* p, size_t n) {
+                slice<byte> b(reinterpret_cast<byte*>(p), n / 16 * 16);
+                _cbc.decrypt_blocks(b, b);
             }
 
-            SGCL_INLINE_HOT void decrypt(uint8_t* p, size_t n) noexcept {
-                crypto::detail::aes_cbc_decrypt(_enc, _dec, _chain, p, p, n / 16);
-            }
-
-            void encrypt(uint8_t* p, size_t n) noexcept {
-                array<byte, 16> in;
-                for (size_t i = 0; i + 16 <= n; i += 16) {
-                    for (int k = 0; k < 16; ++k) {
-                        in[k] = byte(p[i + k] ^ _chain[k]);
-                    }
-                    auto out = _aes.encrypt_block(in);
-                    std::memcpy(p + i, out.data(), 16);
-                    std::memcpy(_chain, out.data(), 16);
-                }
+            SGCL_INLINE_HOT void encrypt(uint8_t* p, size_t n) {
+                slice<byte> b(reinterpret_cast<byte*>(p), n / 16 * 16);
+                _cbc.encrypt_blocks(b, b);
             }
 
         private:
-            crypto::aes _aes;
-            crypto::detail::AesEncryptKey _enc;
-            crypto::detail::AesDecryptKey _dec;
-            uint8_t _chain[16];
+            crypto::aes_cbc _cbc;
         };
     }
 }

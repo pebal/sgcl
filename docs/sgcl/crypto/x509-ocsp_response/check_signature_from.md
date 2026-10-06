@@ -6,7 +6,7 @@
 expected<void, error> check_signature_from(const certificate& signer) const noexcept;
 ```
 
-Checks whether `signer`'s key signed the response: the algorithm one the module verifies (RSA PKCS #1 v1.5 and PSS, ECDSA on P-256 and P-384, Ed25519, over SHA-2; never MD5 or SHA-1), the signature valid under the key. Nothing else is checked: whether `signer` may sign for a certificate is [verify](verify.md)'s question. Go's `Response.CheckSignatureFrom`.
+Checks whether `signer`'s key signed the response: the algorithm one the module verifies (RSA PKCS #1 v1.5 and PSS, ECDSA on P-256, P-384 and P-521, Ed25519, over SHA-2; never MD5 or SHA-1), the signature valid under the key. Nothing else is checked: whether `signer` may sign for a certificate is [verify](verify.md)'s question. Go's `Response.CheckSignatureFrom`.
 
 ## Parameters
 

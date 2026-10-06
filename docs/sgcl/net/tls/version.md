@@ -18,7 +18,7 @@ The versions of TLS, by their numbers on the wire: Go's `tls.VersionTLS12` and `
 ClientHello offers 1.3 and 1.2 together, and a server without 1.3 answers in 1.2 (RFC 5246), as many load balancers
 still do. A [state](state.md) says which one the handshake settled on. The server speaks 1.3 alone.
 
-The client's TLS 1.2 is the modern part of it: an ephemeral ECDHE key exchange (X25519, P-256, P-384) signed by the
+The client's TLS 1.2 is the modern part of it: an ephemeral ECDHE key exchange (X25519, P-256, P-384, P-521) signed by the
 server's verified certificate, the AEAD suites alone ([cipher](cipher.md)), the extended master secret of RFC 7627,
 which it requires (a server without it is refused with `handshake_failure`), RFC 5746's empty renegotiation_info and
 no renegotiation, ALPN, client certificates. A server of 1.3 that a client offering 1.3 finds answering in 1.2 says

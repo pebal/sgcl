@@ -39,6 +39,7 @@ namespace sgcl::net::ssh {
         ecdsa_p256,    // ecdsa-sha2-nistp256 (RFC 5656)
         ecdsa_p384,    // ecdsa-sha2-nistp384
         rsa,           // ssh-rsa keys, signing rsa-sha2-512 and rsa-sha2-256 (RFC 8332)
+        ecdsa_p521,    // ecdsa-sha2-nistp521 (appended: the earlier values unchanged)
     };
 
     // What an OpenSSH certificate is for (PROTOCOL.certkeys)
@@ -355,8 +356,9 @@ namespace sgcl::net::ssh {
             return _parse(text->as_slice(), passphrase, path);
         }
 
-        // A new key from crypto::random: Ed25519, ECDSA on P-256 or P-384,
-        // or RSA of rsa_bits (2048 to 16384, ssh-keygen's 3072 by default)
+        // A new key from crypto::random: Ed25519, ECDSA on P-256, P-384 or
+        // P-521, or RSA of rsa_bits (2048 to 16384, ssh-keygen's 3072 by
+        // default)
         static private_key generate(key_type type = key_type::ed25519, size_t rsa_bits = 3072) {
             auto s = make_tracked<detail::PrivateKeyState>();
             s->key = std::make_unique<detail::KeyPair>();
@@ -366,6 +368,7 @@ namespace sgcl::net::ssh {
                 case key_type::ed25519: k.ed25519.emplace(crypto::ed25519::private_key::generate()); break;
                 case key_type::ecdsa_p256: k.p256.emplace(crypto::p256::private_key::generate()); break;
                 case key_type::ecdsa_p384: k.p384.emplace(crypto::p384::private_key::generate()); break;
+                case key_type::ecdsa_p521: k.p521.emplace(crypto::p521::private_key::generate()); break;
                 case key_type::rsa: k.rsa.emplace(crypto::rsa::private_key::generate(rsa_bits)); break;
             }
             k.make_public();
@@ -402,6 +405,9 @@ namespace sgcl::net::ssh {
             }
             if (from.p384) {
                 k.p384.emplace(from.p384->clone());
+            }
+            if (from.p521) {
+                k.p521.emplace(from.p521->clone());
             }
             if (from.rsa) {
                 k.rsa.emplace(from.rsa->clone());
@@ -443,7 +449,7 @@ namespace sgcl::net::ssh {
 
         // The signature blob of data (the algorithm's name and the
         // signature) by the key's default algorithm: ssh-ed25519,
-        // ecdsa-sha2-nistp256 or -nistp384, rsa-sha2-512
+        // ecdsa-sha2-nistp256, -nistp384 or -nistp521, rsa-sha2-512
         vector<byte> sign(const slice<const byte>& data) const noexcept {
             const detail::KeyPair& k = *_s->key;
             auto b = k.sign(k.default_alg(), reinterpret_cast<const uint8_t*>(data.data()), data.size());

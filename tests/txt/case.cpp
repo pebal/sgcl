@@ -118,7 +118,10 @@ TEST(Case_Tests, TheThreeLanguagesThatSpellAnIDifferently) {
 
     // A tag is read as BCP-47 and an unknown one is the root locale
     EXPECT_EQ(txt::locale(string("TR")), txt::locale::turkish());
-    EXPECT_EQ(txt::locale(string("tr-TR")), txt::locale::turkish());
+    // a locale is its language, script and region (DESIGN 495): Turkish in
+    // Turkey is not Turkish alone, but its language is
+    EXPECT_NE(txt::locale(string("tr-TR")), txt::locale::turkish());
+    EXPECT_EQ(txt::locale(string("tr-TR")).subtag(), txt::locale::turkish().subtag());
     EXPECT_EQ(txt::locale(string("pl")), txt::locale(string("pl")));
     EXPECT_EQ(txt::locale(string("zzz-nonsense")), txt::locale(string("zzz")));
     EXPECT_EQ(txt::locale(string("x")), txt::locale::root());
@@ -234,7 +237,8 @@ TEST(Case_Tests, TheEdges) {
 
     // Tags: separators at the edges, lengths at the limits, other characters
     EXPECT_EQ(txt::locale(string("tr-")), tr);
-    EXPECT_EQ(txt::locale(string("tr_TR")), tr);
+    EXPECT_EQ(txt::locale(string("tr_TR")).subtag(), tr.subtag());
+    EXPECT_TRUE(txt::locale(string("tr_TR")).dotted_i());
     EXPECT_EQ(txt::locale(string("-tr")), txt::locale::root());
     EXPECT_EQ(txt::locale(string("t")), txt::locale::root());
     EXPECT_NE(txt::locale(string("tur")), txt::locale::root());              // three letters are a subtag
@@ -255,18 +259,22 @@ TEST(Case_Tests, TheEdges) {
 TEST(Case_Tests, APosixLocaleName) {
     auto tr = txt::locale::turkish();
     EXPECT_EQ(txt::locale(string("tr.UTF-8")), tr);
-    EXPECT_EQ(txt::locale(string("tr_TR.UTF-8")), tr);
-    EXPECT_EQ(txt::locale(string("tr_TR.ISO-8859-9@euro")), tr);
+    EXPECT_EQ(txt::locale(string("tr_TR.UTF-8")).subtag(), tr.subtag());
+    EXPECT_TRUE(txt::locale(string("tr_TR.UTF-8")).dotted_i());
+    EXPECT_EQ(txt::locale(string("tr_TR.ISO-8859-9@euro")).subtag(), tr.subtag());
+    EXPECT_TRUE(txt::locale(string("tr_TR.ISO-8859-9@euro")).dotted_i());
     EXPECT_EQ(txt::locale(string("tr@euro")), tr);
     EXPECT_EQ(txt::locale(string("TR.utf8")), tr);
     EXPECT_EQ(txt::locale(string("tr.")), tr);
-    EXPECT_EQ(txt::locale(string("pl_PL.UTF-8")), txt::locale(string("pl")));
+    // the region is kept since DESIGN 495, the language as before
     EXPECT_EQ(txt::locale(string("pl_PL.UTF-8")), txt::locale(string("pl-PL")));
-    EXPECT_EQ(txt::locale(string("lt_LT.UTF-8")), txt::locale::lithuanian());
-    EXPECT_EQ(txt::locale(string("az_AZ@latin")), txt::locale::azerbaijani());
-    // a modifier names nothing the type keeps: sr@latin is Serbian, as sr-Latn is
-    EXPECT_EQ(txt::locale(string("sr@latin")), txt::locale(string("sr")));
+    EXPECT_EQ(txt::locale(string("pl_PL.UTF-8")).subtag(), txt::locale(string("pl")).subtag());
+    EXPECT_TRUE(txt::locale(string("lt_LT.UTF-8")).keeps_dot());
+    EXPECT_TRUE(txt::locale(string("az_AZ@latin")).dotted_i());
+    // the modifiers @latin and @cyrillic are the script (DESIGN 495)
+    EXPECT_EQ(txt::locale(string("sr@latin")), txt::locale(string("sr-Latn")));
     EXPECT_EQ(txt::locale(string("sr_RS@latin")), txt::locale(string("sr-Latn-RS")));
+    EXPECT_EQ(txt::locale(string("az_AZ@latin")), txt::locale(string("az-Latn-AZ")));
     // the names that are no language
     EXPECT_EQ(txt::locale(string("C.UTF-8")), txt::locale::root());
     EXPECT_EQ(txt::locale(string("C")), txt::locale::root());

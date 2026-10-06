@@ -34,6 +34,7 @@ namespace sgcl::net::tls {
         unknown_psk_identity = 115,
         certificate_required = 116,
         no_application_protocol = 120,
+        ech_required = 121,
     };
 }
 
@@ -78,6 +79,7 @@ peer sent has a code of its own in the category, and [alert_of](alert_of.md) giv
 | `unknown_psk_identity` | "unknown PSK identity": a pre-shared key the server does not know |
 | `certificate_required` | "certificate required": a client certificate the server asked for and did not get |
 | `no_application_protocol` | "no application protocol": no ALPN protocol both sides have |
+| `ech_required` | "encrypted client hello required": a client whose encrypted hello the server did not take (RFC 9849 §6.1.6) |
 
 ## Example
 

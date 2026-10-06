@@ -26,6 +26,7 @@
 // Seeds: seeds/local_path/, the cases of Go's filepath.IsLocal tests and of
 // archive/tar's and archive/zip's ErrInsecurePath, as names and as links.
 #include "sgcl/io/detail/path.h"
+#include "tests/fuzz/input.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -76,7 +77,11 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         check(sgcl::io::detail::is_local_path(rest) == inside(rest), "is_local_path disagrees with the resolved path", rest);
     } else {
         const auto cut = rest.find('\xFF');
-        const std::string_view name = rest.substr(0, cut);
+        // the name in a buffer of its own size: the input's piece ends at
+        // the 0xFF before the target, where a read past it goes unseen
+        // (tests/fuzz/input.h); the target ends with the input
+        const sgcl_fuzz::exact name_bytes(rest.substr(0, cut));
+        const std::string_view name = name_bytes.view();
         const std::string_view target = cut == std::string_view::npos ? std::string_view() : rest.substr(cut + 1);
         check(sgcl::io::detail::link_stays_inside(name, target) == link_inside(name, target), "link_stays_inside disagrees with the resolved path",
               name, target);

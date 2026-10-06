@@ -8,6 +8,7 @@
 #include "error.h"
 #include "detail/exif.h"
 #include "detail/pixels.h"
+#include "detail/orient.h"
 #include "../async/coroutine.h"
 #include "../core/aliases.h"
 #include "../core/detail/bytes.h"
@@ -30,6 +31,12 @@
 namespace sgcl::codec {
     class image;
     struct save_options;   // files.h
+
+    // Which way image::flipped mirrors
+    enum class flip : uint8_t {
+        horizontal,   // left to right: each row's pixels reversed
+        vertical      // top to bottom: the rows reversed
+    };
 
     namespace detail {
         using namespace sgcl::detail;
@@ -226,25 +233,55 @@ namespace sgcl::codec {
         // block as it was), so that a file written from it is not turned
         // again by a viewer.
         image oriented() const noexcept {
-            const unsigned o = _s->orientation;
-            const bool swap = o >= 5;
-            image out(swap ? _s->height : _s->width, swap ? _s->width : _s->height, _s->format);
-            switch (detail::bytes_per_pixel(_s->format)) {
-                case 1: _orient<1>(out); break;
-                case 2: _orient<2>(out); break;
-                case 3: _orient<3>(out); break;
-                case 4: _orient<4>(out); break;
-                case 6: _orient<6>(out); break;
-                case 8: _orient<8>(out); break;
-            }
-            out._copy_metadata(*this);
+            image out = _transformed(_s->orientation);
             out._set_orientation(1);
             return out;
         }
 
+        // A new image of the rectangle at (x, y), width × height pixels: its
+        // pixels copied, the metadata with them. A side of zero or a
+        // rectangle reaching past the image is out_of_range (a contract,
+        // as row()'s)
+        image cropped(uint32_t x, uint32_t y, uint32_t width, uint32_t height) const {
+            if (width == 0 || height == 0 || x >= _s->width || y >= _s->height || width > _s->width - x || height > _s->height - y) {
+                throw out_of_range("sgcl::codec::image::cropped: a rectangle outside the image");
+            }
+            image out(width, height, _s->format);
+            const size_t b = detail::bytes_per_pixel(_s->format);
+            const std::byte* src = _s->pixels.data() + size_t(y) * _s->stride + size_t(x) * b;
+            std::byte* dst = out._s->pixels.data();
+            for (uint32_t r = 0; r < height; ++r) {
+                sgcl::detail::copy_bytes(dst + size_t(r) * out._s->stride, src + size_t(r) * _s->stride, out._s->stride);
+            }
+            out._copy_metadata(*this);
+            return out;
+        }
+
+        // A new image mirrored, left to right unless told otherwise; the
+        // metadata with it, orientation() as it was
+        image flipped(flip direction = flip::horizontal) const noexcept {
+            image out = _transformed(direction == flip::vertical ? 4u : 2u);
+            return out;
+        }
+
+        // A new image turned clockwise by `degrees`, a multiple of 90
+        // (negative turns counterclockwise, 0 and 360 give a copy); the
+        // sides swapped for a quarter turn, the metadata with it,
+        // orientation() as it was. Any other angle is invalid_argument (a
+        // contract)
+        image rotated(int degrees) const {
+            if (degrees % 90 != 0) {
+                throw invalid_argument("sgcl::codec::image::rotated: an angle that is not a multiple of 90 degrees");
+            }
+            const int quarter = ((degrees / 90) % 4 + 4) % 4;
+            static constexpr unsigned transform[4] = {1, 6, 3, 8};   // EXIF's: none, clockwise, 180, counterclockwise
+            return _transformed(transform[quarter]);
+        }
+
         // The image into the file at path, in the format its extension
-        // names: .png, .jpg or .jpeg, .heic or .heif where the system writes
-        // HEIC; errc::unsupported for any other (.gif, .webp and .avif are
+        // names: .png, .jpg or .jpeg, .gif, .webp, .bmp, .tif or .tiff, .ico,
+        // .cur, .qoi, .pbm/.pgm/.ppm/.pam/.pnm, .heic or .heif where the
+        // system writes HEIC; errc::unsupported for any other (.avif is
         // read, not written). Written as path + ".part" and renamed over path
         // when whole. img.save("photo.jpg", {.quality = 90}). Defined with
         // codec::load and codec::save in files.h, which codec.h brings in
@@ -295,42 +332,15 @@ namespace sgcl::codec {
             _s->icc = from._s->icc;
         }
 
-        // Output pixel (x, y) is the source pixel at base + x * dx + y *
-        // dy (bytes), for the eight orientations of EXIF: 1 as stored, 2
-        // mirrored left to right, 3 turned by 180 degrees, 4 mirrored top
-        // to bottom, 5 transposed (source (y, x)), 6 turned clockwise, 7
-        // transposed across the other diagonal, 8 turned counterclockwise
-        template<unsigned B>
-        void _orient(image& out) const noexcept {
-
-            const ptrdiff_t w = _s->width;
-            const ptrdiff_t h = _s->height;
-            const ptrdiff_t s = static_cast<ptrdiff_t>(_s->stride);
-            const ptrdiff_t b = B;
-            ptrdiff_t base = 0, dx = b, dy = s;
-            switch (_s->orientation) {
-                case 2: base = (w - 1) * b; dx = -b; dy = s; break;
-                case 3: base = (w - 1) * b + (h - 1) * s; dx = -b; dy = -s; break;
-                case 4: base = (h - 1) * s; dx = b; dy = -s; break;
-                case 5: base = 0; dx = s; dy = b; break;
-                case 6: base = (h - 1) * s; dx = -s; dy = b; break;
-                case 7: base = (w - 1) * b + (h - 1) * s; dx = -s; dy = -b; break;
-                case 8: base = (w - 1) * b; dx = s; dy = -b; break;
-                default: break;
-            }
-            const std::byte* src = _s->pixels.data();
-            std::byte* dst = out._s->pixels.data();
-            const uint32_t ow = out._s->width;
-            const uint32_t oh = out._s->height;
-            for (uint32_t y = 0; y < oh; ++y) {
-                ptrdiff_t at = base + ptrdiff_t(y) * dy;   // an offset, not a pointer: the last step lands outside
-                std::byte* q = dst + size_t(y) * out._s->stride;
-                for (uint32_t x = 0; x < ow; ++x) {
-                    std::memcpy(q, src + at, B);
-                    at += dx;
-                    q += B;
-                }
-            }
+        // A new image of the pixels under one of the eight transforms of
+        // EXIF's orientation (detail/orient.h), the metadata copied
+        image _transformed(unsigned o) const noexcept {
+            const bool swap = o >= 5 && o <= 8;
+            image out(swap ? _s->height : _s->width, swap ? _s->width : _s->height, _s->format);
+            detail::orient::apply(reinterpret_cast<const uint8_t*>(_s->pixels.data()), _s->width, _s->height,
+                                     detail::bytes_per_pixel(_s->format), o, reinterpret_cast<uint8_t*>(out._s->pixels.data()));
+            out._copy_metadata(*this);
+            return out;
         }
 
         tracked_ptr<detail::ImageState> _s;

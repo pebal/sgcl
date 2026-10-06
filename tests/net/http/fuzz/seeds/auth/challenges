@@ -1,0 +1,1 @@
+Newauth realm="apps", type=1, title="Login to \"apps\"", Basic realm="simple", Bearer abc.def==

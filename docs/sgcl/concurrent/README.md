@@ -9,8 +9,10 @@
 Structures shared by any number of threads: the lock-free containers of the textbooks under the names of `std`
 and with the interfaces of `java.util.concurrent` (a queue, a stack, two bounded rings, a sorted map and set, a
 hash map and set), a priority queue under a lock, a cache over the hash map, the weak containers and a pool of
-interned values for many threads, and a value read by every thread and replaced whole. The module depends on
-[core](../core/README.md): the structures stand on its containers and on its [atomic](../core/atomic.md) over a
+interned values for many threads, a value read by every thread and replaced whole, and the sketches many threads add
+to at once: a Bloom filter, HyperLogLog and a count-min sketch. The module depends on
+[core](../core/README.md) (and the sketches on the XXH3 of [hash](../hash/README.md)'s own code, which stands on core
+alone): the structures stand on its containers and on its [atomic](../core/atomic.md) over a
 `tracked_ptr`, which is core's and not this module's; the versions of the [immutable](../immutable/README.md)
 containers are published to other threads through `copy_on_write`.
 
@@ -36,7 +38,10 @@ containers against `std` under a mutex, Go and Java, in numbers, are on [benchma
    by a [root_ptr](../core/root_ptr/README.md), a global; the default pool of `intern` is one. The iterators of the maps
    and sets and the snapshots of a `copy_on_write` are tracked pointers and live where their structure may.
 2. A structure is neither copyable nor movable: a structure shared by threads has one place, and the threads
-   reach it by reference or through the managed object that holds it.
+   reach it by reference or through the managed object that holds it. The sketches are the exception: a
+   [bloom_filter](bloom_filter/README.md), a [hyperloglog](hyperloglog/README.md) and a
+   [count_min_sketch](count_min_sketch/README.md) are handles, one word that copies share, since a sketch is
+   merged, written to bytes and read back, and returned; `clone()` copies its data.
 3. Every member function may be called from any thread at any time, concurrently with any other, unless the
    class says otherwise: `spsc_queue` has one producer and one consumer. What is lock-free, wait-free or
    linearizable, and what waits, is said on each class page and in the Notes of each function.
@@ -88,8 +93,12 @@ containers against `std` under a mutex, Go and Java, in numbers, are on [benchma
 
 | Class | Header | Description |
 |---|---|---|
+| [bloom_filter](bloom_filter/README.md) | `bloom_filter.h` | a Bloom filter: no false negatives, a chosen rate of false positives, the textbook shape; added to by any thread with an atomic OR |
 | [cache\<Key, T, Hash, KeyEqual\>](cache/README.md) | `cache.h` | a cache over the hash map bounded by a capacity and a time to live, the least recently used evicted by sampling: `get` wait-free on a fresh entry or none, `put` and `get_or_compute` lock-free |
 | [copy_on_write\<T\>](copy_on_write/README.md) | `copy_on_write.h` | a value read by many threads and replaced whole: one load for an immutable snapshot, a copy and a compare-exchange for a change |
+| [count_min_sketch](count_min_sketch/README.md) | `count_min_sketch.h` | how often each key was added, never under the truth, in a fixed table of atomic counters |
+| [error](error/README.md) | `error.h` | why bytes are not a sketch: a sentence and the byte |
+| [hyperloglog](hyperloglog/README.md) | `hyperloglog.h` | the distinct keys counted in 2^p byte registers raised by an atomic maximum, Ertl's estimator; merged by the maximum |
 | [intern\<T, Hash, KeyEqual\>](intern/README.md) | `intern.h` | a pool where equal values share one managed object (Go's `unique`, Java's `String.intern`), held weakly and compared by identity |
 
 ## Containers

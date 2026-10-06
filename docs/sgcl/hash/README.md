@@ -7,8 +7,8 @@
 ```
 
 Checksums and hashes that are not cryptographic: what Go has in `hash/crc32`, `hash/crc64`, `hash/adler32`,
-`hash/fnv` and `hash/maphash`, and XXH3 and SipHash-2-4, which Go leaves to other packages. The module depends on
-[core](../core/README.md) (the `array` a digest is among its containers) and [io](../io/README.md) (only for
+`hash/fnv` and `hash/maphash`, and XXH3, XXH32, XXH64 and SipHash-2-4, which Go leaves to other packages. The
+module depends on [core](../core/README.md) (the `array` a digest is among its containers) and [io](../io/README.md) (only for
 `copy_from` and `of_file`, which read a stream and a file); [compress](../compress/README.md) (CRC-32 and Adler-32
 for gzip, zip and zlib) and [crypto](../crypto/README.md) (the same shape for SHA-2 and the rest) are built on it.
 The index of the whole interface is [the modules](../README.md).
@@ -20,8 +20,8 @@ every type of the module and of `crypto` carries, and [req::hasher](req/hasher.m
 written over any hasher takes a CRC as it takes `crypto::sha256`.
 
 A hasher is a plain value, trivially copyable, with no pointer inside and nothing for the collector: four bytes for
-a CRC, sixteen for the widest FNV, 72 for SipHash, 552 for XXH3 and maphash, which keep a
-buffer of four stripes and a seed's secret. It lives on the stack, in a field, in a managed object, and a copy of
+a CRC, sixteen for the widest FNV, 48 and 88 for XXH32 and XXH64, 72 for SipHash, 552 for XXH3 and maphash, which
+keep a buffer of four stripes and a seed's secret. It lives on the stack, in a field, in a managed object, and a copy of
 it is a branch, Go's `Clone`: a common prefix hashed once, then two ways.
 
 ## The rules
@@ -43,8 +43,8 @@ it is a branch, Go's `Clone`: a common prefix hashed once, then two ways.
    is the bridge instead, Go's `io.Copy(h, r)`.
 3. **Which one.** A format that names its checksum takes that one (gzip and zip a CRC-32, zlib Adler-32, xz a
    CRC-64). A hash written down or sent away, where speed matters, is `xxh3_64` or `xxh3_128`, whose values will not
-   change. A hash table in memory takes `maphash`, or nothing at all when its keys are strings: a
-   [string](../core/string/README.md) hashes itself with a key of the process and keeps the result. Keys chosen by someone
+   change; `xxh32` and `xxh64` are for the formats that name them (LZ4, zstd). A hash table in memory takes
+   `maphash`, or nothing at all when its keys are strings: a [string](../core/string/README.md) hashes itself with a key of the process and keeps the result. Keys chosen by someone
    who may also see the hashes take `siphash`, the one hash here with an argument that they cannot be aimed at.
    None of them is for integrity against an attacker or for passwords: that is [crypto](../crypto/README.md).
 4. **The CRCs carry the names of the [CRC catalogue](https://reveng.sourceforge.io/crc-catalogue/),** not Go's,
@@ -82,8 +82,10 @@ it is a branch, Go's `Clone`: a common prefix hashed once, then two ways.
 | [fnv64a](fnv64a/README.md) | `fnv.h` | FNV-1a of 64 bits, a `uint64_t` |
 | [maphash](maphash/README.md) | `maphash.h` | a hash for a table in memory, seeded once per process, its algorithm not promised (XXH3-64 today), a `uint64_t`; Go's `hash/maphash` |
 | [siphash](siphash/README.md) | `siphash.h` | SipHash-2-4 with a key of 128 bits, a `uint64_t`: a table keyed by an adversary who may see its hashes |
+| [xxh32](xxh32/README.md) | `xxhash.h` | XXH32 with a seed, a `uint32_t`: LZ4's frame; xxhsum `-H0` |
 | [xxh3_128](xxh3_128/README.md) | `xxh3.h` | XXH3 of 128 bits with a seed, an `array<byte, 16>`: where 64 bits collide too often (content identifiers); xxhsum `-H128` |
 | [xxh3_64](xxh3_64/README.md) | `xxh3.h` | XXH3 of 64 bits with a seed, a `uint64_t`: a fast hash whose values are fixed, for files, caches on disk, protocols; xxhsum `-H3` |
+| [xxh64](xxh64/README.md) | `xxhash.h` | XXH64 with a seed, a `uint64_t`: zstd's frame; xxhsum `-H1` |
 
 ## Mixins
 

@@ -17,6 +17,7 @@
 #include "../../core/string.h"
 #include "../../core/tracked_ptr.h"
 #include "../../core/vector.h"
+#include "../../io/lock.h"
 #include "../../time/datetime.h"
 
 #include <algorithm>
@@ -34,7 +35,6 @@
 
 #include <dirent.h>
 #include <fcntl.h>
-#include <sys/file.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <unistd.h>
@@ -127,22 +127,26 @@ namespace sgcl::net::imap {
             return io::error(error_code(e, std::system_category()), op, string(path));
         }
 
-        // A lock of a folder across processes: flock of its lock file
+        // A lock of a folder across processes: the whole lock file locked
+        // (io::lock_file, flock), as other programs of a Maildir lock it
         class MdLock {
         public:
             explicit MdLock(const std::string& folder) noexcept {
-                const std::string p = folder + "/sgcl-uidlist.lock";
-                _fd = ::open(p.c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0600);
-                if (_fd >= 0) {
-                    while (::flock(_fd, LOCK_EX) != 0 && errno == EINTR) {
+                auto f = io::open(string(folder + "/sgcl-uidlist.lock"), io::open_flags::read | io::open_flags::write | io::open_flags::create, io::permissions(0600));
+                if (f) {
+                    if (auto held = io::lock_file(*f)) {
+                        _held = std::move(*held);
                     }
                 }
             }
 
+            // unlocked and the descriptor given back now, not when the
+            // collector finds the file
             ~MdLock() {
-                if (_fd >= 0) {
-                    ::flock(_fd, LOCK_UN);
-                    ::close(_fd);
+                if (_held) {
+                    io::file f = _held.file();
+                    (void)_held.unlock();
+                    (void)f.close();
                 }
             }
 
@@ -150,11 +154,11 @@ namespace sgcl::net::imap {
             MdLock& operator=(const MdLock&) = delete;
 
             bool ok() const noexcept {
-                return _fd >= 0;
+                return (bool)_held;
             }
 
         private:
-            int _fd = -1;
+            io::file_lock _held;
         };
 
         inline bool read_file(const std::string& path, std::string& out) {

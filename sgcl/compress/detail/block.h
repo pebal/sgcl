@@ -192,6 +192,18 @@ namespace sgcl::compress::detail {
             _n += n;
         }
 
+        // Room for n more bytes written in place, where they begin (the
+        // block's own memory, while nothing else is appended); end_at() the
+        // output where the writing stopped
+        SGCL_INLINE_HOT uint8_t* room(size_t n) noexcept {
+            _room(_n + n);
+            return reinterpret_cast<uint8_t*>(_block.data()) + _n;
+        }
+
+        SGCL_INLINE_HOT void end_at(const uint8_t* end) noexcept {
+            _n = size_t(end - reinterpret_cast<const uint8_t*>(_block.data()));
+        }
+
         // The bytes so far, owned by the block
         SGCL_INLINE_HOT slice<const byte> bytes() const noexcept {
             return slice<const byte>(_block).first(_n);
@@ -217,6 +229,14 @@ namespace sgcl::compress::detail {
 
     SGCL_INLINE_HOT void append_byte(ManagedOutput& out, uint8_t b) noexcept {
         out.push_back(b);
+    }
+
+    SGCL_INLINE_HOT uint8_t* append_room(ManagedOutput& out, size_t n) noexcept {
+        return out.room(n);
+    }
+
+    SGCL_INLINE_HOT void append_end(ManagedOutput& out, const uint8_t* end) noexcept {
+        out.end_at(end);
     }
 
     // A writer's bytes for a task's write: copied into a managed block the

@@ -6,17 +6,18 @@
 constexpr bool operator==(const locale&) const noexcept = default;
 ```
 
-Checks whether two locales are one language: their subtags are equal. `!=` is its negation.
+Checks whether two locales are one locale: the same language, script and region, and both or neither asking for the
+Latin digits. `!=` is its negation. Two locales of one language in two countries are two locales — `de-CH` and
+`de-DE` write numbers differently — and what asks about the language alone asks [subtag](subtag.md),
+[dotted_i](dotted_i.md) or [keeps_dot](keeps_dot.md).
 
 ## Parameters
 
-| Parameter | Description |
-|---|---|
-| `(unnamed)` | the other locale |
+None.
 
 ## Return value
 
-`true` when both name the same language, or both are the root locale.
+`true` when both are the same locale, or both the root locale.
 
 ## Complexity
 
@@ -35,15 +36,16 @@ None.
 using namespace sgcl;
 
 int main() {
-    println("{} {}", txt::locale("tr-TR") == txt::locale("tr-CY"),
-            txt::locale("pl") != txt::locale("cs"));
+    println("{} {} {}", txt::locale("tr-TR") == txt::locale("tr_TR.UTF-8"),
+            txt::locale("tr-TR") == txt::locale("tr-CY"),
+            txt::locale("tr-TR").subtag() == txt::locale::turkish().subtag());
 }
 ```
 
 Output:
 
 ```text
-true true
+true false true
 ```
 
 ## See also

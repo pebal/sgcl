@@ -43,9 +43,9 @@ and SHA-512, and Ed25519.
 | `sha384_with_rsa_pss` | RSA PSS over SHA-384, MGF1 over SHA-384, a salt of 48 bytes |
 | `sha512_with_rsa_pss` | RSA PSS over SHA-512, MGF1 over SHA-512, a salt of 64 bytes |
 | `ecdsa_with_sha1` | ECDSA over SHA-1: never accepted |
-| `ecdsa_with_sha256` | ECDSA over SHA-256, on P-256 or P-384 |
-| `ecdsa_with_sha384` | ECDSA over SHA-384, on P-256 or P-384 |
-| `ecdsa_with_sha512` | ECDSA over SHA-512, on P-256 or P-384 |
+| `ecdsa_with_sha256` | ECDSA over SHA-256, on P-256, P-384 or P-521 |
+| `ecdsa_with_sha384` | ECDSA over SHA-384, on P-256, P-384 or P-521 |
+| `ecdsa_with_sha512` | ECDSA over SHA-512, on P-256, P-384 or P-521 |
 | `ed25519` | Ed25519 |
 
 ## Example

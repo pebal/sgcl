@@ -1,0 +1,49 @@
+# The directory run_blocks.py --slapd gives the pages of net::ldap: a fresh
+# copy for each page, the root DN cn=admin,dc=example,dc=com, every password
+# "secret" (as slappasswd writes it: a server may refuse clear text)
+dn: dc=example,dc=com
+objectClass: dcObject
+objectClass: organization
+dc: example
+o: Example
+
+dn: ou=people,dc=example,dc=com
+objectClass: organizationalUnit
+ou: people
+
+dn: uid=alice,ou=people,dc=example,dc=com
+objectClass: inetOrgPerson
+uid: alice
+cn: Alice Liddell
+sn: Liddell
+mail: alice@example.com
+title: Engineer
+userPassword: {SSHA}r8pO/3FjAPRxOr45AY8gLXKnCQ3Kvlvn
+
+dn: uid=bob,ou=people,dc=example,dc=com
+objectClass: inetOrgPerson
+uid: bob
+cn: Bob Builder
+sn: Builder
+mail: bob@example.com
+title: Manager
+userPassword: {SSHA}r8pO/3FjAPRxOr45AY8gLXKnCQ3Kvlvn
+
+dn: uid=carol,ou=people,dc=example,dc=com
+objectClass: inetOrgPerson
+uid: carol
+cn: Carol Danvers
+sn: Danvers
+mail: carol@example.org
+title: Engineer
+userPassword: {SSHA}r8pO/3FjAPRxOr45AY8gLXKnCQ3Kvlvn
+
+dn: ou=groups,dc=example,dc=com
+objectClass: organizationalUnit
+ou: groups
+
+dn: cn=engineers,ou=groups,dc=example,dc=com
+objectClass: groupOfNames
+cn: engineers
+member: uid=alice,ou=people,dc=example,dc=com
+member: uid=carol,ou=people,dc=example,dc=com

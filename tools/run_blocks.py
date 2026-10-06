@@ -61,7 +61,16 @@ the test CA, so the system's roots trust it. `--socks5 HOST:PORT` (or
 address type, the target dialed from here); `--proxy HOST:PORT` (or
 `HOST:PORT=USER:PASSWORD`, then required as Basic Proxy-Authorization, 407
 without it) the same for an HTTP proxy that forwards absolute-form
-requests and tunnels CONNECT.
+requests and tunnels CONNECT. `--slapd HOST:PORT` replaces HOST:PORT by
+127.0.0.1 and the port of OpenLDAP's slapd (/usr/libexec/slapd on macOS,
+/usr/sbin/slapd on Debian) started for the page over a fresh copy of the
+directory in tools/run_blocks_ldap.ldif (loaded by ldapadd), the root DN
+cn=admin,dc=example,dc=com with the password "secret", no TLS. `--amqp
+HOST:PORT` and `--nats HOST:PORT` do the same with the tests' minimal AMQP
+0-9-1 broker and NATS server (tools/run_blocks_servers.cpp, compiled once
+a run), guest:guest on the vhost "/" and no authentication. `--ntp HOST`
+replaces HOST (a name such as pool.ntp.org) by 127.0.0.1 and the port of
+an SNTP server here (RFC 4330's answer, this machine's clock, stratum 2).
 
 What a page's programs need (local servers, a fresh directory) is listed
 in tools/run_blocks.pages, one line per page — its path from the root,
@@ -73,7 +82,9 @@ no network, and the page itself carries nothing:
   tools/run_blocks.py docs/sgcl/slog/README.md ...  [--root DIR] [--tmp]
                       [--fill] [--serve URL=FILE ...] [--echo URL ...]
                       [--tls HOST:PORT ...] [--socks5 HOST:PORT[=U:P] ...]
-                      [--proxy HOST:PORT[=U:P] ...] [--skip N ...] [--strict]
+                      [--proxy HOST:PORT[=U:P] ...] [--slapd HOST:PORT ...]
+                      [--amqp HOST:PORT ...] [--nats HOST:PORT ...] [--ntp HOST ...]
+                      [--skip N ...] [--strict]
 
 --root is the tree the programs include from and run in (the repository by
 default: this script's parent); --tmp runs each in a fresh directory
@@ -103,6 +114,8 @@ import sys
 import tempfile
 import threading
 import time
+import atexit
+import shutil
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PAGES = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'run_blocks.pages')
@@ -428,6 +441,110 @@ def serve_proxy(credentials=None):
     return server
 
 
+SLAPDS = []   # the server processes started (slapd, the AMQP broker, the NATS server), stopped before the next page and at the end
+
+
+def stop_slapds():
+    while SLAPDS:
+        proc, directory = SLAPDS.pop()
+        proc.terminate()
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+        shutil.rmtree(directory, ignore_errors=True)
+
+
+atexit.register(stop_slapds)
+
+
+def serve_slapd(root):
+    """OpenLDAP's slapd on a free port of the loopback, over a fresh copy of
+    tools/run_blocks_ldap.ldif: the port"""
+    binary = next((p for p in ('/usr/libexec/slapd', '/usr/sbin/slapd') if os.path.exists(p)), None)
+    schema = next((p for p in ('/etc/openldap/schema', '/etc/ldap/schema') if os.path.exists(os.path.join(p, 'inetorgperson.schema'))), None)
+    if not binary or not schema or not shutil.which('ldapadd'):
+        raise OSError('--slapd: no slapd, its schema or ldapadd here')
+    directory = tempfile.mkdtemp(prefix='run_blocks-slapd-')
+    os.mkdir(os.path.join(directory, 'db'))
+    secret = '{SSHA}r8pO/3FjAPRxOr45AY8gLXKnCQ3Kvlvn'
+    with open(os.path.join(directory, 'slapd.conf'), 'w') as f:
+        f.write(''.join('include %s/%s.schema\n' % (schema, n) for n in ('core', 'cosine', 'inetorgperson')))
+        f.write('pidfile %s/slapd.pid\nargsfile %s/slapd.args\n' % (directory, directory))
+        f.write('access to attrs=userPassword by self write by anonymous auth by * none\naccess to * by * read\n')
+        f.write('database ldif\nsuffix "dc=example,dc=com"\nrootdn "cn=admin,dc=example,dc=com"\n')
+        f.write('rootpw %s\ndirectory %s/db\n' % (secret, directory))
+    port = free_port()
+    url = 'ldap://127.0.0.1:%d/' % port
+    log = open(os.path.join(directory, 'slapd.log'), 'w')
+    proc = subprocess.Popen([binary, '-f', os.path.join(directory, 'slapd.conf'), '-h', url, '-d', '0'], stdout=log, stderr=subprocess.STDOUT)
+    SLAPDS.append((proc, directory))
+    deadline = time.time() + 10
+    while True:
+        try:
+            socket.create_connection(('127.0.0.1', port), timeout=1).close()
+            break
+        except OSError:
+            if time.time() > deadline or proc.poll() is not None:
+                raise OSError('--slapd: slapd did not start (%s)' % os.path.join(directory, 'slapd.log'))
+            time.sleep(0.05)
+    r = subprocess.run(['ldapadd', '-x', '-H', url, '-D', 'cn=admin,dc=example,dc=com', '-w', 'secret',
+                        '-f', os.path.join(root, 'tools', 'run_blocks_ldap.ldif')], capture_output=True, text=True)
+    if r.returncode != 0:
+        raise OSError('--slapd: ldapadd failed: ' + r.stderr)
+    return port
+
+
+SERVERS = {}   # the compiled run_blocks_servers, by root
+
+
+def serve_tool(root, kind):
+    """The tests' AMQP broker or NATS server on a free port of the loopback,
+    from tools/run_blocks_servers.cpp: the port"""
+    exe = SERVERS.get(root)
+    if exe is None:
+        exe = os.path.join(tempfile.mkdtemp(prefix='run_blocks-servers-'), 'run_blocks_servers')
+        flags = ['-framework', 'Security', '-framework', 'CoreFoundation', '-framework', 'CoreServices'] if sys.platform == 'darwin' else []
+        c = subprocess.run(['clang++', '-std=c++20', '-O1', '-I' + root, os.path.join(root, 'tools', 'run_blocks_servers.cpp'), '-o', exe] + flags,
+                           capture_output=True, text=True)
+        if c.returncode != 0:
+            raise OSError('--%s: run_blocks_servers did not compile: %s' % (kind, c.stderr[:2000]))
+        SERVERS[root] = exe
+    proc = subprocess.Popen([exe, kind], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    SLAPDS.append((proc, tempfile.mkdtemp(prefix='run_blocks-%s-' % kind)))
+    line = proc.stdout.readline()
+    m = re.match(r'port (\d+)', line)
+    if not m:
+        raise OSError('--%s: the server did not start: %s' % (kind, line))
+    return int(m.group(1))
+
+
+def serve_ntp():
+    """An SNTP server on a free port of the loopback, in a thread: the port"""
+    import struct
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(('127.0.0.1', 0))
+
+    def ntp(t):
+        t += 2208988800
+        return (int(t) << 32) | int((t - int(t)) * (1 << 32))
+
+    def loop():
+        while True:
+            try:
+                data, addr = sock.recvfrom(512)
+            except OSError:
+                return
+            if len(data) < 48:
+                continue
+            now = time.time()
+            reply = struct.pack('!BBbbII4sQ8sQQ', (4 << 3) | 4, 2, 6, -20, 0, 0, bytes([127, 0, 0, 1]), ntp(now - 64), data[40:48], ntp(now), ntp(time.time()))
+            sock.sendto(reply, addr)
+
+    threading.Thread(target=loop, daemon=True).start()
+    return sock.getsockname()[1]
+
+
 def options(args, into):
     """The options of a command line or of a page's directive, into a dict"""
     i = 0
@@ -459,6 +576,15 @@ def options(args, into):
             i += 1
         elif a == '--proxy':
             into['proxy'].append(args[i + 1])
+            i += 1
+        elif a == '--slapd':
+            into['slapd'].append(args[i + 1])
+            i += 1
+        elif a == '--ntp':
+            into['ntp'].append(args[i + 1])
+            i += 1
+        elif a in ('--amqp', '--nats'):
+            into[a[2:]].append(args[i + 1])
             i += 1
         elif a == '--skip':
             into['skip'].add(int(args[i + 1]))
@@ -500,6 +626,14 @@ def local_servers(o, root):
         address, _, credentials = spec.partition('=')
         server = serve_proxy(credentials or None)
         rewrites.append((address, '127.0.0.1:%d' % server.server_address[1]))
+    stop_slapds()   # the previous page's
+    for address in o['slapd']:
+        rewrites.append((address, '127.0.0.1:%d' % serve_slapd(root)))
+    for host in o['ntp']:
+        rewrites.append((host, '127.0.0.1:%d' % serve_ntp()))
+    for kind in ('amqp', 'nats'):
+        for address in o[kind]:
+            rewrites.append((address, '127.0.0.1:%d' % serve_tool(root, kind)))
     return rewrites, env
 
 
@@ -508,18 +642,18 @@ def main():
     if not args or '--help' in args or '-h' in args:
         print(__doc__.strip())
         return 0
-    base = options(args, {'root': ROOT, 'tmp': False, 'fill': False, 'strict': False, 'changed': False, 'serve': [], 'echo': [], 'tls': [], 'socks5': [], 'proxy': [], 'skip': set(), 'pages': []})
+    base = options(args, {'root': ROOT, 'tmp': False, 'fill': False, 'strict': False, 'changed': False, 'serve': [], 'echo': [], 'tls': [], 'socks5': [], 'proxy': [], 'slapd': [], 'amqp': [], 'nats': [], 'ntp': [], 'skip': set(), 'pages': []})
     root, fill, pages = base['root'], base['fill'], base['pages']
 
     work = tempfile.mkdtemp(prefix='run_blocks-')
     flags = ['-framework', 'ImageIO', '-framework', 'CoreGraphics', '-framework', 'CoreFoundation',
-             '-framework', 'Accelerate', '-framework', 'Security'] if sys.platform == 'darwin' else []
+             '-framework', 'Accelerate', '-framework', 'Security', '-framework', 'CoreServices'] if sys.platform == 'darwin' else []
     bad = 0
     unchecked = 0
     for page in pages:
         path = page if os.path.isabs(page) else os.path.join(root, page)
         text = open(path).read()
-        o = {'tmp': base['tmp'], 'serve': list(base['serve']), 'echo': list(base['echo']), 'tls': list(base['tls']), 'socks5': list(base['socks5']), 'proxy': list(base['proxy']), 'skip': set(base['skip']), 'pages': []}
+        o = {'tmp': base['tmp'], 'serve': list(base['serve']), 'echo': list(base['echo']), 'tls': list(base['tls']), 'socks5': list(base['socks5']), 'proxy': list(base['proxy']), 'slapd': list(base['slapd']), 'amqp': list(base['amqp']), 'nats': list(base['nats']), 'ntp': list(base['ntp']), 'skip': set(base['skip']), 'pages': []}
         options(page_options(root, path), o)
         tmp = o['tmp']
         rewrites, env = local_servers(o, root)

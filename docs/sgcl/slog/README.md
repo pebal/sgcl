@@ -11,7 +11,8 @@ value that the compiler checks; it is written as a line of text or of JSON, byte
 handed to a handler of the program. The module depends on [core](../core/README.md), [async](../async/README.md)
 (the workers a buffered logger batches per), [io](../io/README.md) (the writer a line goes to, `io::stderr` by
 default), [txt](../txt/README.md) (what Unicode says is printable, for the quoting), [time](../time/README.md) (the
-time of a record, in the local zone) and [encoding](../encoding/README.md) (a type described by its fields); the
+time of a record, in the local zone; the cron of a rotation), [encoding](../encoding/README.md) (a type described by
+its fields) and [compress](../compress/README.md) (the gzip of a rotated file); the
 index of the whole interface is [the modules](../README.md).
 
 [debug, info, warn and error](debug.md) write through the [default logger](default_logger.md): text on
@@ -51,7 +52,12 @@ an error of the build, where Go writes `!BADKEY` or `%v` at run time.
   program ([handler](handler/README.md)): any type with `handle(const record&)`, called from every thread that logs. The
   [record](record/README.md) is a view of the call's stack; [clone](record/clone.md) is a copy to keep.
   [memory](memory/README.md) keeps them, for tests.
-- **Rotation and sending logs elsewhere** are not in the module; a handler of the program does either.
+- **Rotation.** A [rotating_file](rotating_file/README.md) is a writer that rotates itself, by size or at the times of
+  a [cron](../time/cron/README.md), keeps a number of the rotated files and gzips them; it is given as
+  [options](options.md)`::out`, and keeps the rule of one record, one write.
+- **Sending logs elsewhere.** [syslog](syslog/README.md) sends the records to the machine's syslog or, over a
+  connection of the program's, to a collector (RFC 5424, RFC 3164); [journald](journald/README.md) writes them to
+  systemd's journal with the attributes as its fields.
 - **What throws.** A record whose write fails throws nothing. What a verb may throw is the program's own: what a
   value's `to_text` or `to_string` throws, what a handler of the program throws, what a writer of the program
   throws. [value](value/README.md)'s `as_` accessors throw `logic_error` for a value of another kind.
@@ -137,12 +143,17 @@ logger, `flush()`, the exit. Until the call the lines stay on `std::cout`, byte 
 | [attrs](attrs/README.md) | `record.h` | the attributes of a group in order, a range of `attr`: what `value::as_group` returns |
 | [group\<A...\>](group/README.md) | `logger.h` | attributes in a group of their own, slog's `Group` |
 | [handler](handler/README.md) | `handler.h` | any handler of the program held as a value, slog's `Handler` |
+| [journald](journald/README.md) | `syslog.h` | a handler that writes the records to systemd's journal in its native protocol, the attributes as fields; Linux |
 | [level_var](level_var/README.md) | `level.h` | a level changed while the program runs, shared by loggers, slog's `LevelVar` |
 | [logger](logger/README.md) | `logger.h` | what a record is written as, from which level, with which attributes, slog's `Logger` |
 | [memory](memory/README.md) | `memory.h` | a handler that keeps the records, for tests |
 | [message](message/README.md) | `record.h` | the text of a record and where the call is |
 | [options](options.md) | `logger.h` | what a logger is made with, slog's `HandlerOptions` and the choice of handler |
 | [record](record/README.md) | `record.h` | a record as a handler reads it, slog's `Record` |
+| [rotating_file](rotating_file/README.md) | `rotating_file.h` | a log file that rotates itself by size or at a cron's times, keeps some, gzips them: a writer for `options::out` |
+| [rotation](rotation.md) | `rotating_file.h` | when and how a rotating_file rotates |
+| [syslog](syslog/README.md) | `syslog.h` | a handler that sends the records as syslog messages, RFC 5424 or RFC 3164, to the local daemon or over a connection |
+| [syslog::options](syslog-options.md) | `syslog.h` | the facility, the names, the format and the framing of a syslog handler |
 | [value](value/README.md) | `record.h` | the value of an attribute as a handler reads it, slog's `Value` |
 
 ## Enumerations
@@ -150,6 +161,8 @@ logger, `flush()`, the exit. Until the call the lines stay on `std::cout`, byte 
 | Enumeration | Header | Description |
 |---|---|---|
 | [level](level.md) | `level.h` | the importance of a record, with Go's numbers: `debug`, `info`, `warn`, `error` |
+| [syslog::facility](syslog-facility.md) | `syslog.h` | the facility of a syslog message, RFC 5424's numbers |
+| [syslog::format](syslog-format.md) | `syslog.h` | RFC 5424, RFC 3164, or the one the transport wants |
 | [value::kind](value-kind.md) | `record.h` | the kind of a value: `null`, `boolean`, `int64`, `string`, `group`... |
 
 ## Requirements

@@ -14,6 +14,7 @@
 #include "../error.h"
 #include "../socket.h"
 #include "../../async/blocking.h"
+#include "../../async/channel.h"
 #include "../../async/coroutine.h"
 #include "../../async/stop_token.h"
 #include "../../async/wait_group.h"
@@ -104,6 +105,7 @@ namespace sgcl::net::ssh {
             bool agent_forwarding = false;   // the client asked for it (auth-agent-req@openssh.com)
             vector<tracked_ptr<ChannelImpl>> agents;   // the agent channels opened for it, closed with it
             async::stop_source stop;
+            async::channel<void> resized = async::channel<void>(1);   // a window-change came: one pending at most, the size in terminal
 
             void on_request(std::string_view name, bool want_reply, Reader& r) override;
 
@@ -231,6 +233,7 @@ namespace sgcl::net::ssh {
                 }
                 for (auto& s : sessions) {
                     s->stop.request_stop();
+                    s->resized.close();
                 }
             }
 
@@ -488,6 +491,15 @@ namespace sgcl::net::ssh {
             return _c->terminal;
         }
 
+        // A notification of every window-change the client sends, a burst
+        // coalesced to one: received, the new size is pty()'s; closed when
+        // the client closes the session or the connection ends. For the
+        // terminal of a program the handler runs on an io::pty, resized to
+        // it (pty::resize, which the program gets as its SIGWINCH)
+        async::receive_channel<void> window_changes() const noexcept {
+            return _c->resized;
+        }
+
         // The variables the client set, in their order
         vector<pair<string, string>> env() const noexcept {
             std::lock_guard<std::mutex> g(_c->m);
@@ -706,6 +718,7 @@ namespace sgcl::net::ssh {
                 idle = !started;
             }
             stop.request_stop();
+            resized.close();   // window_changes() ends with the session
             if (idle) {
                 static_cast<ServerConn*>(conn.get())->untrack(this);
             }
@@ -768,6 +781,7 @@ namespace sgcl::net::ssh {
                         terminal->rows = rows;
                         terminal->width_pixels = wp;
                         terminal->height_pixels = hp;
+                        (void)resized.try_send();   // full: one is pending already, and pty() gives the newest size
                     }
                     ok = r.ok();
                 } else if (name == "auth-agent-req@openssh.com") {

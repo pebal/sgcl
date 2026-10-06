@@ -88,6 +88,18 @@ docs/sgcl/io/last_error.md --tmp
 docs/sgcl/encoding/json/parse.md --tmp
 docs/sgcl/encoding/json/load.md --tmp
 docs/sgcl/encoding/json/save.md --tmp
+docs/sgcl/encoding/icalendar/load.md --tmp
+docs/sgcl/encoding/icalendar/save.md --tmp
+docs/sgcl/encoding/vcard/load.md --tmp
+docs/sgcl/encoding/vcard/save.md --tmp
+docs/sgcl/encoding/dotenv/load.md --tmp
+docs/sgcl/encoding/dotenv/save.md --tmp
+docs/sgcl/encoding/ini/load.md --tmp
+docs/sgcl/encoding/ini/save.md --tmp
+docs/sgcl/encoding/toml/load.md --tmp
+docs/sgcl/encoding/toml/save.md --tmp
+docs/sgcl/encoding/yaml/load.md --tmp
+docs/sgcl/encoding/yaml/save.md --tmp
 docs/sgcl/hash/mixin/hasher/copy_from.md --tmp
 docs/sgcl/hash/mixin/hasher/of_file.md --tmp
 docs/sgcl/crypto/digest_file.md --tmp
@@ -138,6 +150,11 @@ docs/sgcl/compress/sevenzip.md --tmp --skip 1
 docs/sgcl/net/http/serve.md --tmp
 docs/sgcl/net/http/response_writer/write.md --tmp
 docs/sgcl/net/http/download.md --tmp
+docs/sgcl/net/http/download_options.md --tmp
+docs/sgcl/net/http/serve_file.md --tmp
+docs/sgcl/net/http/file_server/README.md --tmp
+docs/sgcl/net/http/file_server/file_server.md --tmp
+docs/sgcl/net/http/file_server/operator_call.md --tmp
 docs/sgcl/net/http/client/download.md --tmp
 docs/sgcl/net/http/response/save.md --tmp
 docs/sgcl/net/http/cookie_jar/save.md --tmp
@@ -153,6 +170,8 @@ docs/sgcl/net/dns/lookup_txt.md --skip 0
 docs/sgcl/net/dns/lookup_srv.md --skip 0
 docs/sgcl/net/dns/lookup_ns.md --skip 0
 docs/sgcl/net/dns/lookup_cname.md --skip 0
+docs/sgcl/net/dns/lookup_https.md --skip 0
+docs/sgcl/net/dns/lookup_svcb.md --skip 0
 docs/sgcl/net/dns-options.md --skip 1
 docs/sgcl/net/socks5/README.md --socks5 127.0.0.1:1080
 docs/sgcl/net/socks5/connect.md --socks5 127.0.0.1:1080
@@ -266,3 +285,182 @@ docs/sgcl/net/imap/maildir_backend/uid_validity.md --tmp
 docs/sgcl/net/imap/server/README.md --skip 1
 docs/sgcl/net/http/serve_tls.md --skip 1
 docs/sgcl/net/acme/manager/manager.md --skip 0
+docs/sgcl/crypto/read_password.md --skip 0
+docs/sgcl/io/glob.md --tmp
+docs/sgcl/io/lock_file.md --tmp
+docs/sgcl/io/lock_options.md --tmp
+docs/sgcl/io/lock_mode.md --tmp
+docs/sgcl/io/file_lock/README.md --tmp
+docs/sgcl/io/file_lock/file_lock.md --tmp
+docs/sgcl/io/file_lock/operator_assign.md --tmp
+docs/sgcl/io/file_lock/unlock.md --tmp
+docs/sgcl/io/file_lock/mode.md --tmp
+docs/sgcl/io/file_lock/offset.md --tmp
+docs/sgcl/io/file_lock/length.md --tmp
+docs/sgcl/io/file_lock/file.md --tmp
+docs/sgcl/io/file_lock/operator_bool.md --tmp
+docs/sgcl/io/watch.md --tmp
+docs/sgcl/io/watch_event.md --tmp
+docs/sgcl/io/watch_options.md --tmp
+docs/sgcl/io/library/README.md --tmp
+docs/sgcl/io/library/address.md --tmp
+docs/sgcl/io/link.md --tmp
+docs/sgcl/io/chown.md --tmp
+docs/sgcl/io/lchown.md --tmp
+docs/sgcl/io/file/chown.md --tmp
+docs/sgcl/net/connection/send_descriptors.md --tmp
+docs/sgcl/net/connection/receive_descriptors.md --tmp
+docs/sgcl/net/connection-received.md --tmp
+docs/sgcl/net/connection/fd.md --tmp
+docs/sgcl/net/dkim/signer/README.md --tmp
+docs/sgcl/slog/rotation.md --tmp
+docs/sgcl/slog/rotating_file/README.md --tmp
+docs/sgcl/slog/rotating_file/rotating_file.md --tmp
+docs/sgcl/slog/rotating_file/open.md --tmp
+docs/sgcl/slog/rotating_file/write.md --tmp
+docs/sgcl/slog/rotating_file/rotate.md --tmp
+docs/sgcl/slog/rotating_file/reopen.md --tmp
+docs/sgcl/slog/rotating_file/close.md --tmp
+docs/sgcl/slog/rotating_file/path.md --tmp
+docs/sgcl/slog/rotating_file/size.md --tmp
+docs/sgcl/slog/rotating_file/operator_cmp.md --tmp
+docs/sgcl/net/http/cache/on_disk.md --tmp
+docs/sgcl/net/ldap/attribute.md --slapd localhost:3890
+docs/sgcl/net/ldap/client-options.md --slapd localhost:3890
+docs/sgcl/net/ldap/client/README.md --slapd localhost:3890
+docs/sgcl/net/ldap/client/add.md --slapd localhost:3890
+docs/sgcl/net/ldap/client/bind.md --slapd localhost:3890
+docs/sgcl/net/ldap/client/bind_external.md --slapd localhost:3890
+docs/sgcl/net/ldap/client/bind_plain.md --slapd localhost:3890
+docs/sgcl/net/ldap/client/client.md --slapd localhost:3890
+docs/sgcl/net/ldap/client/close.md --slapd localhost:3890
+docs/sgcl/net/ldap/client/compare.md --slapd localhost:3890
+docs/sgcl/net/ldap/client/connect.md --slapd localhost:3890
+docs/sgcl/net/ldap/client/extended.md --slapd localhost:3890
+docs/sgcl/net/ldap/client/is_tls.md --slapd localhost:3890
+docs/sgcl/net/ldap/client/modify.md --slapd localhost:3890
+docs/sgcl/net/ldap/client/operator_bool.md --slapd localhost:3890
+docs/sgcl/net/ldap/client/operator_cmp.md --slapd localhost:3890
+docs/sgcl/net/ldap/client/remove.md --slapd localhost:3890
+docs/sgcl/net/ldap/client/rename.md --slapd localhost:3890
+docs/sgcl/net/ldap/client/search.md --slapd localhost:3890
+docs/sgcl/net/ldap/client/start_tls.md --slapd localhost:3890
+docs/sgcl/net/ldap/client/unbind.md --slapd localhost:3890
+docs/sgcl/net/ldap/client/who_am_i.md --slapd localhost:3890
+docs/sgcl/net/ldap/deref.md --slapd localhost:3890
+docs/sgcl/net/ldap/entry/README.md --slapd localhost:3890
+docs/sgcl/net/ldap/entry/get.md --slapd localhost:3890
+docs/sgcl/net/ldap/entry/get_all.md --slapd localhost:3890
+docs/sgcl/net/ldap/errc.md --slapd localhost:3890
+docs/sgcl/net/ldap/filter_escape.md --slapd localhost:3890
+docs/sgcl/net/ldap/modification.md --slapd localhost:3890
+docs/sgcl/net/ldap/modify_op.md --slapd localhost:3890
+docs/sgcl/net/ldap/result.md --slapd localhost:3890
+docs/sgcl/net/ldap/result_of.md --slapd localhost:3890
+docs/sgcl/net/ldap/scope.md --slapd localhost:3890
+docs/sgcl/net/ldap/search_request.md --slapd localhost:3890
+docs/sgcl/net/ldap/search_result.md --slapd localhost:3890
+docs/sgcl/net/ldap/security.md --slapd localhost:3890
+docs/sgcl/net/amqp/channel/README.md --amqp localhost:5672
+docs/sgcl/net/amqp/channel/ack.md --amqp localhost:5672
+docs/sgcl/net/amqp/channel/bind_queue.md --amqp localhost:5672
+docs/sgcl/net/amqp/channel/channel.md --amqp localhost:5672
+docs/sgcl/net/amqp/channel/close.md --amqp localhost:5672
+docs/sgcl/net/amqp/channel/confirm.md --amqp localhost:5672
+docs/sgcl/net/amqp/channel/consume.md --amqp localhost:5672
+docs/sgcl/net/amqp/channel/declare_exchange.md --amqp localhost:5672
+docs/sgcl/net/amqp/channel/declare_queue.md --amqp localhost:5672
+docs/sgcl/net/amqp/channel/delete_exchange.md --amqp localhost:5672
+docs/sgcl/net/amqp/channel/delete_queue.md --amqp localhost:5672
+docs/sgcl/net/amqp/channel/get.md --amqp localhost:5672
+docs/sgcl/net/amqp/channel/id.md --amqp localhost:5672
+docs/sgcl/net/amqp/channel/nack.md --amqp localhost:5672
+docs/sgcl/net/amqp/channel/operator_bool.md --amqp localhost:5672
+docs/sgcl/net/amqp/channel/operator_cmp.md --amqp localhost:5672
+docs/sgcl/net/amqp/channel/publish.md --amqp localhost:5672
+docs/sgcl/net/amqp/channel/purge_queue.md --amqp localhost:5672
+docs/sgcl/net/amqp/channel/qos.md --amqp localhost:5672
+docs/sgcl/net/amqp/channel/receive_returned.md --amqp localhost:5672
+docs/sgcl/net/amqp/channel/reject.md --amqp localhost:5672
+docs/sgcl/net/amqp/channel/try_receive_returned.md --amqp localhost:5672
+docs/sgcl/net/amqp/channel/unbind_queue.md --amqp localhost:5672
+docs/sgcl/net/amqp/client-options.md --amqp localhost:5672
+docs/sgcl/net/amqp/client/README.md --amqp localhost:5672
+docs/sgcl/net/amqp/client/blocked.md --amqp localhost:5672
+docs/sgcl/net/amqp/client/client.md --amqp localhost:5672
+docs/sgcl/net/amqp/client/close.md --amqp localhost:5672
+docs/sgcl/net/amqp/client/connect.md --amqp localhost:5672
+docs/sgcl/net/amqp/client/open_channel.md --amqp localhost:5672
+docs/sgcl/net/amqp/client/operator_bool.md --amqp localhost:5672
+docs/sgcl/net/amqp/client/operator_cmp.md --amqp localhost:5672
+docs/sgcl/net/amqp/consume_options.md --amqp localhost:5672
+docs/sgcl/net/amqp/consumer/README.md --amqp localhost:5672
+docs/sgcl/net/amqp/consumer/cancel.md --amqp localhost:5672
+docs/sgcl/net/amqp/consumer/consumer.md --amqp localhost:5672
+docs/sgcl/net/amqp/consumer/operator_bool.md --amqp localhost:5672
+docs/sgcl/net/amqp/consumer/operator_cmp.md --amqp localhost:5672
+docs/sgcl/net/amqp/consumer/receive.md --amqp localhost:5672
+docs/sgcl/net/amqp/consumer/tag.md --amqp localhost:5672
+docs/sgcl/net/amqp/consumer/try_receive.md --amqp localhost:5672
+docs/sgcl/net/amqp/delivery.md --amqp localhost:5672
+docs/sgcl/net/amqp/delivery_mode.md --amqp localhost:5672
+docs/sgcl/net/amqp/errc.md --amqp localhost:5672
+docs/sgcl/net/amqp/exchange_options.md --amqp localhost:5672
+docs/sgcl/net/amqp/properties.md --amqp localhost:5672
+docs/sgcl/net/amqp/publish_options.md --amqp localhost:5672
+docs/sgcl/net/amqp/queue_info.md --amqp localhost:5672
+docs/sgcl/net/amqp/queue_options.md --amqp localhost:5672
+docs/sgcl/net/amqp/returned.md --amqp localhost:5672
+docs/sgcl/net/nats/client-options.md --nats localhost:4222
+docs/sgcl/net/nats/client/README.md --nats localhost:4222
+docs/sgcl/net/nats/client/client.md --nats localhost:4222
+docs/sgcl/net/nats/client/close.md --nats localhost:4222
+docs/sgcl/net/nats/client/connect.md --nats localhost:4222
+docs/sgcl/net/nats/client/drain.md --nats localhost:4222
+docs/sgcl/net/nats/client/flush.md --nats localhost:4222
+docs/sgcl/net/nats/client/max_payload.md --nats localhost:4222
+docs/sgcl/net/nats/client/operator_bool.md --nats localhost:4222
+docs/sgcl/net/nats/client/operator_cmp.md --nats localhost:4222
+docs/sgcl/net/nats/client/publish.md --nats localhost:4222
+docs/sgcl/net/nats/client/request.md --nats localhost:4222
+docs/sgcl/net/nats/client/respond.md --nats localhost:4222
+docs/sgcl/net/nats/client/server_id.md --nats localhost:4222
+docs/sgcl/net/nats/client/subscribe.md --nats localhost:4222
+docs/sgcl/net/nats/errc.md --nats localhost:4222
+docs/sgcl/net/nats/message/README.md --nats localhost:4222
+docs/sgcl/net/nats/subscription/README.md --nats localhost:4222
+docs/sgcl/net/nats/subscription/dropped.md --nats localhost:4222
+docs/sgcl/net/nats/subscription/operator_bool.md --nats localhost:4222
+docs/sgcl/net/nats/subscription/operator_cmp.md --nats localhost:4222
+docs/sgcl/net/nats/subscription/queue_group.md --nats localhost:4222
+docs/sgcl/net/nats/subscription/receive.md --nats localhost:4222
+docs/sgcl/net/nats/subscription/subject.md --nats localhost:4222
+docs/sgcl/net/nats/subscription/subscription.md --nats localhost:4222
+docs/sgcl/net/nats/subscription/try_receive.md --nats localhost:4222
+docs/sgcl/net/nats/subscription/unsubscribe.md --nats localhost:4222
+docs/sgcl/net/ntp/options.md --ntp pool.ntp.org
+docs/sgcl/net/ntp/query.md --ntp pool.ntp.org
+docs/sgcl/net/ntp/response.md --ntp pool.ntp.org
+docs/sgcl/net/webdav/client/README.md --tmp
+docs/sgcl/net/webdav/client/client.md --tmp
+docs/sgcl/net/webdav/client/copy.md --tmp
+docs/sgcl/net/webdav/client/if_token.md --tmp
+docs/sgcl/net/webdav/client/list.md --tmp
+docs/sgcl/net/webdav/client/lock.md --tmp
+docs/sgcl/net/webdav/client/mkdir.md --tmp
+docs/sgcl/net/webdav/client/move.md --tmp
+docs/sgcl/net/webdav/client/operator_bool.md --tmp
+docs/sgcl/net/webdav/client/operator_cmp.md --tmp
+docs/sgcl/net/webdav/client/read.md --tmp
+docs/sgcl/net/webdav/client/remove.md --tmp
+docs/sgcl/net/webdav/client/stat.md --tmp
+docs/sgcl/net/webdav/client/unlock.md --tmp
+docs/sgcl/net/webdav/client/write.md --tmp
+docs/sgcl/net/webdav/client_options.md --tmp
+docs/sgcl/net/webdav/resource.md --tmp
+docs/sgcl/net/webdav/server/README.md --tmp
+docs/sgcl/net/webdav/server/async_serve.md --tmp
+docs/sgcl/net/webdav/server/operator_bool.md --tmp
+docs/sgcl/net/webdav/server/operator_cmp.md --tmp
+docs/sgcl/net/webdav/server/server.md --tmp
+docs/sgcl/net/webdav/server_options.md --tmp

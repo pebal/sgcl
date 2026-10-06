@@ -12,7 +12,7 @@ namespace sgcl::net::ssh {
 
 **Requires [rooted](../../../core/rooted/README.md) outside a stack or a managed object.**
 
-`net::ssh::private_key` is a private key of SSH: Ed25519, ECDSA on P-256 or P-384, or RSA ([key_type](../key_type.md)).
+`net::ssh::private_key` is a private key of SSH: Ed25519, ECDSA on P-256, P-384 or P-521, or RSA ([key_type](../key_type.md)).
 It is read from a key file's text ([parse](parse.md), [load](load.md)) in OpenSSH's own format — `-----BEGIN OPENSSH
 PRIVATE KEY-----`, what ssh-keygen writes, unencrypted or encrypted with a passphrase (bcrypt_pbkdf with aes256-ctr,
 ssh-keygen's default, or AES-GCM) — or in PEM's (PKCS #8, SEC 1, PKCS #1, unencrypted), made from random bytes

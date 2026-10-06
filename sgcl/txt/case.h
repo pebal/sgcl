@@ -10,6 +10,7 @@
 #include "normalize.h"
 #include "segment.h"
 #include "detail/case_tables.h"
+#include "locale.h"
 
 // The case of a text, where core has the case of a code point. Three
 // things happen here that cannot happen one code point at a time: a
@@ -18,96 +19,6 @@
 // differently), and a letter may depend on the language (in Turkish an i
 // keeps its dot when it grows, and an I loses one it never had).
 namespace sgcl::txt {
-    // The language a mapping may depend on. Three of them change the case
-    // of a letter — Turkish, Azerbaijani and Lithuanian — and the tables
-    // of Unicode name no others; the type takes a BCP-47 tag all the same,
-    // so that a tag out of a header or out of the system needs no table of
-    // its own at the caller, and so that a collator can take the same type
-    // when it comes. An unknown tag is the root locale, and nothing throws.
-    class locale {
-    public:
-        constexpr locale() noexcept = default;
-
-        SGCL_INLINE_HOT explicit locale(const string& tag) noexcept
-        : _language(_parse(tag.view())) {
-        }
-
-        SGCL_INLINE_HOT static constexpr locale root() noexcept {
-            return locale();
-        }
-
-        SGCL_INLINE_HOT static constexpr locale turkish() noexcept {
-            return locale(_packed("tr"));
-        }
-
-        SGCL_INLINE_HOT static constexpr locale azerbaijani() noexcept {
-            return locale(_packed("az"));
-        }
-
-        SGCL_INLINE_HOT static constexpr locale lithuanian() noexcept {
-            return locale(_packed("lt"));
-        }
-
-        constexpr bool operator==(const locale&) const noexcept = default;
-
-        // Whether the language writes an i the Turkish way, which is the
-        // one question the case mappings ask
-        SGCL_INLINE_HOT constexpr bool dotted_i() const noexcept {
-            return *this == turkish() || *this == azerbaijani();
-        }
-
-        SGCL_INLINE_HOT constexpr bool keeps_dot() const noexcept {
-            return *this == lithuanian();
-        }
-
-        // The language subtag in four bytes, which is what a table keyed
-        // by language is looked up with — the collator's tailorings are
-        // the one such table in the library
-        SGCL_INLINE_HOT constexpr uint32_t subtag() const noexcept {
-            return _language;
-        }
-
-    private:
-        SGCL_INLINE_HOT explicit constexpr locale(uint32_t language) noexcept
-        : _language(language) {
-        }
-
-        // The letters of the language subtag, lower cased, in four bytes;
-        // anything longer or stranger than a subtag is the root locale.
-        // The subtag ends at a '-' or a '_' of BCP-47, and at the '.' of
-        // a codeset or the '@' of a modifier of a POSIX name, which is
-        // what LANG holds: "pl_PL.UTF-8", "tr.UTF-8", "sr@latin". A
-        // modifier says nothing the language subtag keeps — sr@latin is
-        // Serbian in the Latin script, and the script is not kept — so
-        // it is read past, as the region is
-        static constexpr uint32_t _packed(std::string_view tag) noexcept {
-            uint32_t out = 0;
-            size_t n = 0;
-            for (char c : tag) {
-                if (c == '-' || c == '_' || c == '.' || c == '@') {
-                    break;
-                }
-                if (++n > 3) {
-                    return 0;
-                }
-                if (c >= 'A' && c <= 'Z') {
-                    c = char(c + 32);
-                }
-                if (c < 'a' || c > 'z') {
-                    return 0;
-                }
-                out = (out << 8) | uint32_t(uint8_t(c));
-            }
-            return n >= 2 ? out : 0;
-        }
-
-        SGCL_INLINE_HOT static constexpr uint32_t _parse(std::string_view tag) noexcept {
-            return _packed(tag);
-        }
-
-        uint32_t _language = 0;
-    };
-
     namespace detail {
         SGCL_INLINE_HOT constexpr bool is_cased(char32_t c) noexcept {
             return in_set(c, case_tables::Cased);

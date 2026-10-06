@@ -434,8 +434,8 @@ namespace sgcl::crypto::detail {
             k._e = e;
             k._m0inv = bn::mont_m0inv(k._n[0]);
             k._rr.assign(kn, 0);
-            std::vector<word> rrr(kn), scratch(bn::mul_scratch(kn) + kn);
-            bn::mont_constants(k._rr.data(), rrr.data(), k._n.data(), kn, k._m0inv, scratch.data());
+            std::vector<word> scratch(bn::mul_scratch(kn) + kn);
+            bn::mont_constants(k._rr.data(), nullptr, k._n.data(), kn, k._m0inv, scratch.data());
             return k;
         }
 

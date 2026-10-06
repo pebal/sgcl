@@ -8,7 +8,7 @@
 
 Checks that `parent` signed this certificate, Go's `CheckSignatureFrom`: `parent` is a CA (a version 3 parent needs
 a basicConstraints with cA, and its keyUsage, where there is one, keyCertSign), the signature is of an algorithm the
-module verifies (RSA PKCS #1 v1.5 and PSS, ECDSA on P-256 and P-384, Ed25519; over SHA-256, SHA-384 and SHA-512),
+module verifies (RSA PKCS #1 v1.5 and PSS, ECDSA on P-256, P-384 and P-521, Ed25519; over SHA-256, SHA-384 and SHA-512),
 and it is valid under `parent`'s key. Nothing else is checked: not the names, not the times.
 
 ## Parameters

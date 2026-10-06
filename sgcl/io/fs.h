@@ -20,6 +20,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/time.h>
+#include <unistd.h>
 
 namespace sgcl::io {
     // The file system (os, io/fs): what is at a path, and making,
@@ -60,6 +61,9 @@ namespace sgcl::io {
         file_type type = file_type::unknown;
         permissions mode = permissions::none;
         file_time modified;
+        uint64_t links = 0;   // the hard links to the file (st_nlink)
+        uint32_t uid = 0;     // the owner (st_uid)
+        uint32_t gid = 0;     // the group (st_gid)
 
         SGCL_INLINE_HOT bool is_regular() const noexcept { return type == file_type::regular; }
         SGCL_INLINE_HOT bool is_directory() const noexcept { return type == file_type::directory; }
@@ -124,6 +128,9 @@ namespace sgcl::io {
             auto& ts = st.st_mtim;
 #endif
             i.modified = file_time(std::chrono::seconds(ts.tv_sec) + std::chrono::nanoseconds(ts.tv_nsec));
+            i.links = static_cast<uint64_t>(st.st_nlink);
+            i.uid = static_cast<uint32_t>(st.st_uid);
+            i.gid = static_cast<uint32_t>(st.st_gid);
             return i;
         }
 
@@ -311,6 +318,43 @@ namespace sgcl::io {
     // `symlink(...)` on this thread, `co_await async_symlink(...)` in a task
     SGCL_INLINE_HOT async::task<expected<void, error>> async_symlink(const string& target, const string& link) noexcept {
         return detail::on_pool([target, link] { return symlink(target, link); });
+    }
+
+    // A hard link: `link` a second name of the file `target` names (link(2),
+    // Go's os.Link): the same file, its count of links (file_info::links)
+    // one more; a directory refused (EPERM), a name taken refused (EEXIST)
+    SGCL_INLINE_HOT expected<void, error> link(const string& target, const string& link) noexcept {
+        if (::link(target.c_str(), link.c_str()) != 0) {
+            return detail::fail(last_error("link", link));
+        }
+        return {};
+    }
+
+    // `link(...)` on this thread, `co_await async_link(...)` in a task
+    SGCL_INLINE_HOT async::task<expected<void, error>> async_link(const string& target, const string& link) noexcept {
+        return detail::on_pool([target, link] { return io::link(target, link); });
+    }
+
+    // The owner and the group of a file (chown(2), Go's os.Chown): a uid
+    // or gid of -1 keeps that one; lchown changes a symbolic link itself,
+    // not what it names. EPERM for a process that may not give a file away
+    SGCL_INLINE_HOT expected<void, error> chown(const string& path, int uid, int gid) noexcept {
+        if (::chown(path.c_str(), static_cast<uid_t>(uid), static_cast<gid_t>(gid)) != 0) {
+            return detail::fail(last_error("chown", path));
+        }
+        return {};
+    }
+
+    // `chown(...)` on this thread, `co_await async_chown(...)` in a task
+    SGCL_INLINE_HOT async::task<expected<void, error>> async_chown(const string& path, int uid, int gid) noexcept {
+        return detail::on_pool([path, uid, gid] { return chown(path, uid, gid); });
+    }
+
+    SGCL_INLINE_HOT expected<void, error> lchown(const string& path, int uid, int gid) noexcept {
+        if (::lchown(path.c_str(), static_cast<uid_t>(uid), static_cast<gid_t>(gid)) != 0) {
+            return detail::fail(last_error("lchown", path));
+        }
+        return {};
     }
 
     SGCL_INLINE_HOT expected<string, error> read_link(const string& link) noexcept {

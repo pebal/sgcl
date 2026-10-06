@@ -292,9 +292,11 @@ namespace sgcl::net::http {
             return detail::WriterAccess::make(_w);
         }
 
-        // The request through the server's routes as the server routes it
-        // (its path values, a redirect, 404, 405), the handler run to its
-        // end; what a handler throws comes out of serve(). serve() blocks
+        // The request through the server's middlewares and routes as the
+        // server routes it (its path values, a redirect, 404, 405), the
+        // handler run to its end, then the middlewares' end of the response
+        // (a session's cookie, a log's record); what a handler throws comes
+        // out of serve(). serve() blocks
         // the thread (never from a worker); in a task `co_await
         // rec.async_serve(s, req)`
         void serve(const http::server& s, const request& r) const {
@@ -359,8 +361,19 @@ namespace sgcl::net::http {
             if (host.empty() && u) {
                 host = u->host();
             }
-            if (auto t = detail::dispatch(*s, req, r, w, req->method.view(), host.view(), path.view())) {
+            req->dispatch_host = host.view();
+            req->dispatch_path = path.view();
+            auto chain = detail::compose_chain(s);
+            if (auto t = chain ? chain(r, w) : detail::dispatch(*s, req, r, w, req->method.view(), host.view(), path.view())) {
                 co_await *t;
+            }
+            // the end of the response, for the middlewares' hooks: the head's
+            // last fields (a session's cookie), then the record of the end
+            auto& wi = *detail::WriterAccess::impl(w);
+            wi.finishing = true;
+            wi.head_coming();
+            if (wi.after_end) {
+                wi.after_end(wi, wi.body_bytes());
             }
         }
     };

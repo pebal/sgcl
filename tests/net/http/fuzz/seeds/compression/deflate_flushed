@@ -1,0 +1,2 @@
+deflate;q=0.5, gzip;q=0
+streamed body in pieces streamed body

@@ -1,0 +1,5 @@
+ <div>
+*x*
+</div>
+
+<script>alert(1)</script> <a href="javascript:x" onclick="y">z</a>

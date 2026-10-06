@@ -7,7 +7,7 @@ vector<byte> sign(const slice<const byte>& data) const noexcept;
 ```
 
 The signature blob of data by the key's algorithm (RFC 4253 §6.6): the algorithm's name and the signature, as SSH
-carries it — ssh-ed25519, ecdsa-sha2-nistp256 or -nistp384 (a hedged RFC 6979 nonce), rsa-sha2-512. What
+carries it — ssh-ed25519, ecdsa-sha2-nistp256, -nistp384 or -nistp521 (a hedged RFC 6979 nonce), rsa-sha2-512. What
 [public_key::verify](../public_key/verify.md) checks.
 
 ## Parameters

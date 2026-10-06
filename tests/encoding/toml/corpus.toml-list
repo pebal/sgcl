@@ -1,0 +1,684 @@
+#%%% empty
+#%%% only comments
+# a comment
+   # another
+
+#%%% spec example
+# This is a TOML document
+
+title = "TOML Example"
+
+[owner]
+name = "Tom Preston-Werner"
+dob = 1979-05-27T07:32:00-08:00
+
+[database]
+enabled = true
+ports = [ 8000, 8001, 8002 ]
+data = [ ["delta", "phi"], [3.14] ]
+temp_targets = { cpu = 79.5, case = 72.0 }
+
+[servers]
+
+[servers.alpha]
+ip = "10.0.0.1"
+role = "frontend"
+
+[servers.beta]
+ip = "10.0.0.2"
+role = "backend"
+#%%% comment after value
+key = "value"  # This is also a comment
+another = "# This is not a comment"
+#%%% keys bare
+key = "value"
+bare_key = "value"
+bare-key = "value"
+1234 = "value"
+#%%% keys quoted
+"127.0.0.1" = "value"
+"character encoding" = "value"
+"ʎǝʞ" = "value"
+'key2' = "value"
+'quoted "value"' = "value"
+"" = "blank"
+#%%% keys empty literal
+'' = 'blank'
+#%%% keys dotted
+name = "Orange"
+physical.color = "orange"
+physical.shape = "round"
+site."google.com" = true
+#%%% keys whitespace around dots
+fruit.name = "banana"     # this is best practice
+fruit. color = "yellow"    # same as fruit.color
+fruit . flavor = "banana"   # same as fruit.flavor
+#%%% keys dotted out of order
+apple.type = "fruit"
+orange.type = "fruit"
+apple.skin = "thin"
+orange.skin = "thick"
+apple.color = "red"
+orange.color = "orange"
+#%%% keys numeric dotted
+3.14159 = "pi"
+#%%% key without value
+key = # INVALID
+#%%% key without equals
+key "value"
+#%%% key alone
+key
+#%%% key value on one line twice
+first = "Tom" last = "Preston-Werner" # INVALID
+#%%% key empty bare
+= "no key name"  # INVALID
+#%%% key duplicate
+name = "Tom"
+name = "Pradyun"
+#%%% key duplicate quoted
+spelling = "favorite"
+"spelling" = "favourite"
+#%%% key dotted over value
+fruit.apple = 1
+fruit.apple.smooth = true
+#%%% key dotted then table value redefine
+fruit.apple.smooth = true
+fruit.apple = 1
+#%%% key multiline string as key
+"""key""" = 1
+#%%% key with newline in quotes
+"a
+b" = 1
+#%%% key non-ascii bare
+ключ = 1
+#%%% key with hash
+a#b = 1
+#%%% strings basic escapes
+str = "I'm a string. \"You can quote me\". Name\tJos\u00E9\nLocation\tSF."
+all = "\b\t\n\f\r\"\\ \u0041 \U0001F600"
+#%%% strings invalid escape
+str = "\x41"
+#%%% strings invalid escape space
+str = "a\ b"
+#%%% strings escape surrogate
+str = "\uD800"
+#%%% strings escape past range
+str = "\U00110000"
+#%%% strings escape short
+str = "\u12"
+#%%% strings escape e is 1.1
+str = "\e"
+#%%% strings multi-line basic
+str1 = """
+Roses are red
+Violets are blue"""
+#%%% strings multi-line backslash
+str1 = "The quick brown fox jumps over the lazy dog."
+
+str2 = """
+The quick brown \
+
+
+  fox jumps over \
+    the lazy dog."""
+
+str3 = """\
+       The quick brown \
+       fox jumps over \
+       the lazy dog.\
+       """
+#%%% strings multi-line quotes
+str4 = """Here are two quotation marks: "". Simple enough."""
+str5 = """Here are three quotation marks: ""\"."""
+str6 = """Here are fifteen quotation marks: ""\"""\"""\"""\"""\"."""
+str7 = """"This," she said, "is just a pointless statement.""""
+#%%% strings multi-line too many quotes
+str5 = """Here are three quotation marks: """."""
+#%%% strings literal
+winpath  = 'C:\Users\nodejs\templates'
+winpath2 = '\\ServerX\admin$\system32\'
+quoted   = 'Tom "Dubs" Preston-Werner'
+regex    = '<\i\c*\s*>'
+#%%% strings multi-line literal
+regex2 = '''I [dw]on't need \d{2} apples'''
+lines  = '''
+The first newline is
+trimmed in raw strings.
+   All other whitespace
+   is preserved.
+'''
+#%%% strings multi-line literal quotes
+quot15 = '''Here are fifteen quotation marks: """""""""""""""'''
+apos15 = "Here are fifteen apostrophes: '''''''''''''''"
+str = ''''That,' she said, 'is still pointless.''''
+#%%% strings multi-line literal too many
+apos15 = '''Here are fifteen apostrophes: ''''''''''''''''''
+#%%% strings newline in basic
+str = "a
+b"
+#%%% strings newline in literal
+str = 'a
+b'
+#%%% strings unterminated
+str = "abc
+#%%% strings unterminated at end
+str = "abc#%%% strings unterminated multi
+str = """abc
+#%%% strings control in basic
+str = "abc"
+#%%% strings tab in strings
+a = "	tab	"
+b = '	tab	'
+c = """	tab	"""
+d = '''	tab	'''
+#%%% strings crlf multi
+a = """line one
+line two"""
+#%%% strings line-ending backslash with spaces after
+a = """one \   
+   two"""
+#%%% strings backslash in multi with non-space after
+a = """one \ x two"""
+#%%% strings unicode
+a = "zażółć gęślą jaźń 日本語 😀"
+#%%% integers
+int1 = +99
+int2 = 42
+int3 = 0
+int4 = -17
+int5 = 1_000
+int6 = 5_349_221
+int7 = 53_49_221
+int8 = 1_2_3_4_5
+#%%% integers prefixed
+hex1 = 0xDEADBEEF
+hex2 = 0xdeadbeef
+hex3 = 0xdead_beef
+oct1 = 0o01234567
+oct2 = 0o755
+bin1 = 0b11010110
+#%%% integers zeros
+a = +0
+b = -0
+c = 0x0
+d = 0o0
+e = 0b0
+f = 0x000001
+#%%% integers limits
+max = 9223372036854775807
+min = -9223372036854775808
+hmax = 0x7FFFFFFFFFFFFFFF
+#%%% integers leading zero
+a = 012
+#%%% integers leading zero signed
+a = -012
+#%%% integers double underscore
+a = 1__2
+#%%% integers leading underscore
+a = _12
+#%%% integers trailing underscore
+a = 12_
+#%%% integers hex uppercase prefix
+a = 0X1F
+#%%% integers hex signed
+a = +0x1F
+#%%% integers hex underscore after prefix
+a = 0x_1F
+#%%% integers bad octal digit
+a = 0o8
+#%%% integers bad binary digit
+a = 0b102
+#%%% integers bad hex digit
+a = 0xG
+#%%% integers empty prefix
+a = 0x
+#%%% floats
+flt1 = +1.0
+flt2 = 3.1415
+flt3 = -0.01
+flt4 = 5e+22
+flt5 = 1e06
+flt6 = -2E-2
+flt7 = 6.626e-34
+flt8 = 224_617.445_991_228
+#%%% floats special
+sf1 = inf  # positive infinity
+sf2 = +inf # positive infinity
+sf3 = -inf # negative infinity
+sf4 = nan  # actual sNaN/qNaN encoding is implementation-specific
+sf5 = +nan # same as `nan`
+sf6 = -nan # valid, actual encoding is implementation-specific
+#%%% floats zeros
+a = 0.0
+b = -0.0
+c = +0.0
+d = 0e0
+e = -0e0
+f = 0.0e-0
+#%%% floats shortest
+a = 0.1
+b = 1e-7
+c = 123456789012345678901234567890.0
+d = 1.7976931348623157e308
+e = 5e-324
+f = 2.2250738585072014e-308
+#%%% floats no leading digit
+a = .7
+#%%% floats no trailing digit
+a = 7.
+#%%% floats dot before e
+a = 3.e+20
+#%%% floats leading zero
+a = 03.14
+#%%% floats exponent underscore
+a = 1e1_0
+#%%% floats underscore before dot
+a = 1_.5
+#%%% floats Inf capital
+a = Inf
+#%%% floats nan capital
+a = NaN
+#%%% floats double sign
+a = +-1.0
+#%%% floats exponent empty
+a = 1e
+#%%% floats exponent with dot
+a = 1e2.5
+#%%% booleans
+bool1 = true
+bool2 = false
+#%%% booleans capital
+a = True
+#%%% booleans prefix
+a = truer
+#%%% datetimes offset
+odt1 = 1979-05-27T07:32:00Z
+odt2 = 1979-05-27T00:32:00-07:00
+odt3 = 1979-05-27T00:32:00.999999-07:00
+odt4 = 1979-05-27 07:32:00Z
+odt5 = 1979-05-27t07:32:00z
+odt6 = 2000-02-29T23:59:59+14:00
+odt7 = 1969-12-31T23:59:59.5Z
+#%%% datetimes local
+ldt1 = 1979-05-27T07:32:00
+ldt2 = 1979-05-27T00:32:00.999999
+ldt3 = 1979-05-27 07:32:00.5
+#%%% dates local
+ld1 = 1979-05-27
+ld2 = 2000-02-29
+ld3 = 9999-12-31
+ld4 = 0001-01-01
+#%%% times local
+lt1 = 07:32:00
+lt2 = 00:32:00.999999
+lt3 = 23:59:59.123456
+lt4 = 00:00:00
+#%%% datetimes fraction past microseconds
+a = 1979-05-27T00:32:00.999999999-07:00
+b = 07:32:00.1234567
+#%%% datetimes in arrays
+a = [1979-05-27, 07:32:00, 1979-05-27T07:32:00Z, 1979-05-27 07:32:00]
+#%%% datetimes date then comment
+a = 1979-05-27 # comment
+#%%% datetimes no seconds
+a = 1979-05-27T07:32Z
+#%%% datetimes local time no seconds
+a = 07:32
+#%%% datetimes feb 30
+a = 1979-02-30
+#%%% datetimes feb 29 not leap
+a = 1900-02-29
+#%%% datetimes month 13
+a = 1979-13-01
+#%%% datetimes hour 24
+a = 24:00:00
+#%%% datetimes minute 60
+a = 1979-05-27T07:60:00
+#%%% datetimes offset hour 24
+a = 1979-05-27T07:32:00+24:00
+#%%% datetimes empty fraction
+a = 1979-05-27T07:32:00.Z
+#%%% datetimes short year
+a = 979-05-27
+#%%% datetimes time with offset
+a = 07:32:00Z
+#%%% datetimes two spaces
+a = 1979-05-27  07:32:00
+#%%% datetimes trailing garbage
+a = 1979-05-27T07:32:00Zx
+#%%% datetimes offset without colon
+a = 1979-05-27T07:32:00+0700
+#%%% arrays
+integers = [ 1, 2, 3 ]
+colors = [ "red", "yellow", "green" ]
+nested_arrays_of_ints = [ [ 1, 2 ], [3, 4, 5] ]
+nested_mixed_array = [ [ 1, 2 ], ["a", "b", "c"] ]
+string_array = [ "all", 'strings', """are the same""", '''type''' ]
+numbers = [ 0.1, 0.2, 0.5, 1, 2, 5 ]
+contributors = [
+  "Foo Bar <foo@example.com>",
+  { name = "Baz Qux", email = "bazqux@example.com", url = "https://example.com/bazqux" }
+]
+#%%% arrays multi-line
+integers2 = [
+  1, 2, 3
+]
+integers3 = [
+  1,
+  2, # this is ok
+]
+empty = [ ]
+empty2 = [
+]
+nested = [[[]]]
+#%%% arrays comments everywhere
+a = [ # c
+  # c
+  1 # c
+  , # c
+  2 # c
+  # c
+] # c
+#%%% arrays no comma
+a = [1 2]
+#%%% arrays leading comma
+a = [,1]
+#%%% arrays double comma
+a = [1,,2]
+#%%% arrays only comma
+a = [,]
+#%%% arrays unclosed
+a = [1, 2
+#%%% arrays unclosed at end
+a = [1,#%%% tables
+[table-1]
+key1 = "some string"
+key2 = 123
+
+[table-2]
+key1 = "another string"
+key2 = 456
+#%%% tables dotted header
+[dog."tater.man"]
+type.name = "pug"
+#%%% tables whitespace in header
+[a.b.c]            # this is best practice
+[ d.e.f ]          # same as [d.e.f]
+[ g .  h  . i ]    # same as [g.h.i]
+[ j . "ʞ" . 'l' ]  # same as [j."ʞ".'l']
+#%%% tables implicit super
+[x.y.z.w] # for this to work
+
+[x] # defining a super-table afterward is ok
+#%%% tables defined twice
+[fruit]
+apple = "red"
+
+[fruit]
+orange = "orange"
+#%%% tables defined twice via subtable
+[fruit]
+apple = "red"
+
+[fruit.apple]
+texture = "smooth"
+#%%% tables out of order
+[fruit.apple]
+[animal]
+[fruit.orange]
+#%%% tables root before header
+# Top-level table begins.
+name = "Fido"
+breed = "pug"
+
+# Top-level table ends.
+[owner]
+name = "Regina Dogman"
+member_since = 1999-08-04
+#%%% tables dotted keys define
+fruit.apple.color = "red"
+# Defines a table named fruit
+# Defines a table named fruit.apple
+
+fruit.apple.taste.sweet = true
+# Defines a table named fruit.apple.taste
+# fruit and fruit.apple were already created
+#%%% tables header over dotted
+[fruit]
+apple.color = "red"
+apple.taste.sweet = true
+
+[fruit.apple]  # INVALID
+#%%% tables header over dotted nested
+[fruit]
+apple.color = "red"
+apple.taste.sweet = true
+
+[fruit.apple.taste]  # INVALID
+#%%% tables sub-table of dotted
+[fruit]
+apple.color = "red"
+apple.taste.sweet = true
+
+[fruit.apple.texture]  # you can add sub-tables
+smooth = true
+#%%% tables dotted over header
+[a.b.c]
+z = 9
+
+[a]
+b.c.t = "Using dotted keys to add to [a.b.c] after explicitly defining it above is not allowed"
+#%%% tables dotted over header 2
+[a.b.c.d]
+z = 9
+
+[a]
+b.c.d.k.t = "Using dotted keys to add to [a.b.c.d] after explicitly defining it above is not allowed"
+#%%% tables dotted over implicit
+[x.y.w]
+[x]
+y.z = 1
+#%%% tables empty header
+[]
+#%%% tables header unclosed
+[a
+#%%% tables header with value after
+[a] b = 1
+#%%% tables header over value
+a = 1
+[a]
+#%%% tables header through value
+a = 1
+[a.b]
+#%%% tables header empty part
+[a..b]
+#%%% tables header trailing dot
+[a.]
+#%%% tables header with newline
+[a
+.b]
+#%%% inline tables
+name = { first = "Tom", last = "Preston-Werner" }
+point = { x = 1, y = 2 }
+animal = { type.name = "pug" }
+empty = {}
+spaced = {  }
+nested = { a = { b = { c = 1 } }, d = [ { e = 2 } ] }
+#%%% inline tables equivalent
+[name]
+first = "Tom"
+last = "Preston-Werner"
+
+[point]
+x = 1
+y = 2
+
+[animal]
+type.name = "pug"
+#%%% inline tables extended by header
+[product]
+type = { name = "Nail" }
+[product.type]
+edible = false
+#%%% inline tables extended by dotted
+[product]
+type = { name = "Nail" }
+type.edible = false  # INVALID
+#%%% inline tables newline
+a = { x = 1,
+      y = 2 }
+#%%% inline tables trailing comma
+a = { x = 1, }
+#%%% inline tables duplicate
+a = { x = 1, x = 2 }
+#%%% inline tables dotted duplicate
+a = { x.y = 1, x = 2 }
+#%%% inline tables dotted sibling
+a = { x.y = 1, x.z = 2 }
+#%%% inline tables array spanning lines inside
+a = { x = [
+  1, 2
+] }
+#%%% inline tables no comma
+a = { x = 1 y = 2 }
+#%%% inline tables unclosed
+a = { x = 1
+#%%% inline tables extended by subheader
+a = { b = 1 }
+[a.c]
+#%%% inline tables nested extended by header
+a = { b = { c = 1 } }
+[a.b.d]
+#%%% arrays of tables
+[[products]]
+name = "Hammer"
+sku = 738594937
+
+[[products]]  # empty table within the array
+
+[[products]]
+name = "Nail"
+sku = 284758393
+
+color = "gray"
+#%%% arrays of tables nested
+[[fruits]]
+name = "apple"
+
+[fruits.physical]  # subtable
+color = "red"
+shape = "round"
+
+[[fruits.varieties]]  # nested array of tables
+name = "red delicious"
+
+[[fruits.varieties]]
+name = "granny smith"
+
+
+[[fruits]]
+name = "banana"
+
+[[fruits.varieties]]
+name = "plantain"
+#%%% arrays of tables subtable before parent
+[fruit.physical]  # subtable, but to which parent element should it belong?
+color = "red"
+shape = "round"
+
+[[fruit]]  # parser must throw an error upon discovering that "fruit" is
+           # an array rather than a table
+name = "apple"
+#%%% arrays of tables over static array
+fruits = []
+
+[[fruits]] # Not allowed
+#%%% arrays of tables then table same name
+[[fruits]]
+name = "apple"
+
+[[fruits.varieties]]
+name = "red delicious"
+
+# INVALID: This table conflicts with the previous array of tables
+[fruits.varieties]
+name = "granny smith"
+#%%% arrays of tables table then array same name
+[[fruits]]
+name = "apple"
+
+[fruits.physical]
+color = "red"
+shape = "round"
+
+# INVALID: This array of tables conflicts with the previous table
+[[fruits.physical]]
+color = "green"
+#%%% arrays of tables inline points
+points = [ { x = 1, y = 2, z = 3 },
+           { x = 7, y = 8, z = 9 },
+           { x = 2, y = 4, z = 8 } ]
+#%%% arrays of tables header over inline array
+a = [{ b = 1 }]
+[[a]]
+#%%% arrays of tables subtable of inline array element
+a = [{ b = 1 }]
+[a.c]
+#%%% arrays of tables unclosed
+[[a]
+#%%% arrays of tables spaces between brackets
+[ [a] ]
+#%%% whitespace crlf
+a = 1
+b = "x"
+[t]
+c = [
+1,
+2
+]
+#%%% whitespace lone cr
+a = 1b = 2
+#%%% whitespace tabs
+	a	=	1	
+	[	t	]	
+	b	=	2
+#%%% control in comment
+# bad comment
+#%%% del in comment
+# bad comment
+#%%% control in literal
+a = 'bad char'
+#%%% del in string
+a = "bad char"
+#%%% control in multi literal
+a = '''bad  char'''
+#%%% value missing
+a =
+#%%% value unknown
+a = what
+#%%% value then garbage
+a = 1 2
+#%%% value string then garbage
+a = "x" y
+#%%% newline required between pairs
+a = 1, b = 2
+#%%% deep arrays
+a = [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]
+#%%% deep tables
+a.b.c.d.e.f.g.h.i.j.k.l.m.n.o.p = 1
+[q.r.s.t.u.v.w.x.y.z]
+#%%% many keys
+k0 = 0
+k1 = 1
+k2 = 2
+k3 = 3
+k4 = 4
+k5 = 5
+k6 = 6
+k7 = 7
+k8 = 8
+k9 = 9
+k10 = 10
+k11 = 11
+k3 = 33
+#%%% end

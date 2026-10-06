@@ -136,6 +136,7 @@ exit status 0, exit status 0
 
 - [process](../process/README.md), [process_state](../process_state/README.md): the child and how it ended
 - [look_path](../look_path.md): the executable a name stands for
+- [pty::start](../pty/start.md): a command started on a pseudo-terminal, its controlling terminal
 - [pipe](../pipe.md): a pipe of the program's; [buffer](../buffer/README.md): the bytes a child reads or writes in memory
 - [standard_stream](../standard_stream/README.md): `io::stdin`, `io::stdout`, `io::stderr`; [environ](../environ.md): the
   environment to copy into `env`

@@ -1619,9 +1619,11 @@ namespace sgcl::txt {
         // letters first says so and the language is overruled, and one
         // who says nothing gets the language's own answer rather than
         // silence.
+        // The order is the language's, so the collator keeps the language
+        // alone: a collator of pl-PL is one of pl, and equal to it
         collator(locale where, const options& how) noexcept
         : _tailoring(detail::tailoring_of(where))
-        , _locale(where)
+        , _locale(detail::cldr::LocaleAccess::make(uint64_t(where.subtag()) << 32))
         , _strength(how.strength) {
             uint8_t asked = _tailoring ? _tailoring->settings : 0;
             _how.numeric = how.numeric;

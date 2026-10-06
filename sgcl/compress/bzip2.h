@@ -6,22 +6,95 @@
 #pragma once
 
 #include "detail/bzip2.h"
+#include "detail/bzip2_encode.h"
+#include "detail/codec_stream.h"
 #include "detail/stream.h"
+#include "../io/detail/bytes.h"
+
+#include <stdexcept>
 
 namespace sgcl::compress {
     // bzip2 1.0 (.bz2 files, .tar.bz2): the data in blocks of up to 900 KB,
     // each sorted by the Burrows-Wheeler transform and coded with Huffman
-    // codes. Decompression only, as Go has it: a compressor needs the
-    // sorting of suffixes and is left for when someone asks. Streams one
-    // after another (cat a.bz2 b.bz2, and what pbzip2 writes) are read as
-    // one; data after the last that is not another stream is an error.
-    // Randomised blocks, which bzip2 stopped writing in 0.9.5, are
-    // errc::unsupported, as Go refuses them.
+    // codes, both ways. Streams one after another (cat a.bz2 b.bz2, and what
+    // pbzip2 writes) are read as one; data after the last that is not
+    // another stream is an error. Randomised blocks, which bzip2 stopped
+    // writing in 0.9.5, are errc::unsupported, as Go refuses them.
     class bzip2 {
     public:
         using error = compress::error;
 
+        // The block size in 100 KB, as `bzip2 -1` .. `-9`: an int converts
+        // to it, so that options take `{.level = 1}`; a value outside 1..9
+        // is invalid_argument (in a constant, an error at compile time)
+        class level {
+        public:
+            static constexpr int fastest = 1;     // bzip2 -1: blocks of 100 KB
+            static constexpr int standard = 9;    // the bzip2 command's default
+            static constexpr int smallest = 9;    // blocks of 900 KB
+
+            SGCL_INLINE_HOT constexpr level() noexcept
+            : _value(standard) {
+            }
+
+            SGCL_INLINE_HOT constexpr level(int n)
+            : _value(n) {
+                if (n < 1 || n > 9) {
+                    throw std::invalid_argument("compress::bzip2::level: 1..9");
+                }
+            }
+
+            SGCL_INLINE_HOT constexpr int value() const noexcept {
+                return _value;
+            }
+
+            friend constexpr bool operator==(level a, level b) noexcept = default;
+
+        private:
+            int _value;
+        };
+
+        struct options {
+            bzip2::level level;
+        };
+
+        class writer;
         class reader;
+
+        // One stream of blocks of the level's size
+        SGCL_INLINE_HOT static vector<byte> compress(const slice<const byte>& data) noexcept {
+            return compress(data, options{});
+        }
+
+        static vector<byte> compress(const slice<const byte>& data, const options& o) noexcept {
+            detail::LentOutput lent;   // the thread's room, kept from call to call
+            std::vector<uint8_t>& out = lent.out();
+            out.reserve(data.size() / 3 + 64);
+            auto e = std::make_unique<detail::Bzip2Encoder>(o);
+            e->write(detail::bytes(data), data.size(), out);
+            e->finish(out);
+            return detail::to_vector(out.data(), out.size());
+        }
+
+        SGCL_INLINE_HOT static vector<byte> compress(const string& text) noexcept {
+            return compress(io::detail::bytes_of(text), options{});
+        }
+
+        SGCL_INLINE_HOT static vector<byte> compress(const string& text, const options& o) noexcept {
+            return compress(io::detail::bytes_of(text), o);
+        }
+
+        // A literal, a character array, a std::string_view: the text's
+        // bytes as the string's overload takes them
+        template<sgcl::detail::TextArgument T>
+        SGCL_INLINE_HOT static vector<byte> compress(const T& text) noexcept {
+            return compress(slice<const byte>(text), options{});
+        }
+
+        template<sgcl::detail::TextArgument T>
+        SGCL_INLINE_HOT static vector<byte> compress(const T& text, const options& o) noexcept {
+            return compress(slice<const byte>(text), o);
+        }
 
         // Every stream, one after another, up to the limit
         SGCL_INLINE_HOT static expected<vector<byte>, error> decompress(const slice<const byte>& data) noexcept {
@@ -247,5 +320,31 @@ namespace sgcl::compress {
         bool _source_ended = false;
         bool _ended = false;
         optional<error> _error;
+    };
+
+    // What is written, compressed into out as a bzip2 stream, a block of the
+    // level's size at a time; flush() ends the block and the stream (bzip2
+    // has no way to end a block on a byte inside one), and the next write
+    // begins another stream, which bzip2 -d and the reader read on as one.
+    // The first failure of out is kept: every write and close after it gives
+    // it at once and writes nothing, so a stream may be written freely and
+    // checked once, at the close, which writes the last block and the end of
+    // the stream and leaves out open.
+    class bzip2::writer final
+    : public detail::CodecWriter<detail::Bzip2Encoder, bzip2::options> {
+    public:
+        writer(writer&&) noexcept = default;   // the other left closed (detail/codec_stream.h)
+
+        SGCL_INLINE_HOT writer& operator=(writer&& o) noexcept {
+            return detail::move_into(*this, std::move(o));
+        }
+
+        SGCL_INLINE_HOT explicit writer(const io::writer& out) noexcept
+        : CodecWriter(out, options{}) {
+        }
+
+        SGCL_INLINE_HOT writer(const io::writer& out, const options& o) noexcept
+        : CodecWriter(out, o) {
+        }
     };
 }

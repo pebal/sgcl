@@ -19,8 +19,16 @@ Writes the image into the file at `path`, in the format the path's extension nam
 |---|---|
 | `.png` | PNG, at the level `o.level` ([png::encode](png/encode.md)) |
 | `.jpg`, `.jpeg` | JPEG, at the quality `o.quality` and with the subsampling `o.subsampling` ([jpeg::encode](jpeg/encode.md)) |
+| `.gif` | GIF, with gif's default [options](gif-options.md): 256 colors, dithered where the image has more ([gif::encode](gif/encode.md)) |
+| `.webp` | WebP, lossy at the quality `o.quality`, or lossless when `o.lossless` ([webp::encode](webp/encode.md)) |
 | `.heic`, `.heif` | HEIC, at the quality `o.quality`, where the system writes it (macOS); `errc::unsupported` elsewhere ([heif::encode](heif/encode.md)) |
-| `.gif`, `.webp`, `.avif` | nothing: formats the module reads and does not write, `errc::unsupported` |
+| `.tif`, `.tiff` | TIFF with LZW ([tiff::encode](tiff/encode.md)) |
+| `.bmp` | BMP ([bmp::encode](bmp/encode.md)) |
+| `.ico`, `.cur` | an icon or a cursor of one entry, the image's sides at most 256 ([ico::encode](ico/encode.md)) |
+| `.qoi` | QOI ([qoi::encode](qoi/encode.md)) |
+| `.pbm`, `.pgm`, `.ppm`, `.pam` | that Netpbm format, raw ([pnm::encode](pnm/encode.md)) |
+| `.pnm` | PGM, PPM or PAM by the image's format ([pnm::encode](pnm/encode.md)) |
+| `.avif`, `.jxl` | nothing: a format the module reads and does not write, `errc::unsupported` |
 | any other, or none | nothing: `errc::unsupported` |
 
 When the extension is refused nothing is written. Otherwise the file is written as `path + ".part"` and renamed over
@@ -38,13 +46,14 @@ was. [image::save](image/save.md) is the same as a method of the image, and [loa
 |---|---|
 | `im` | the image |
 | `path` | the file, its format told by its extension |
-| `o` | the PNG level, the JPEG and HEIC quality, the JPEG subsampling; each field is for the formats it names ([save_options](save_options.md)) |
+| `o` | the PNG level, the JPEG, HEIC and WebP quality, the JPEG subsampling, lossless WebP; each field is for the formats it names ([save_options](save_options.md)) |
 
 ## Return value
 
 Nothing; or the [error](error/README.md): `errc::unsupported` for an extension of no format the module writes (and for HEIC
-where the system has no HEVC encoder), `errc::invalid_argument` for a HEIC quality outside 1 to 100 and for an image
-the format cannot hold (a JPEG side past 65 535 pixels, a PNG side past 2^31 − 1), and `errc::io` when the file
+where the system has no HEVC encoder), `errc::invalid_argument` for a HEIC or WebP quality outside 1 to 100, and for an
+image the format cannot hold (a JPEG or GIF side past 65 535 pixels, a WebP side past 16 384, a PNG side past 2^31 − 1, an icon side past 256,
+a BMP past 4 GB of pixels, a TIFF file past 4 GB), and `errc::io` when the file
 cannot be created, written, closed or renamed, with io's error inside ([io_error](error/io_error.md)). (2) gives it
 through the task.
 
@@ -83,8 +92,8 @@ int main() {
     println("{} {} {}", io::exists("picture.png"), io::exists("picture.JPG"),
             io::exists("copy.png"));
 
-    expected<void, codec::error> gif = codec::save(picture, "picture.gif");
-    println("{}, {}", gif.error().message(), io::exists("picture.gif"));
+    expected<void, codec::error> avif = codec::save(picture, "picture.avif");
+    println("{}, {}", avif.error().message(), io::exists("picture.avif"));
 
     try {
         codec::save(picture, "bad.jpg", {.quality = 0});
@@ -102,7 +111,7 @@ Output:
 
 ```text
 true true true
-offset 0: codec: .gif is read, not written (no encoder), false
+offset 0: codec: .avif is read, not written (no encoder), false
 sgcl::codec::jpeg::encode: quality outside 1..100, false false
 ```
 

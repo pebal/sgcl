@@ -31,11 +31,13 @@ resumes the producer.
   managed object, in a `std` container, in a global.
 - The parameters, locals and temporaries of the coroutine are roots while the frame is held: a `tracked_ptr`, a
   container, a string kept across a `co_yield` keep what they refer to.
-- The coroutine is lazy: nothing runs until the first `next()` or `begin()`. It runs on the thread that calls
-  `next()`, one step per call, and a generator is resumed by one thread at a time.
-- An exception the coroutine throws comes out of `next()`, the iterator's `++` or `begin()`; the generator is
+- The coroutine is lazy: nothing runs until the first `next()` or the iterator's first look at a value. It runs on
+  the thread that calls `next()`, one step per call, and a generator is resumed by one thread at a time.
+- An exception the coroutine throws comes out of `next()` or the iterator's look that runs it; the generator is
   finished after it.
-- Single pass: the coroutine advances with every `next()`, and `begin()` advances it too.
+- Single pass: the coroutine advances with every `next()` and with every look of an iterator at a new value; `++` and
+  `begin()` run nothing, so a range-for left by a `break` or a `std::views::take` goes on, in the next one, from the
+  value after the last one looked at.
 - Move-only: a move hands the frame over and leaves the source empty. Destroying a generator, or a move assignment
   over one, destroys the coroutine at once, wherever it was suspended.
 
@@ -50,7 +52,7 @@ resumes the producer.
 | Type | Definition |
 |---|---|
 | [promise_type](../generator-promise_type.md) | the promise of the coroutine, derived from `managed_frame` |
-| [iterator](../generator-iterator.md) | an input iterator over the values, for the range-for |
+| [iterator](../generator-iterator.md) | a lazy input iterator over the values, for the range-for and the views |
 
 ## Member functions
 
@@ -67,8 +69,8 @@ resumes the producer.
 
 | Function | Description |
 |---|---|
-| [begin](begin.md) | runs the coroutine to its first value and returns an iterator to it |
-| [end](end.md) | the end iterator |
+| [begin](begin.md) | an iterator at the next value, which runs the coroutine at its first look |
+| [end](end.md) | the end of a range-for, `std::default_sentinel` |
 
 ## Complexity
 

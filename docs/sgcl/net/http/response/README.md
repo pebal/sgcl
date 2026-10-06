@@ -36,6 +36,12 @@ it, and its connection, alive. The program does not make one: the client does.
   connection to the other requests. A stream the server resets while its body is read is
   `std::errc::connection_reset`.
 
+## Member types
+
+| Type | Definition |
+|---|---|
+| [cache_status](../response-cache_status.md) | how the client's cache answered the request |
+
 ## Member functions
 
 | Function | Description |
@@ -55,6 +61,9 @@ it, and its connection, alive. The program does not make one: the client does.
 | [headers](headers.md) | the fields |
 | [cookies](cookies.md) | the cookies of the `Set-Cookie` fields |
 | [content_length](content_length.md) | the length of the body as the response declared it |
+| [uncompressed](uncompressed.md) | whether the client decoded the body by itself |
+| [from_cache](from_cache.md) | how the client's cache answered the request |
+| [age](age.md) | the age of a response the cache served |
 | [url](url.md) | the URL the response came from, the last of the redirects |
 
 #### The body

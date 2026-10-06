@@ -3,8 +3,11 @@
 # sgcl::time::datetime::format
 
 ```cpp
-string format(layout format) const noexcept;            // (1)
-string format(const string& pattern) const noexcept;    // (2)
+string format(layout format) const noexcept;                          // (1)
+string format(const string& pattern) const noexcept;                  // (2)
+string format(const txt::locale& l, style date = style::medium,       // (3)
+              style time = style::brief) const;
+string format(const txt::locale& l, const string& skeleton) const;    // (4)
 ```
 
 The text of the datetime, Go's `t.Format`.
@@ -21,6 +24,11 @@ The text of the datetime, Go's `t.Format`.
    the datetime holds, nine digits (`12:41:15.000000000`); a text to the second is `%X`, or a layout: the header of
    HTTP is `t.format(time::http)`. `%Z` writes the zone's [abbreviation](abbreviation.md) (`CEST`, `UTC`, a fixed
    offset's name), `%z` the offset `+0200`, `%Ez` and `%Oz` `+02:00`; the seconds of an offset are dropped.
+3. As a locale writes it, in its patterns of the lengths `date` and `time` ([style](../style.md)), with its names
+   and digits (CLDR 46, [localized.h](../date_format/README.md)): `t.format(txt::locale("pl"))` is `"24 wrz 2026,
+   12:41"`, `t.format(l, time::style::full, time::style::none)` `"czwartek, 24 września 2026"`.
+4. As a locale writes the fields of a skeleton, in any order: `t.format(l, "MMMd")` is `"24 wrz"`, `"jm"` the time
+   in the locale's 12 or 24 hours ([date_format::from_skeleton](../date_format/from_skeleton.md)).
 
 ## Parameters
 
@@ -28,6 +36,9 @@ The text of the datetime, Go's `t.Format`.
 |---|---|
 | `format` | the layout: `time::rfc3339`, `rfc3339_nano`, `http`, `email` or `iso8601` |
 | `pattern` | the pattern, `%` specifiers and the characters written as they are between them |
+| `l` | the locale |
+| `date`, `time` | the lengths of the date's and the time's patterns, a [style](../style.md) |
+| `skeleton` | the fields wanted: `"yMMMd"`, `"MMMMEd"`, `"jm"` |
 
 ## Return value
 
@@ -37,6 +48,7 @@ The text.
 
 - (1) Constant, plus the look-up of the instant in the zone's changes.
 - (2) Linear in the length of `pattern`, plus the look-up of the instant in the zone's changes.
+- (3–4) Linear in the number of the locale's patterns, plus the look-up of the instant in the zone's changes.
 
 ## Exceptions
 
@@ -58,6 +70,7 @@ writes too — `sys_time` and `local_time` of an integral duration, `year_month_
 ```cpp
 #include "sgcl/io.h"
 #include "sgcl/time.h"
+#include "sgcl/txt.h"
 #include <chrono>
 
 using namespace sgcl;
@@ -81,6 +94,16 @@ int main() {
     println("[{:%H:%M}] [{:>12%F}] [{}] [{:%a}]", t, t.date(), t.weekday(), t.weekday());
     auto sys = std::chrono::sys_seconds(std::chrono::seconds(t.unix()));
     println("{} {:%T} {}", sys, std::chrono::milliseconds(90500), std::chrono::minutes(90));
+
+    // In a locale
+    {
+        auto t = time::date(2026, 9, 24).at(12, 41, time::zone("Europe/Warsaw"));
+        auto pl = txt::locale("pl");
+        println("{}", t.format(pl));
+        println("{}", t.format(pl, time::style::full, time::style::none));
+        println("{}", t.format(txt::locale("en"), time::style::detailed, time::style::brief));
+        println("{} | {}", t.format(pl, "MMMd"), t.format(txt::locale("en"), "jm"));
+    }
 }
 ```
 
@@ -95,10 +118,16 @@ Thursday, 24 September 2026, 12:41 CEST
 12:41:15.122575000 | 12:41:15 | +0200 +02:00 | 12 %Q
 [12:41] [  2026-09-24] [Thursday] [Thu]
 2026-09-24 10:41:15 00:01:30.500 90min
+24 wrz 2026, 12:41
+czwartek, 24 września 2026
+September 24, 2026 at 12:41 PM
+24 wrz | 12:41 PM
 ```
 
 ## See also
 
+- [date_format](../date_format/README.md): a locale's format kept, and its patterns
+- [format_interval](format_interval.md)
 - [parse](parse.md): reads the text back
 - [to_string](to_string.md): RFC 3339 with the fraction where there is one
 - [layout](../layout/README.md): the formats known by name, what each writes and reads

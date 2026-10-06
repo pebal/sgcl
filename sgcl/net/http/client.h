@@ -7,6 +7,14 @@
 
 #include "cookie_jar.h"
 #include "proxy.h"
+#include "cache.h"
+#include "../../compress/gzip.h"
+#include "../../compress/brotli.h"
+#include "../../compress/limits.h"
+#include "../../compress/zlib.h"
+#include "../../compress/zstd.h"
+#include "detail/auth.h"
+#include "../../crypto/random.h"
 #include "request.h"
 #include "response.h"
 #include "status.h"
@@ -37,6 +45,7 @@
 #include "../../core/vector.h"
 
 #include <charconv>
+#include <atomic>
 #include <chrono>
 #include <cstdio>
 #include <mutex>
@@ -54,6 +63,24 @@ namespace sgcl::net::http {
         };
 
         struct Pool;
+
+        // A protection space a 401 of the client's was answered in: the
+        // origin, the paths at or under `path` (RFC 7617 §2.2), the scheme
+        // and, for Digest, what the challenge gave and the count of its
+        // nonce. The next requests under it send Authorization at once
+        struct AuthSpace {
+            string origin;
+            string realm;
+            string path;
+            bool digest = false;
+            DigestAlgorithm algorithm;
+            string nonce;
+            string opaque;
+            string qop;                       // "auth", "auth-int", or "" (RFC 2069's form)
+            bool userhash = false;
+            std::atomic<uint32_t> nc = {0};
+            http::credentials creds;
+        };
 
         // What an idle connection's timer holds: the pool, and which
         // connection it is to close if it is still idle when it fires
@@ -76,6 +103,9 @@ namespace sgcl::net::http {
             // dial under way to an origin that others wait for
             map<string, vector<tracked_ptr<h2::ClientH2>>> h2;
             map<string, async::event> h2_dialing;
+            // the protection spaces the client's 401s were answered in (RFC
+            // 9110 §11.5), for the next requests under them (auth spaces)
+            vector<tracked_ptr<AuthSpace>> auth_spaces;
 
             // A connection of the origin with room for one more stream, the
             // room reserved (the pool's lock, then the connection's)
@@ -279,6 +309,7 @@ namespace sgcl::net::http {
             duration idle_timeout;
             size_t max_idle_per_host = 16;
             int max_redirects = 10;
+            bool follow_redirects = true;
             size_t max_response_header_bytes = 1 << 20;
             dial_function dial;
             net::tls::config tls;
@@ -286,6 +317,13 @@ namespace sgcl::net::http {
             bool h2c = false;
             http::proxy proxy;
             optional<cookie_jar> jar;
+            optional<http::credentials> credentials;
+            bool decompress = true;
+            optional<http::cache> cache;
+            // the Authorization of every request to the origin of its own URL,
+            // a token source's (oauth2.h); true asks for a new one (after a
+            // 401 with error="invalid_token")
+            function<async::task<expected<string, io::error>>(bool)> authorization;
         };
 
         // What one attempt sends
@@ -1407,6 +1445,473 @@ namespace sgcl::net::http {
             return fields;
         }
 
+        // The space of the pool that covers a target: its origin, a path at
+        // or under the space's, the longest of them
+        inline tracked_ptr<AuthSpace> find_space(Pool& pool, const string& origin, std::string_view path) noexcept {
+            std::lock_guard<std::mutex> g(pool.lock);
+            tracked_ptr<AuthSpace> best;
+            for (auto& s : pool.auth_spaces) {
+                if (s->origin == origin && path.starts_with(s->path.view()) && (!best || s->path.size() > best->path.size())) {
+                    best = s;
+                }
+            }
+            return best;
+        }
+
+        // A space kept, in the place of one of the same origin and realm
+        inline void keep_space(Pool& pool, const tracked_ptr<AuthSpace>& sp) noexcept {
+            std::lock_guard<std::mutex> g(pool.lock);
+            for (auto& s : pool.auth_spaces) {
+                if (s->origin == sp->origin && s->realm == sp->realm) {
+                    s = sp;
+                    return;
+                }
+            }
+            if (pool.auth_spaces.size() >= 256) {
+                pool.auth_spaces.erase(pool.auth_spaces.begin());   // the oldest dropped: a client of many realms
+            }
+            pool.auth_spaces.push_back(sp);
+        }
+
+        // The request-target of origin-form, Digest's uri
+        inline std::string target_of(const net::url& u) {
+            std::string out(u.path().view());
+            if (out.empty()) {
+                out = "/";
+            }
+            if (u.has_query()) {
+                out += '?';
+                out += u.query().view();
+            }
+            return out;
+        }
+
+        // The body of an attempt as it goes, when it is in memory, for
+        // auth-int's hash; nullopt for a stream or a form
+        inline optional<std::string_view> auth_body_of(const Outgoing& o) noexcept {
+            switch (o.body_kind) {
+                case RequestImpl::BodyKind::none:
+                    return std::string_view();
+                case RequestImpl::BodyKind::text:
+                    return o.text.view();
+                case RequestImpl::BodyKind::bytes:
+                    return std::string_view(reinterpret_cast<const char*>(o.bytes.data()), o.bytes.size());
+                default:
+                    return nullopt;
+            }
+        }
+
+        // The Authorization of a space for an attempt: Basic's, or Digest's
+        // response with the next count of its nonce and a fresh cnonce
+        // (RFC 7616 §3.4)
+        inline string space_authorization(AuthSpace& sp, const Outgoing& o) {
+            if (!sp.digest) {
+                return basic_credentials(sp.creds.user.view(), sp.creds.password.view());
+            }
+            const uint32_t nc = sp.nc.fetch_add(1, std::memory_order_relaxed) + 1;
+            char ncs[9];
+            std::snprintf(ncs, sizeof ncs, "%08x", nc);
+            byte raw[16];
+            crypto::random::fill(slice<byte>(raw, sizeof raw));
+            std::string cnonce;
+            append_hex_bytes(cnonce, reinterpret_cast<const unsigned char*>(raw), sizeof raw);
+            const std::string uri = target_of(*o.target);
+            std::string body_hash;
+            if (sp.qop == "auth-int") {
+                body_hash = digest_hex(sp.algorithm.hash, auth_body_of(o).value_or(std::string_view()));
+            }
+            DigestInput in;
+            in.algorithm = sp.algorithm;
+            in.user = sp.creds.user.view();
+            in.realm = sp.realm.view();
+            in.password = sp.creds.password.view();
+            in.method = o.method.view();
+            in.uri = uri;
+            in.nonce = sp.nonce.view();
+            in.cnonce = cnonce;
+            in.nc = std::string_view(ncs, 8);
+            in.qop = sp.qop.view();
+            in.body_hash = body_hash;
+            std::string h = "Digest ";
+            const std::string_view user = sp.creds.user.view();
+            bool ascii = true;
+            for (unsigned char c : user) {
+                ascii = ascii && c >= 0x20 && c < 0x7F;
+            }
+            if (sp.userhash) {
+                h += "username=\"";
+                h += digest_hex(sp.algorithm.hash, std::string(user) + ":" + std::string(sp.realm.view()));
+                h += "\"";
+            } else if (ascii) {
+                h += "username=";
+                append_quoted(h, user);
+            } else {
+                h += "username*=";
+                h += encode_ext_value(user);
+            }
+            h += ", realm=";
+            append_quoted(h, sp.realm.view());
+            h += ", uri=";
+            append_quoted(h, uri);
+            h += ", algorithm=";
+            h += digest_algorithm_name(sp.algorithm);
+            h += ", nonce=";
+            append_quoted(h, sp.nonce.view());
+            if (!sp.qop.empty()) {
+                h += ", qop=";
+                h += sp.qop.view();
+                h += ", nc=";
+                h.append(ncs, 8);
+                h += ", cnonce=\"";
+                h += cnonce;
+                h += "\"";
+            }
+            h += ", response=\"";
+            h += digest_response(in);
+            h += "\"";
+            if (!sp.opaque.empty()) {
+                h += ", opaque=";
+                append_quoted(h, sp.opaque.view());
+            }
+            if (sp.userhash) {
+                h += ", userhash=true";
+            }
+            return string(std::string_view(h));
+        }
+
+        // The space a 401 is answered in, made of its best challenge: Digest
+        // of the strongest algorithm of ours (SHA-512/256, SHA-256, MD5; a
+        // -sess form after its plain one) with qop auth (auth-int when it is
+        // the only one and the body is in memory; RFC 2069's form when no
+        // qop is offered), else Basic; null when it offers neither
+        inline tracked_ptr<AuthSpace> space_of_challenges(const http::headers& fields, const Outgoing& o, const string& origin,
+                                                          const http::credentials& creds) {
+            tracked_ptr<AuthSpace> best;
+            int best_rank = -1;
+            for (auto& value : fields.get_all("WWW-Authenticate")) {
+                for (auto& c : parse_challenges(value.view())) {
+                    int rank = -1;
+                    tracked_ptr sp = make_tracked<AuthSpace>();
+                    if (iequal(c.scheme, "basic")) {
+                        rank = 0;
+                    } else if (iequal(c.scheme, "digest") && c.param("nonce")) {
+                        auto a = digest_algorithm(c.param("algorithm") ? std::string_view(*c.param("algorithm")) : std::string_view("MD5"));
+                        if (!a) {
+                            continue;
+                        }
+                        std::string qop;
+                        if (auto q = c.param("qop")) {
+                            bool auth = false, integrity = false;
+                            std::string_view list = *q;
+                            while (!list.empty()) {
+                                const size_t comma = list.find(',');
+                                const std::string_view item = trim_ows(list.substr(0, comma));
+                                list = comma == std::string_view::npos ? std::string_view() : list.substr(comma + 1);
+                                auth = auth || item == "auth";
+                                integrity = integrity || item == "auth-int";
+                            }
+                            if (auth) {
+                                qop = "auth";
+                            } else if (integrity && auth_body_of(o)) {
+                                qop = "auth-int";
+                            } else {
+                                continue;
+                            }
+                        }
+                        rank = 10 + (a->hash == DigestHash::sha512_256 ? 30 : a->hash == DigestHash::sha256 ? 20 : 10) - (a->sess ? 1 : 0);
+                        sp->digest = true;
+                        sp->algorithm = *a;
+                        sp->nonce = string(std::string_view(*c.param("nonce")));
+                        if (auto op = c.param("opaque")) {
+                            sp->opaque = string(std::string_view(*op));
+                        }
+                        sp->qop = string(std::string_view(qop));
+                        auto uh = c.param("userhash");
+                        sp->userhash = uh && iequal(*uh, "true");
+                    } else {
+                        continue;
+                    }
+                    if (rank > best_rank) {
+                        if (auto realm = c.param("realm")) {
+                            sp->realm = string(std::string_view(*realm));
+                        }
+                        best = sp;
+                        best_rank = rank;
+                    }
+                }
+            }
+            if (best) {
+                best->origin = origin;
+                best->creds = creds;
+                // the space: the paths at or under the directory of the target
+                std::string_view path = o.target->path().view();
+                const size_t slash = path.rfind('/');
+                best->path = string(slash == std::string_view::npos ? std::string_view("/") : path.substr(0, slash + 1));
+            }
+            return best;
+        }
+
+        // Whether a 401 refuses a Bearer token as invalid_token (RFC 6750 §3.1)
+        inline bool bearer_refused(const http::headers& fields) {
+            for (auto& value : fields.get_all("WWW-Authenticate")) {
+                for (auto& c : parse_challenges(value.view())) {
+                    if (iequal(c.scheme, "bearer")) {
+                        if (auto e = c.param("error"); e && *e == "invalid_token") {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        // Whether a 401's best challenge says the nonce we sent is stale
+        inline bool challenge_stale(const http::headers& fields) {
+            for (auto& value : fields.get_all("WWW-Authenticate")) {
+                for (auto& c : parse_challenges(value.view())) {
+                    if (iequal(c.scheme, "digest")) {
+                        if (auto s = c.param("stale"); s && iequal(*s, "true")) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        // The codings the client asks for by itself (client::decompress)
+        inline constexpr std::string_view DecodedCodings = "gzip, deflate, br, zstd";
+
+        // A response in the coding the client asked for, decoded as it is
+        // read: a reader of gzip, of deflate (zlib's framing, RFC 9110
+        // §8.4.1.2), of br or of zstd over the body; Content-Encoding and Content-Length gone.
+        // A coding of another name, or several, leaves the response as it
+        // came, as does a response without a body
+        inline void decode_body(const response& res, std::string_view method) {
+            auto& impl = *ResponseAccess::impl(res);
+            if (method == "HEAD" || impl.status == 204 || impl.status == 304 || (impl.status >= 100 && impl.status < 200) || !impl.body) {
+                return;
+            }
+            auto coding = HeadersAccess::find(impl.fields, "content-encoding");
+            if (!coding || HeadersAccess::count(impl.fields, "content-encoding") != 1) {
+                return;
+            }
+            const std::string_view c = trim_ows(*coding);
+            if (iequal(c, "gzip") || iequal(c, "x-gzip")) {
+                impl.decoded = io::reader(make_tracked<compress::gzip::reader>(io::reader(impl.body)));
+            } else if (iequal(c, "deflate")) {
+                impl.decoded = io::reader(make_tracked<compress::zlib::reader>(io::reader(impl.body)));
+            } else if (iequal(c, "br")) {
+                impl.decoded = io::reader(make_tracked<compress::brotli::reader>(io::reader(impl.body)));
+            } else if (iequal(c, "zstd")) {
+                // RFC 9659 §3: a window past 8 MB may be refused; twice the window held, so 16 MB and a margin
+                compress::limits l;
+                l.max_memory = uint64_t(32) << 20;
+                impl.decoded = io::reader(make_tracked<compress::zstd::reader>(io::reader(impl.body), l));
+            } else {
+                return;
+            }
+            impl.uncompressed = true;
+            impl.reads_decoded = true;
+            impl.fields.erase("Content-Encoding");
+            impl.fields.erase("Content-Length");
+            impl.content_length.reset();
+        }
+
+        // --- the cache (cache.h) ----------------------------------------------
+
+        inline int64_t cache_now() noexcept {
+            return time::now().unix();
+        }
+
+        // A stored response as a response: its head with Age, its body from
+        // memory (or its file); HEAD gets the head alone
+        // A stored response's body, from memory or from its file (read on the
+        // scheduler's I/O); nothing for HEAD
+        inline async::task<std::string> cached_bytes(tracked_ptr<CacheEntry> e, bool head) noexcept {
+            std::string out;
+            if (head) {
+                co_return out;
+            }
+            if (e->file.empty()) {
+                out.assign(reinterpret_cast<const char*>(e->body.data()), e->body.size());
+                co_return out;
+            }
+            if (auto data = co_await io::async_read_file(e->file + ".body")) {
+                out.assign(reinterpret_cast<const char*>(data->data()), data->size());
+            }
+            co_return out;
+        }
+
+        // A disk entry's head written again (after a 304 renewed it)
+        inline async::task<> save_head(tracked_ptr<CacheState> st, tracked_ptr<CacheEntry> e) noexcept {
+            const string tmp = e->file + ".head.tmp";
+            if (co_await io::async_write_file(tmp, string(std::string_view(st->head_of(*e))))) {
+                (void)io::rename(tmp, e->file + ".head");
+            }
+        }
+
+        inline response cached_response(const CacheEntry& e, const Outgoing& o, int64_t age, response::cache_status how, const std::string& bytes) {
+            tracked_ptr impl = make_tracked<ResponseImpl>();
+            impl->status = e.status;
+            impl->fields = e.fields;
+            impl->fields.set("Age", string(std::to_string(age < 0 ? 0 : age)));
+            impl->url = *o.target;
+            impl->uncompressed = e.uncompressed;
+            impl->cache = uint8_t(how);
+            impl->age = age < 0 ? 0 : age;
+            auto ends = net::connection::in_memory();
+            tracked_ptr wire = make_tracked<Wire>(ends.first);
+            wire->preload(bytes);
+            const bool none = bytes.empty();
+            impl->body = make_tracked<Body>(wire, BodyFraming{none ? Framing::none : Framing::length, bytes.size()}, 0, true);
+            if (o.method.view() != "HEAD") {
+                impl->content_length = uint64_t(bytes.size());
+            }
+            return ResponseAccess::make(impl);
+        }
+
+        // The 304 of a revalidation merged into the stored head (RFC 9111
+        // §3.2): each field of the 304 replaces the stored ones of its name,
+        // but the framing's; the times renewed
+        //
+        // A stored entry is never changed in place (a response may be reading
+        // it): the renewed one is a copy that takes its place
+        inline tracked_ptr<CacheEntry> refresh_entry(CacheState& st, const tracked_ptr<CacheEntry>& old, const http::headers& fresh, int64_t request_time,
+                                                     int64_t response_time) {
+            tracked_ptr renewed = make_tracked<CacheEntry>(*old);
+            CacheEntry& e = *renewed;
+            e.revalidating = false;
+            for (auto& f : HeadersAccess::fields(fresh)) {
+                const std::string_view n = f.first.view();
+                if (iequal(n, "content-length") || iequal(n, "transfer-encoding") || iequal(n, "content-encoding") || iequal(n, "connection")) {
+                    continue;
+                }
+                e.fields.erase(string(n));
+            }
+            for (auto& f : HeadersAccess::fields(fresh)) {
+                const std::string_view n = f.first.view();
+                if (iequal(n, "content-length") || iequal(n, "transfer-encoding") || iequal(n, "content-encoding") || iequal(n, "connection")) {
+                    continue;
+                }
+                e.fields.add(string(n), string(f.second.view()));
+            }
+            e.request_time = request_time;
+            e.response_time = response_time;
+            st.store(renewed);
+            return renewed;
+        }
+
+        // What a response's body is read through to be stored as it goes: a
+        // copy kept to its end (within max_entry_bytes), then the entry put in
+        // the cache; a body broken off, or past the limit, stores nothing
+        struct CacheTee : io::mixin::reader<CacheTee> {
+            io::reader inner;
+            tracked_ptr<CacheState> st;
+            tracked_ptr<CacheEntry> entry;
+            std::string kept;
+            bool dropped = false;
+            bool stored = false;
+
+            expected<size_t, io::error> read(const slice<byte>& out) {
+                return async_read(out).wait();
+            }
+
+            async::task<expected<size_t, io::error>> async_read(slice<byte> out) noexcept {
+                auto n = co_await inner.async_read(out);
+                if (!n) {
+                    dropped = true;
+                    co_return n;
+                }
+                if (*n == 0) {
+                    if (!dropped && !stored) {
+                        stored = true;
+                        entry->size = kept.size();
+                        if (st->directory.empty()) {
+                            entry->body.assign(reinterpret_cast<const byte*>(kept.data()), reinterpret_cast<const byte*>(kept.data()) + kept.size());
+                            st->store(entry);
+                        } else {
+                            // the body, then the head, each written whole and renamed into place
+                            const string file = st->file_of(*entry);
+                            const string body_tmp = file + ".body.tmp";
+                            const string head_tmp = file + ".head.tmp";
+                            const bool body_ok = co_await io::async_write_file(body_tmp, slice<const byte>(reinterpret_cast<const byte*>(kept.data()), kept.size())) &&
+                                                 io::rename(body_tmp, file + ".body");
+                            if (body_ok && co_await io::async_write_file(head_tmp, string(std::string_view(st->head_of(*entry)))) &&
+                                io::rename(head_tmp, file + ".head")) {
+                                entry->file = file;
+                                st->store(entry);
+                            }
+                        }
+                        kept = std::string();
+                    }
+                    co_return n;
+                }
+                if (!dropped) {
+                    if (kept.size() + *n > st->max_entry_bytes) {
+                        dropped = true;
+                        kept = std::string();
+                    } else {
+                        kept.append(reinterpret_cast<const char*>(out.data()), *n);
+                    }
+                }
+                co_return n;
+            }
+        };
+
+        // A response stored as its body is read (or at once, for one without
+        // a body); the request's Vary values kept
+        inline void store_response(const tracked_ptr<CacheState>& st, const response& res, const Outgoing& o, const string& key,
+                                   int64_t request_time, int64_t response_time) {
+            auto& impl = *ResponseAccess::impl(res);
+            tracked_ptr e = make_tracked<CacheEntry>();
+            e->url = key;
+            e->vary = CacheState::vary_of(impl.fields, o.fields);
+            e->status = impl.status;
+            e->fields = impl.fields;
+            e->request_time = request_time;
+            e->response_time = response_time;
+            e->uncompressed = impl.uncompressed;
+            if (o.method.view() == "HEAD") {
+                return;   // a HEAD's response has no body to store: only a GET's is kept
+            }
+            tracked_ptr tee = make_tracked<CacheTee>();
+            tee->inner = impl.reads_decoded ? impl.decoded : io::reader(impl.body);
+            tee->st = st;
+            tee->entry = e;
+            impl.decoded = io::reader(tee);
+            impl.reads_decoded = true;
+        }
+
+        // A successful unsafe request drops what the cache holds of its URL,
+        // and of its Location and Content-Location of the same origin (§4.4)
+        inline void invalidate(CacheState& st, const net::url& target, const response& res) {
+            st.erase_url(target.without_fragment().to_string());
+            for (const char* name : {"Location", "Content-Location"}) {
+                auto v = res.header(name);
+                if (v.empty()) {
+                    continue;
+                }
+                if (auto u = target.resolve(v); u && u->scheme() == target.scheme() && u->host() == target.host()) {
+                    st.erase_url(u->without_fragment().to_string());
+                }
+            }
+        }
+
+        // A stale response revalidated in the background (stale-while-
+        // revalidate): the request sent again as a validation, its answer
+        // stored or merged by the exchange itself
+        inline async::task<expected<response, io::error>> send_request(tracked_ptr<ClientSettings> cfg, tracked_ptr<Pool> pool, tracked_ptr<RequestImpl> req) noexcept;
+
+        inline async::task<> revalidate_in_background(tracked_ptr<ClientSettings> cfg, tracked_ptr<Pool> pool, tracked_ptr<RequestImpl> req,
+                                                      tracked_ptr<CacheEntry> e) noexcept {
+            auto res = co_await send_request(cfg, pool, req);
+            if (res) {
+                (void)co_await res->async_bytes();   // the body read: a new response stored by the tee
+            }
+            std::atomic_ref<bool>(e->revalidating).store(false);
+        }
+
         inline async::task<expected<response, io::error>> send_request(tracked_ptr<ClientSettings> cfg, tracked_ptr<Pool> pool, tracked_ptr<RequestImpl> req) noexcept {
             Outgoing o;
             o.method = req->method;
@@ -1433,6 +1938,106 @@ namespace sgcl::net::http {
             }
             auto deadline = cfg->timeout > duration::zero() ? sgcl::clock::now() + cfg->timeout : time_point();
             vector<string> reset;   // the names of the cookies the exchange's responses set
+            // the credentials of the exchange, for the origin of its first
+            // URL alone: the request's own, a URL's user:password@ (sent at
+            // once as Basic, as Go does), or the client's
+            const string auth_origin = origin_key(*o.target);
+            optional<http::credentials> creds = req->credentials;
+            bool preemptive = false;
+            if (!creds && !o.target->username().empty()) {
+                creds.emplace(http::credentials{string(std::string_view(net::detail::url_unescape(o.target->username().view()))),
+                                                string(std::string_view(net::detail::url_unescape(o.target->password().view())))});
+                preemptive = true;
+            }
+            if (!creds) {
+                creds = cfg->credentials;
+            }
+            // the codings asked for by the client itself: decoded when they come
+            const bool asked_coding = cfg->decompress && !HeadersAccess::count(o.fields, "accept-encoding") && !HeadersAccess::count(o.fields, "range");
+            if (asked_coding) {
+                o.fields.set("Accept-Encoding", string(DecodedCodings));
+            }
+            // the cache: a stored response of the URL served, revalidated or
+            // asked again with its validators (RFC 9111 §4)
+            tracked_ptr<CacheState> cst = cfg->cache ? CacheAccess::state(*cfg->cache) : tracked_ptr<CacheState>();
+            const bool cache_method = o.method.view() == "GET" || o.method.view() == "HEAD";
+            const string cache_key = cst ? o.target->without_fragment().to_string() : string();
+            const int64_t request_time = cst ? cache_now() : 0;
+            tracked_ptr<CacheEntry> cached;
+            CacheVerdict verdict;
+            bool conditional = false;
+            if (cst && cache_method) {
+                const CacheControl req_cc = cache_control(o.fields);
+                if (!req_cc.no_store) {
+                    cached = cst->find(cache_key, o.fields);
+                }
+                if (cached) {
+                    const CacheControl res_cc = cache_control(cached->fields);
+                    const CacheTimes times = cache_times(cached->fields, cached->request_time, cached->response_time);
+                    const int64_t age = current_age(times, request_time);
+                    const int64_t lifetime = freshness_lifetime(cached->fields, res_cc, cached->status, times, cst->heuristic, cst->heuristic_max);
+                    verdict = cache_verdict(req_cc, res_cc, lifetime, age);
+                    if (req->cache_validate && verdict.use != CacheUse::validate) {
+                        verdict.use = CacheUse::validate;   // a background revalidation validates
+                    }
+                    if (verdict.use == CacheUse::fresh) {
+                        co_return cached_response(*cached, o, age, response::cache_status::hit, co_await cached_bytes(cached, o.method.view() == "HEAD"));
+                    }
+                    if (verdict.use == CacheUse::stale_revalidating) {
+                        if (!std::atomic_ref<bool>(cached->revalidating).exchange(true)) {
+                            // the request again, without a body (a GET or a HEAD), validating
+                            tracked_ptr again = make_tracked<RequestImpl>();
+                            again->method = req->method;
+                            again->url_text = req->url_text;
+                            again->url = req->url;
+                            again->fields = req->fields;
+                            again->credentials = req->credentials;
+                            again->cache_validate = true;
+                            async::go(revalidate_in_background(cfg, pool, again, cached));
+                        }
+                        co_return cached_response(*cached, o, age, response::cache_status::stale, co_await cached_bytes(cached, o.method.view() == "HEAD"));
+                    }
+                    const bool own_conditions = HeadersAccess::count(o.fields, "if-none-match") || HeadersAccess::count(o.fields, "if-modified-since");
+                    if (!own_conditions) {
+                        if (auto tag = HeadersAccess::find(cached->fields, "etag")) {
+                            o.fields.set("If-None-Match", string(*tag));
+                            conditional = true;
+                        }
+                        if (auto lm = HeadersAccess::find(cached->fields, "last-modified")) {
+                            o.fields.set("If-Modified-Since", string(*lm));
+                            conditional = true;
+                        }
+                    }
+                } else if (req_cc.only_if_cached) {
+                    // §5.2.1.7: nothing stored, nothing asked: 504
+                    tracked_ptr impl = make_tracked<ResponseImpl>();
+                    impl->status = 504;
+                    impl->url = *o.target;
+                    auto ends = net::connection::in_memory();
+                    impl->body = make_tracked<Body>(make_tracked<Wire>(ends.first), BodyFraming{Framing::none, 0}, 0, true);
+                    co_return ResponseAccess::make(impl);
+                }
+            }
+            // the final response: decoded when the client asked for a coding,
+            // stored when the cache may keep it (a first hop's: a response
+            // reached through a redirect is not kept), the cache's entries
+            // of the URL dropped after an unsafe request
+            auto finish = [&](response res, int redirects) -> response {
+                if (asked_coding) {
+                    decode_body(res, o.method.view());
+                }
+                auto& impl = *ResponseAccess::impl(res);
+                if (cst) {
+                    impl.cache = uint8_t(response::cache_status::miss);
+                    if (!cache_method && res.status() < 400) {
+                        invalidate(*cst, *o.target, res);
+                    } else if (cache_method && redirects == 0 &&
+                               storable(o.method.view(), res.status(), o.fields, cache_control(o.fields), impl.fields, cache_control(impl.fields))) {
+                        store_response(cst, res, o, cache_key, request_time, cache_now());
+                    }
+                }
+                return res;
+            };
             for (int redirects = 0;; ++redirects) {
                 if (o.target->scheme() != "http" && o.target->scheme() != "https") {
                     co_return io::detail::fail(client_error(net::errc::unsupported_scheme, o));
@@ -1455,6 +2060,29 @@ namespace sgcl::net::http {
                         }
                     }
                 }
+                // credentials for this hop: at once for a space remembered (or
+                // a URL's user:password@), after a 401 otherwise
+                const bool may_auth = creds && origin_key(*o.target) == auth_origin && !HeadersAccess::count(o.fields, "authorization");
+                const bool bearer = cfg->authorization && origin_key(*o.target) == auth_origin && !HeadersAccess::count(o.fields, "authorization");
+                if (bearer) {
+                    auto a = co_await cfg->authorization(false);
+                    if (!a) {
+                        co_return io::detail::fail(a.error());
+                    }
+                    o.fields.set("Authorization", *a);
+                }
+                bool ours = false;
+                string sent_realm;   // the realm of the space our Authorization was of
+                if (may_auth) {
+                    if (preemptive) {
+                        o.fields.set("Authorization", basic_credentials(creds->user.view(), creds->password.view()));
+                        ours = true;
+                    } else if (auto sp = find_space(*pool, auth_origin, o.target->path().view())) {
+                        o.fields.set("Authorization", space_authorization(*sp, o));
+                        ours = true;
+                        sent_realm = sp->realm;
+                    }
+                }
                 auto a = co_await round_trip(cfg, pool, o, deadline, true);
                 if (a.error && a.retry && (o.idempotent() || o.replayable()) && o.body_kind != RequestImpl::BodyKind::stream) {
                     a = co_await round_trip(cfg, pool, o, deadline, false);
@@ -1466,13 +2094,64 @@ namespace sgcl::net::http {
                                     && (a.retry_any || (a.retry_idempotent && o.idempotent())); ++again) {
                     a = co_await round_trip(cfg, pool, o, deadline, true);
                 }
+                // a 401 answered: once with the credentials, again for a
+                // stale nonce; ours refused (not stale), the 401 is the answer
+                for (int tries = 0; may_auth && !a.error && a.result->status() == 401 && tries < 2 && o.replayable(); ++tries) {
+                    const http::headers& got = ResponseAccess::impl(*a.result)->fields;
+                    const bool stale = challenge_stale(got);
+                    auto sp = space_of_challenges(got, o, auth_origin, *creds);
+                    if (!sp || (ours && !stale && sp->realm == sent_realm)) {
+                        break;   // nothing of ours offered, or our credentials refused in their own realm
+                    }
+                    keep_space(*pool, sp);
+                    sent_realm = sp->realm;
+                    a.result->close();
+                    o.fields.set("Authorization", space_authorization(*sp, o));
+                    ours = true;
+                    a = co_await round_trip(cfg, pool, o, deadline, true);
+                    if (a.error && a.retry && o.replayable()) {
+                        a = co_await round_trip(cfg, pool, o, deadline, false);
+                    }
+                }
+                // RFC 6750 §3.1: the token refused as invalid_token, a new one
+                // asked for and the request sent again, once
+                if (bearer && !a.error && a.result->status() == 401 && o.replayable() && bearer_refused(ResponseAccess::impl(*a.result)->fields)) {
+                    auto fresh = co_await cfg->authorization(true);
+                    if (fresh) {
+                        a.result->close();
+                        o.fields.set("Authorization", *fresh);
+                        a = co_await round_trip(cfg, pool, o, deadline, true);
+                        if (a.error && a.retry && o.replayable()) {
+                            a = co_await round_trip(cfg, pool, o, deadline, false);
+                        }
+                    }
+                }
+                if (ours || bearer) {
+                    o.fields.erase("Authorization");   // the next hop makes its own
+                }
                 if (own) {
                     o.fields = std::move(*own);
+                }
+                if (redirects == 0 && cached && (a.error || (a.result->status() >= 500 && a.result->status() <= 504 && a.result->status() != 501))
+                    && verdict.stale_on_error) {
+                    if (!a.error) {
+                        a.result->close();
+                    }
+                    co_return cached_response(*cached, o, verdict.age, response::cache_status::stale,
+                                              co_await cached_bytes(cached, o.method.view() == "HEAD"));   // stale-if-error
                 }
                 if (a.error) {
                     co_return io::detail::fail(*a.error);
                 }
                 auto res = *a.result;
+                if (redirects == 0 && cached && conditional && res.status() == 304) {
+                    res.close();
+                    cached = refresh_entry(*cst, cached, ResponseAccess::impl(res)->fields, request_time, cache_now());
+                    if (!cached->file.empty()) {
+                        co_await save_head(cst, cached);
+                    }
+                    co_return cached_response(*cached, o, 0, response::cache_status::revalidated, co_await cached_bytes(cached, o.method.view() == "HEAD"));
+                }
                 if (cfg->jar && HeadersAccess::count(ResponseAccess::impl(res)->fields, "set-cookie")) {
                     // every hop's Set-Cookie into the jar, as Go's client does
                     auto set = res.cookies();
@@ -1482,20 +2161,20 @@ namespace sgcl::net::http {
                     }
                 }
                 int st = res.status();
-                if (o.no_redirects || (st != 301 && st != 302 && st != 303 && st != 307 && st != 308)) {
-                    co_return res;
+                if (o.no_redirects || !cfg->follow_redirects || (st != 301 && st != 302 && st != 303 && st != 307 && st != 308)) {
+                    co_return finish(res, redirects);
                 }
                 auto location = res.header("Location");
                 if (location.empty()) {
-                    co_return res;
+                    co_return finish(res, redirects);
                 }
                 auto next = o.target->resolve(location);
                 if (!next) {
-                    co_return res;
+                    co_return finish(res, redirects);
                 }
                 if (st == 307 || st == 308) {
                     if (!o.replayable()) {
-                        co_return res;   // a stream cannot be sent again
+                        co_return finish(res, redirects);   // a stream cannot be sent again
                     }
                 } else if (o.method.view() != "GET" && o.method.view() != "HEAD") {
                     o.method = "GET";
@@ -1540,7 +2219,8 @@ namespace sgcl::net::http {
     // stream (then the 307 is the response). Authorization, Cookie and
     // Proxy-Authorization do not follow to a host that is neither the same
     // nor under it; a redirect may go from http to https and back, as in
-    // Go.
+    // Go. With follow_redirects off the 3xx itself is the response (Go's
+    // CheckRedirect returning ErrUseLastResponse), its Location unread.
     //
     // https:// is over TLS 1.3 (net/tls.h): the connection made by
     // net::tls::connect with the `tls` settings (the system's roots), the
@@ -1572,6 +2252,19 @@ namespace sgcl::net::http {
     namespace detail {
         struct ClientAccess;
     }
+
+    // How a download goes on after a transfer stopped (download.h)
+    struct download_options {
+        // A path + ".part" left by an earlier download of the same URL
+        // continued: Range from its size with If-Range and the validator
+        // kept beside it in path + ".part.meta". A failure of the transfer
+        // then keeps both for the next call (a status error never does)
+        bool resume = false;
+        // A body broken off in this call continued from where it stopped
+        // (Range with If-Range), this many times, when the server named a
+        // strong validator (a strong ETag, or Last-Modified)
+        int retries = 2;
+    };
 
     class client {
     public:
@@ -1638,8 +2331,11 @@ namespace sgcl::net::http {
         // streamed through path + ".part" renamed at its end, a status other
         // than 2xx the error net::errc::http_status and no file; the
         // response, its body read (download.h)
-        expected<response, io::error> download(const string& url, const string& path) const;
-        async::task<expected<response, io::error>> async_download(string url, string path) const noexcept;
+        // A body broken off is continued from where it stopped (Range
+        // with If-Range) o.retries times, when the server named a strong
+        // validator; o.resume continues a part an earlier call left
+        expected<response, io::error> download(const string& url, const string& path, const download_options& o = {}) const;
+        async::task<expected<response, io::error>> async_download(string url, string path, download_options o = {}) const noexcept;
 
         // A WebSocket to url (ws:// or wss://) through this client's dial:
         // its proxy (as a CONNECT tunnel), its TLS settings with ALPN
@@ -1661,6 +2357,10 @@ namespace sgcl::net::http {
         duration idle_timeout = std::chrono::seconds(90);        // a connection in the pool
         size_t max_idle_per_host = 16;                           // Go's default is 2
         int max_redirects = 10;
+        // false: no redirect followed, a 3xx is the response as it came
+        // (its Location, its body), Go's CheckRedirect returning
+        // ErrUseLastResponse; its Set-Cookie still goes into the jar
+        bool follow_redirects = true;
         size_t max_response_header_bytes = 1 << 20;
         // How a connection is made; tcp::connect by default (and TLS over
         // it for https://). A unix socket (Docker's API), a test's
@@ -1683,6 +2383,30 @@ namespace sgcl::net::http {
         // field of every request taken from it, after the request's own
         // pairs; none by default, as in Go
         optional<cookie_jar> jar;
+        // The credentials of the requests (auth): a 401 of the origin of a
+        // request's own URL (and of its redirects within that origin)
+        // answered once with them, Digest when the server offers it (the
+        // strongest algorithm: SHA-512/256, SHA-256, MD5), else Basic; the
+        // protection space then remembered in the pool, so that the next
+        // requests under it send Authorization at once (Digest: the nonce
+        // again, its count grown; stale=true answered with the new nonce).
+        // A request's own (request::set_credentials) wins, and so does a
+        // URL's user:password@, which goes as Basic at once, as Go sends it.
+        // None by default
+        optional<http::credentials> credentials;
+        // Accept-Encoding: gzip, deflate sent by the client itself on a
+        // request that has no Accept-Encoding of its own and no Range, and
+        // the body decoded as it is read: the response's Content-Encoding and
+        // Content-Length removed, response::uncompressed() true (Go's
+        // transparent gzip, with deflate too). false: nothing sent, nothing
+        // decoded (Go's DisableCompression). A request that sets its own
+        // Accept-Encoding gets the body as it came
+        bool decompress = true;
+        // The private cache of the client's GET and HEAD (cache.h, RFC 9111):
+        // a fresh stored response served with no request, a stale one asked
+        // again with its validators, stale-while-revalidate and
+        // stale-if-error; none by default
+        optional<http::cache> cache;
 
     private:
         friend struct detail::ClientAccess;
@@ -1702,6 +2426,7 @@ namespace sgcl::net::http {
             cfg->idle_timeout = idle_timeout;
             cfg->max_idle_per_host = max_idle_per_host;
             cfg->max_redirects = max_redirects;
+            cfg->follow_redirects = follow_redirects;
             cfg->max_response_header_bytes = max_response_header_bytes ? max_response_header_bytes : 1;
             cfg->dial = dial;
             cfg->tls = tls;
@@ -1709,6 +2434,10 @@ namespace sgcl::net::http {
             cfg->h2c = h2c;
             cfg->proxy = proxy;
             cfg->jar = jar;
+            cfg->credentials = credentials;
+            cfg->decompress = decompress;
+            cfg->cache = cache;
+            cfg->authorization = _authorization;
             // "h2" first in ALPN while http2 is on, out of it while off
             vector<string> alpn;
             if (http2) {
@@ -1731,6 +2460,7 @@ namespace sgcl::net::http {
         }
 
         tracked_ptr<detail::Pool> _pool;
+        function<async::task<expected<string, io::error>>(bool)> _authorization;   // oauth2::token_source::client's
     };
 
     namespace detail {
@@ -1743,6 +2473,11 @@ namespace sgcl::net::http {
 
             SGCL_INLINE_HOT static const tracked_ptr<Pool>& pool(const client& c) noexcept {
                 return c._pool;
+            }
+
+            // The Authorization every request gets (oauth2::token_source::client)
+            static void set_authorization(client& c, function<async::task<expected<string, io::error>>(bool)> f) noexcept {
+                c._authorization = std::move(f);
             }
         };
     }

@@ -301,3 +301,103 @@ TEST(TlsFuzzSeeds, DISABLED_Write) {
     c2.insert(c2.end(), reinterpret_cast<const uint8_t*>(with_chain.data()), reinterpret_cast<const uint8_t*>(with_chain.data()) + with_chain.size());
     write("tls_ticket", "content_with_chain", c2);
 }
+
+// The seeds of the ECH harness (tests/net/fuzz/tls_ech_fuzz.cpp,
+// seeds/tls_ech): its config list (kind 0), an outer hello with an encoded
+// inner hello that names two of its extensions (1), and our client's
+// messages sealed to the fixed key: accepted (2, the server's mode 0), through
+// a HelloRetryRequest (the server's mode 1), and sealed to another key,
+// rejected. The client's ephemeral keys are the process's, so the seeds
+// differ from run to run; any of them opens under the fixed key.
+TEST(TlsFuzzSeeds, DISABLED_WriteEch) {
+    bytes_t list = {0};
+    auto l = tls_fuzz::ech_config_list();
+    list.insert(list.end(), reinterpret_cast<const uint8_t*>(l.data()), reinterpret_cast<const uint8_t*>(l.data()) + l.size());
+    write("tls_ech", "config_list", list);
+    // kind 1
+    std::vector<sgcl::byte> outer_msg;
+    {
+        tls::Builder w(outer_msg);
+        uint8_t random[32] = {1};
+        uint8_t sid[32] = {2};
+        std::vector<uint16_t> suites = {0x1301};
+        tls::write_client_hello(w, tls::bytes_of(random, 32), tls::bytes_of(sid, 32), suites, [&](tls::Builder& w) noexcept {
+            {
+                auto e = w.extension(uint16_t(10));
+                w.u16(2);
+                w.u16(0x1d);
+            }
+            {
+                auto e = w.extension(uint16_t(51));
+                w.u16(4);
+                w.u16(0x1d);
+                w.u16(0);
+            }
+            {
+                auto e = w.extension(uint16_t(43));
+                w.u8(2);
+                w.u16(0x0304);
+            }
+        });
+    }
+    std::vector<sgcl::byte> encoded;
+    {
+        tls::Builder w(encoded);
+        w.u16(0x0303);
+        for (int i = 0; i < 32; ++i) {
+            w.u8(9);
+        }
+        w.u8(0);
+        w.u16(2);
+        w.u16(0x1301);
+        w.u8(1);
+        w.u8(0);
+        auto exts = w.block16();
+        {
+            auto x = w.extension(uint16_t(0));
+            w.u16(14);
+            w.u8(0);
+            w.u16(11);
+            w.bytes("secret.test", 11);
+        }
+        {
+            auto x = w.extension(tls::EchOuterExtensions);
+            w.u8(4);
+            w.u16(10);
+            w.u16(51);
+        }
+        {
+            auto x = w.extension(tls::EchExtension);
+            w.u8(1);
+        }
+    }
+    encoded.resize(encoded.size() + 16, sgcl::byte(0));
+    bytes_t inner = {1, uint8_t((outer_msg.size() - 4) >> 8), uint8_t(outer_msg.size() - 4)};
+    inner.insert(inner.end(), reinterpret_cast<const uint8_t*>(outer_msg.data()) + 4, reinterpret_cast<const uint8_t*>(outer_msg.data()) + outer_msg.size());
+    inner.insert(inner.end(), reinterpret_cast<const uint8_t*>(encoded.data()), reinterpret_cast<const uint8_t*>(encoded.data()) + encoded.size());
+    write("tls_ech", "outer_extensions", inner);
+    // kind 2
+    auto other = sgcl::crypto::hpke::private_key::generate(sgcl::crypto::hpke::kem::dhkem_x25519);
+    auto other_pub = other.public_key().bytes();
+    auto other_config = tls::write_ech_config(7, 0x0020, tls::bytes_of(other_pub.data(), other_pub.size()), {0x00010001}, 0, "public.test");
+    std::vector<sgcl::byte> other_list = {sgcl::byte(other_config.size() >> 8), sgcl::byte(other_config.size())};
+    other_list.insert(other_list.end(), other_config.begin(), other_config.end());
+    struct Case {
+        uint8_t server_mode;
+        const char* name;
+        bool rejected;
+    };
+    for (Case c : {Case{0, "accepted", false}, Case{1, "accepted_retry", false}, Case{0, "rejected", true}}) {
+        SCOPED_TRACE(c.name);
+        tls_fuzz::ClientEntropy ce;
+        tls::ClientHandshake client(tls_fuzz::ech_client_settings(c.rejected ? other_list : tls_fuzz::ech_config_list()), ce.entropy(), tls_fuzz::clock());
+        tls_fuzz::ServerEntropy se;
+        tls::ServerHandshake server(tls_fuzz::ech_server_settings(c.server_mode), se.entropy(), tls_fuzz::clock());
+        Transcript t = run(client, server);
+        EXPECT_EQ(server.result().ech_accepted, !c.rejected);
+        if (!c.rejected) {
+            ASSERT_TRUE(t.client_ok && t.server_ok);
+        }
+        write("tls_ech", c.name, input(uint8_t(2 | c.server_mode << 2), t.client));
+    }
+}

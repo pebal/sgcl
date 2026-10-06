@@ -168,6 +168,9 @@ TEST(IoHeap_Tests, AsyncCopyHandsThePoolAnOwnedBlock) {
 // The capacity of a vector of n bytes made at once: past a page, what its
 // pages hold beside the buffer's header (maker.h: whole pages), no more
 inline size_t one_vector_of(size_t n) {
+#if defined(SGCL_ASAN)
+    return n;   // under the address sanitizer a buffer is the capacity asked for (maker.h)
+#endif
     size_t head = sizeof(sgcl::detail::ArrayBase);
     size_t pages = (n + head + config::page_size - 1) / config::page_size;
     return pages * config::page_size - head;

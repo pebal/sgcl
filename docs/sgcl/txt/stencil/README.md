@@ -23,7 +23,8 @@ to copy a run of it out.
 It is Go's `text/template` in its syntax, with three departures, each on purpose: a bare name is a field of the
 current element (Go reads it as a function call), a name the data does not carry writes nothing (Go writes
 `<no value>`), and a field takes the specification of [format](../format.md) after a colon where Go calls `printf`.
-There is no escaping that knows where a value lands, which Go has in `html/template`. C++20 has no reflection, so a
+There is no escaping that knows where a value lands, which Go has in `html/template` and this module in
+[html_stencil](../html_stencil/README.md). C++20 has no reflection, so a
 template cannot walk the fields of a struct of the program's, as Go's walks them by reflection: the data is a
 [value](../value/README.md), built with braces so that the call reads as data.
 
@@ -129,10 +130,10 @@ some are not the ones anybody tests ([stencil_function](../stencil_function.md))
 ### The boundary: escaping is the caller's
 
 **There is no escaping here that knows where a value lands.** Go has that in `html/template` — it reads the HTML
-around a field and escapes for an attribute, a URL or a script accordingly. That is a parser for a second language
-and a promise this module is not in a position to keep, so it is not made. What is here is `escape_html` as a
-function of the pipeline, asked for by name: whoever writes the template decides where it is needed, and **the safety
-of the HTML is the caller's**. In this module a boundary is written down rather than discovered.
+around a field and escapes for an attribute, a URL or a script accordingly — and so does
+[html_stencil](../html_stencil/README.md), a template of this same syntax whose page is HTML. A stencil writes what
+its values hold: what is here is `escape_html` as a function of the pipeline, asked for by name, and **the safety of
+the HTML is the caller's**. For a page of HTML, the type is html_stencil.
 
 ### What may fail
 

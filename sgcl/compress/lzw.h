@@ -87,36 +87,67 @@ namespace sgcl::compress::detail {
         }
 
         // The bytes compressed into out; false at a byte the literal width
-        // cannot hold (the bytes before it are compressed)
+        // cannot hold (the bytes before it are compressed). In two steps a
+        // block of input at a time: the strings looked up and the table
+        // grown with no branch on whether a string was found (which data
+        // does not let a processor predict), the codes gathered; then the
+        // codes written at their widths. The string read so far and the
+        // table are held in locals through the loop: a byte written into
+        // out may alias any member, which would make every step reload them.
         bool write(const uint8_t* p, size_t n, std::vector<uint8_t>& out) noexcept {
             if (!_started) {
                 _started = true;
                 _out.put(_clear, _width, out);
             }
-            uint32_t limit = _clear;
-            for (size_t i = 0; i < n; ++i) {
-                uint32_t b = p[i];
-                if (b >= limit) {
+            const uint32_t limit = _clear;
+            uint32_t* const slots = _slots.get();
+            uint32_t current = _current;
+            uint32_t next = _next;
+            size_t i = 0;
+            if (current == None && n > 0) {
+                if (p[0] >= limit) {
                     return false;
                 }
-                if (_current == None) {
-                    _current = b;
-                    continue;
-                }
-                uint32_t key = _current << 8 | b;
-                uint32_t slot = _find(key);
-                uint32_t found = _slots[slot];
-                if (found) {
-                    _current = found & (LzwCodes - 1);
-                    continue;
-                }
-                _out.put(_current, _width, out);
-                if (_make(out)) {
-                    _slots[slot] = key << LzwMaxWidth | (_next - 1);
-                }
-                _current = b;
+                current = p[0];
+                i = 1;
             }
-            return true;
+            uint16_t codes[Block + 2];
+            bool taken = true;
+            while (i < n && taken) {
+                const size_t end = std::min(n, i + Block);
+                size_t made = 0;
+                for (; i < end; ++i) {
+                    const uint32_t b = p[i];
+                    if (b >= limit) [[unlikely]] {
+                        taken = false;
+                        break;
+                    }
+                    const uint32_t key = current << 8 | b;
+                    uint32_t slot = _hash(key);
+                    uint32_t found;
+                    while ((found = slots[slot]) != 0 && (found >> LzwMaxWidth) != key) {
+                        slot = (slot + 1) & (Slots - 1);
+                    }
+                    // not found: the string's code out, a new code for it
+                    // and b, and b the string; found: its code the string
+                    const uint32_t miss = found == 0;
+                    codes[made] = uint16_t(current);
+                    made += miss;
+                    slots[slot] = miss ? (key << LzwMaxWidth | next) : found;
+                    next += miss;
+                    current = miss ? b : (found & (LzwCodes - 1));
+                    if (next == LzwCodes) [[unlikely]] {
+                        // 4095 was the code just made: a clear code in its
+                        // place, the table started over
+                        codes[made++] = ClearMark;
+                        std::memset(slots, 0, Slots * sizeof(uint32_t));
+                        next = _clear + 2;
+                    }
+                }
+                _emit(codes, made, out);
+            }
+            _current = current;
+            return taken;
         }
 
         // A new stream with the same settings: the table cleared, nothing
@@ -136,8 +167,14 @@ namespace sgcl::compress::detail {
                 _out.put(_clear, _width, out);
             }
             if (_current != None) {
-                _out.put(_current, _width, out);
-                _make(out);
+                uint16_t codes[2] = {uint16_t(_current), ClearMark};
+                // the code made after it the last (4095): a clear code in
+                // its place
+                const bool full = _next == LzwCodes - 1;
+                _emit(codes, full ? 2 : 1, out);
+                if (full) {
+                    std::memset(_slots.get(), 0, Slots * sizeof(uint32_t));
+                }
                 _current = None;
             }
             _out.put(_clear + 1, _width, out);
@@ -146,21 +183,70 @@ namespace sgcl::compress::detail {
 
     private:
         static constexpr uint32_t None = UINT32_MAX;
-        static constexpr uint32_t Slots = 8192;   // twice the codes: short probes
+        static constexpr uint32_t Slots = 16384;   // four times the codes: short probes, 64 KB within the first cache
 
-        // A new code, after a code went out: false when the table was full
-        // and a clear code went out in its place
-        bool _make(std::vector<uint8_t>& out) noexcept {
-            uint32_t code = _next++;
-            if (code == (1u << _width)) {
-                ++_width;
+        static constexpr size_t Block = 8192;         // the input gathered before its codes are written
+        static constexpr uint16_t ClearMark = 0xFFFF; // among the gathered codes: a clear code, the table started over
+
+        // The codes gathered, each written at the width before the code it
+        // makes (the width grows when the code made is the first that
+        // needs the next one), a clear mark as the clear code at the width
+        // then, the widths starting over
+        void _emit(const uint16_t* codes, size_t n, std::vector<uint8_t>& out) noexcept {
+            const size_t base = out.size();
+            out.resize(base + 2 * n + 8);   // 12 bits a code at most, and 4 bytes a store
+            uint8_t* o = out.data() + base;
+            const bool msb = _out.msb;
+            uint64_t bits = _out.bits;
+            uint32_t count = _out.count;
+            uint32_t width = _width;
+            uint32_t next = _next;
+            for (size_t i = 0; i < n; ++i) {
+                uint32_t c = codes[i];
+                const uint32_t w = width;
+                if (c == ClearMark) [[unlikely]] {
+                    c = _clear;
+                    width = _literal_width + 1;
+                    next = _clear + 2;
+                } else {
+                    width += next == (1u << width);
+                    ++next;
+                }
+                bits = msb ? bits << w | c : bits | uint64_t(c) << count;
+                count += w;
+                if (count >= 32) {
+                    const uint32_t v = msb ? uint32_t(bits >> (count - 32)) : uint32_t(bits);
+                    if (msb) {
+                        o[0] = uint8_t(v >> 24);
+                        o[1] = uint8_t(v >> 16);
+                        o[2] = uint8_t(v >> 8);
+                        o[3] = uint8_t(v);
+                    } else {
+                        o[0] = uint8_t(v);
+                        o[1] = uint8_t(v >> 8);
+                        o[2] = uint8_t(v >> 16);
+                        o[3] = uint8_t(v >> 24);
+                        bits >>= 32;
+                    }
+                    o += 4;
+                    count -= 32;
+                }
             }
-            if (code == LzwCodes - 1) {
-                _out.put(_clear, _width, out);
-                _start_over();
-                return false;
+            // whole bytes out, fewer than 8 bits kept, as LzwBitWriter keeps them
+            while (count >= 8) {
+                count -= 8;
+                if (msb) {
+                    *o++ = uint8_t(bits >> count);
+                } else {
+                    *o++ = uint8_t(bits);
+                    bits >>= 8;
+                }
             }
-            return true;
+            _out.bits = uint32_t(bits);
+            _out.count = count;
+            _width = width;
+            _next = next;
+            out.resize(size_t(o - out.data()));
         }
 
         SGCL_INLINE_HOT void _start_over() noexcept {
@@ -169,18 +255,11 @@ namespace sgcl::compress::detail {
             std::memset(_slots.get(), 0, Slots * sizeof(uint32_t));
         }
 
-        // The slot of key: where it is, or the empty one where it goes. A
-        // slot holds the key above the code; a code is never 0 there, as
-        // the first code made is 2^w + 2.
-        uint32_t _find(uint32_t key) const noexcept {
-            uint32_t s = (key * 2654435761u) >> (32 - 13);
-            for (;;) {
-                uint32_t v = _slots[s];
-                if (!v || (v >> LzwMaxWidth) == key) {
-                    return s;
-                }
-                s = (s + 1) & (Slots - 1);
-            }
+        // The slot a key starts its probe at. A slot holds the key above
+        // the code; a code is never 0 there, as the first code made is
+        // 2^w + 2.
+        SGCL_INLINE_HOT static uint32_t _hash(uint32_t key) noexcept {
+            return (key ^ key >> 8) & (Slots - 1);
         }
 
         uint32_t _clear;

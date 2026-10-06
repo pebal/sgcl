@@ -9,6 +9,7 @@
 #include "form.h"
 #include "headers.h"
 #include "multipart.h"
+#include "detail/auth.h"
 #include "detail/wire.h"
 #include "../ip.h"
 #include "../tls.h"
@@ -25,7 +26,17 @@
 #include <cstdint>
 
 namespace sgcl::net::http {
+    // A user and a password a client answers a 401's challenge with
+    // (client::credentials, request::set_credentials): Digest when the
+    // server offers it, else Basic
+    struct credentials {
+        string user;
+        string password;
+    };
+
     namespace detail {
+        inline constexpr char AuthUserKey = 0;   // the user an authentication middleware let in (auth.h): request::authenticated_user()
+
         // What a request is made of, on either side
         struct RequestImpl {
             string method;
@@ -45,6 +56,8 @@ namespace sgcl::net::http {
             tracked_ptr<FormState> form;
             function<async::task<>(int, http::headers)> on_informational;   // the 1xx before the response, awaited (a reverse proxy forwards them)
             bool no_redirects = false;       // the first response whatever its status (a reverse proxy's, as Go's Transport)
+            optional<http::credentials> credentials;   // set_credentials: the 401s of the request's origin answered with them
+            bool cache_validate = false;     // a background revalidation of the cache's: validated, never served stale
 
             // a server's
             string head;                     // the block the fields are slices of
@@ -79,6 +92,35 @@ namespace sgcl::net::http {
             }
             tracked_ptr<Body> body;
             vector<pair<string, string>> path_values;
+            // the host and the path the router reads, views of the head (or
+            // of the serve loop's own path) valid while the exchange runs
+            std::string_view dispatch_host;
+            std::string_view dispatch_path;
+            // what middlewares hang on the request (a session, a CSRF token,
+            // a user's name), by a key of theirs: the address of a static
+            vector<pair<const void*, tracked_ptr<void>>> attached;
+            // the fields of the form, once a middleware read the body for
+            // them (csrf's field): form() gives these, the body being gone
+            optional<net::query_params> form_read;
+
+            SGCL_INLINE_HOT tracked_ptr<void> attachment(const void* key) const noexcept {
+                for (auto& a : attached) {
+                    if (a.first == key) {
+                        return a.second;
+                    }
+                }
+                return tracked_ptr<void>();
+            }
+
+            void attach(const void* key, const tracked_ptr<void>& value) noexcept {
+                for (auto& a : attached) {
+                    if (a.first == key) {
+                        a.second = value;
+                        return;
+                    }
+                }
+                attached.push_back(pair<const void*, tracked_ptr<void>>(key, value));
+            }
             net::endpoint remote;
             net::connection conn;            // a server's: the connection it came over (its TLS state)
             async::stop_token stop;
@@ -186,6 +228,45 @@ namespace sgcl::net::http {
             _impl->form = detail::FormAccess::state(f);
             _impl->fields.set("Content-Type", f.content_type());
             return *this;
+        }
+
+        // Authorization: Basic of the user and the password, sent now
+        // whatever the server asks (Go's SetBasicAuth): over https alone,
+        // the password is in clear text
+        SGCL_INLINE_HOT request& set_basic_auth(const string& user, const string& password) noexcept {
+            _impl->fields.set("Authorization", detail::basic_credentials(user.view(), password.view()));
+            return *this;
+        }
+
+        // The user and the password of the request's Authorization: Basic
+        // (Go's r.BasicAuth); nullopt for none, another scheme, or a value
+        // that is not one
+        optional<http::credentials> basic_auth() const noexcept {
+            auto field = detail::HeadersAccess::find(_impl->fields, "authorization");
+            if (!field) {
+                return nullopt;
+            }
+            auto up = detail::read_basic(*field);
+            if (!up) {
+                return nullopt;
+            }
+            return http::credentials{string(std::string_view(up->first)), string(std::string_view(up->second))};
+        }
+
+        // The credentials the request answers a 401 of its origin with
+        // (Digest when offered, else Basic), once; they win over the
+        // client's (client::credentials). Not sent before the server asks,
+        // nor to another origin a redirect leads to
+        SGCL_INLINE_HOT request& set_credentials(const string& user, const string& password) noexcept {
+            _impl->credentials.emplace(http::credentials{user, password});
+            return *this;
+        }
+
+        // The user an authentication middleware of the server (basic_auth,
+        // digest_auth) let in; "" for none
+        SGCL_INLINE_HOT string authenticated_user() const noexcept {
+            auto u = _impl->attachment(&detail::AuthUserKey).template as<string>();
+            return u ? *u : string();
         }
 
         // The server's side. {name} of the route's pattern, unescaped
@@ -352,6 +433,9 @@ namespace sgcl::net::http {
         }
 
         static async::task<expected<net::query_params, io::error>> _co_form(tracked_ptr<detail::RequestImpl> impl) noexcept {
+            if (impl->form_read) {
+                co_return *impl->form_read;
+            }
             auto type = detail::media_type(impl->fields.get("Content-Type").view());
             if (type == "application/x-www-form-urlencoded") {
                 expected<string, io::error> text = string();

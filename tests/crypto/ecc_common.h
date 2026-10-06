@@ -95,7 +95,7 @@ namespace ecc_test {
         }
     };
 
-    // The two curves, for typed tests
+    // The three curves, for typed tests
     struct P256 {
         using curve = crypto::detail::P256;
         using public_key = crypto::p256::public_key;
@@ -103,6 +103,8 @@ namespace ecc_test {
         using ecdh_key = crypto::p256::ecdh_key;
         using hash = crypto::sha256;
         static constexpr size_t size = 32;
+        static constexpr size_t bits = 256;
+        static constexpr const char* module = "p256";
         static constexpr const char* group = "P-256";
         static constexpr int nid = NID_X9_62_prime256v1;
         static constexpr const char* order = "ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551";
@@ -116,13 +118,30 @@ namespace ecc_test {
         using ecdh_key = crypto::p384::ecdh_key;
         using hash = crypto::sha384;
         static constexpr size_t size = 48;
+        static constexpr size_t bits = 384;
+        static constexpr const char* module = "p384";
         static constexpr const char* group = "P-384";
         static constexpr int nid = NID_secp384r1;
         static constexpr const char* order = "ffffffffffffffffffffffffffffffffffffffffffffffffc7634d81f4372ddf581a0db248b0a77aecec196accc52973";
         static constexpr const char* prime = "fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffeffffffff0000000000000000ffffffff";
     };
 
-    using Curves = ::testing::Types<P256, P384>;
+    struct P521 {
+        using curve = crypto::detail::P521;
+        using public_key = crypto::p521::public_key;
+        using private_key = crypto::p521::private_key;
+        using ecdh_key = crypto::p521::ecdh_key;
+        using hash = crypto::sha512;
+        static constexpr size_t size = 66;
+        static constexpr size_t bits = 521;
+        static constexpr const char* module = "p521";
+        static constexpr const char* group = "P-521";
+        static constexpr int nid = NID_secp521r1;
+        static constexpr const char* order = "01fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffa51868783bf2f966b7fcc0148f709a5d03bb5c9b8899c47aebb6fb71e91386409";
+        static constexpr const char* prime = "01ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+    };
+
+    using Curves = ::testing::Types<P256, P384, P521>;
 
     // --- the oracle ---------------------------------------------------------
 
@@ -310,6 +329,9 @@ namespace ecc_test {
         bytes_t n = unhex(T::order);
         for (;;) {
             bytes_t d = r.bytes(T::size);
+            if constexpr (8 * T::size != T::bits) {
+                d[0] &= (1u << (T::bits - 8 * (T::size - 1))) - 1;   // P-521: the top byte's one bit
+            }
             if (d < n && d != bytes_t(T::size, 0)) {
                 return d;
             }

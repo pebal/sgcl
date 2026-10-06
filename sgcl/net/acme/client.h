@@ -353,7 +353,7 @@ namespace sgcl::net::acme {
                 if (signer == Signer::account && kid.empty()) {
                     co_return unexpected(acme_error(errc::account_does_not_exist, op, string("no account: register_account first, or options::account_url")));
                 }
-                string body = jws(*ks.key, header(ks, kid, *nonce, url), payload);
+                string body = jws(ks, header(ks, kid, *nonce, url), payload);
                 http::request req(string("POST"), url);
                 req.set_header(string("Content-Type"), string("application/jose+json"));
                 req.set_header(string("User-Agent"), s->user_agent);
@@ -534,9 +534,9 @@ namespace sgcl::net::acme {
             }
             account_key old = s->current_key();
             const KeyState& nk = KeyAccess::state(next);
-            string inner_header = json::object({{"alg", nk.alg}, {"jwk", nk.jwk_value}, {"url", d->key_change}}).to_string();
+            json inner_header = json::object({{"jwk", nk.jwk_value}, {"url", d->key_change}});
             string inner_payload = json::object({{"account", *kid}, {"oldKey", KeyAccess::state(old).jwk_value}}).to_string();
-            string inner = jws(*nk.key, inner_header, inner_payload);
+            string inner = jws(nk, inner_header, inner_payload);
             auto r = co_await co_post(s, d->key_change, inner, Signer::account, op);
             if (!r) {
                 co_return unexpected(r.error());
@@ -1333,21 +1333,8 @@ namespace sgcl::net::acme {
 
         static async::task<expected<void, io::error>> _co_revoke_by_key(tracked_ptr<detail::ClientState> s, tls::identity id, revocation_reason reason) noexcept {
             const auto& st = tls::detail::IdentityAccess::state(id);
-            // a KeyState over the identity's key, borrowed: the key is the
-            // identity's, kept alive by `id` for as long as the request runs
-            auto ks = make_tracked<detail::KeyState>();
-            auto copy = std::make_unique<detail::IdentityKey>();
-            const auto& k = *st.key;
-            if (k.p256) {
-                copy->p256.emplace(k.p256->clone());
-            } else if (k.p384) {
-                copy->p384.emplace(k.p384->clone());
-            } else if (k.ed25519) {
-                copy->ed25519.emplace(k.ed25519->clone());
-            } else {
-                copy->rsa.emplace(k.rsa->clone());
-            }
-            tracked_ptr<const detail::KeyState> state = detail::make_key_state(std::move(copy));
+            // a KeyState over a clone of the identity's key
+            tracked_ptr<const detail::KeyState> state = detail::make_key_state(detail::jwk_of_identity(*st.key));
             co_return co_await detail::co_revoke(s, st.certificates[0], reason, state);
         }
     };

@@ -254,23 +254,31 @@ namespace sgcl::crypto::detail::bn {
     // x mod m for any m > 0 of k words, x of kx words: one bit of x at a
     // time from the top, r doubled with the bit and reduced once (r < m
     // keeps 2r + 1 < 2m). For the checks of a key, whose moduli p - 1 and
-    // q - 1 are even and have no Montgomery form: 64 kx steps of k words
+    // q - 1 are even and have no Montgomery form: 64 kx steps of one pass
+    // over k words each. The doubled r and the doubled r minus m are both
+    // kept, in r and t, and the next step reads the one the last step chose
+    // through a mask, so a step is a single pass with no copy (a third of
+    // the time of a shift, a subtraction and a select done apart)
     inline void reduce(word* r, const word* x, size_t kx, const word* m, size_t k, word* t) noexcept {
         zero(r, k);
+        zero(t, k);
+        word use_t = 0;   // all ones when the value is t's
         for (size_t i = 64 * kx; i-- > 0;) {
             word in = (x[i / 64] >> (i % 64)) & 1;
-            word carry = 0;
+            word borrow = 0;
             for (size_t j = 0; j < k; ++j) {
-                word w = r[j];
-                r[j] = w << 1 | in;
+                const word w = (r[j] & ~use_t) | (t[j] & use_t);
+                const word doubled = w << 1 | in;
                 in = w >> 63;
+                const wide d = wide(doubled) - m[j] - borrow;
+                r[j] = doubled;
+                t[j] = word(d);
+                borrow = word(d >> 64) & 1;
             }
-            carry = in;
-            word borrow = sub(t, r, m, k);
-            // subtract when the doubled r (with its carry) is not below m
-            word keep = ct_bit_mask(borrow & ~carry & 1);
-            select(r, keep, r, t, k);
+            // the doubled value (with its carry) not below m: the difference
+            use_t = ct_bit_mask((borrow & ~in & 1) ^ 1);
         }
+        select(r, use_t, t, r, k);
     }
 
     // --- Montgomery ----------------------------------------------------------
@@ -475,7 +483,8 @@ namespace sgcl::crypto::detail::bn {
     // 64k = t 2^j (t odd), t more doublings give 2^t R, the Montgomery form
     // of 2^t, and j Montgomery squarings give the form of 2^(t 2^j) = R,
     // which is R^2. Constant time but for the count of the first
-    // doublings, which is the bit length of m. scratch: 3k + 2 words
+    // doublings, which is the bit length of m. rrr may be null (a public
+    // key, which never needs R^3). scratch: 3k + 2 words
     inline void mont_constants(word* rr, word* rrr, const word* m, size_t k, word m0inv, word* scratch) noexcept {
         size_t bits = bit_length(m, k);
         word* x = rr;
@@ -485,7 +494,12 @@ namespace sgcl::crypto::detail::bn {
         for (size_t i = bits - 1; i < 64 * k; ++i) {
             mod_double(x, m, k, u);
         }
+        // at most seven squarings: measured, a squaring costs what about 40
+        // doublings do, and 64k / 2^7 doublings are fewer for every size of
+        // RSA (2048 bits: 16 doublings and 7 squarings, 10.6 us, where 11
+        // squarings and a doubling took 13.8 us; 4096 bits 55 -> 38 us)
         size_t j = 6 + size_t(__builtin_ctzll(k));
+        j = j < 7 ? j : 7;
         size_t t = (64 * k) >> j;
         for (size_t i = 0; i < t; ++i) {
             mod_double(x, m, k, u);
@@ -494,7 +508,9 @@ namespace sgcl::crypto::detail::bn {
         for (size_t i = 0; i < j; ++i) {
             mont_sqr(x, x, mod, scratch);
         }
-        mont_mul(rrr, rr, rr, mod, scratch);
+        if (rrr) {
+            mont_mul(rrr, rr, rr, mod, scratch);
+        }
     }
 
     // a (below m) into the Montgomery form a R mod m, and back

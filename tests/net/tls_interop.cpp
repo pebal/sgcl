@@ -159,6 +159,7 @@ namespace {
             case tls::group::x25519: return "X25519";
             case tls::group::secp256r1: return "P-256";
             case tls::group::secp384r1: return "P-384";
+            case tls::group::secp521r1: return "P-521";
         }
         return "";
     }
@@ -1642,4 +1643,127 @@ TEST(TlsInterop, Tls12ResumptionDeclined) {
         (void)c->close();
         EXPECT_EQ(cfg.session_cache->size(), 1u);   // the new session in the old one's place
     }
+}
+
+// P-521 both ways, against OpenSSL and Go: the group secp521r1 (not in the
+// default list: the configs name it) and a leaf of P-521, which signs
+// ecdsa_secp521r1_sha512 (1.3's CertificateVerify, 1.2's ServerKeyExchange)
+TEST(TlsInterop, P521) {
+    const bool openssl = !openssl_path().empty();
+    const bool go = !go_path().empty() && !go_oracle().empty();
+    if (!openssl && !go) {
+        GTEST_SKIP() << "no OpenSSL, no go";
+    }
+    auto client_config = [] {
+        tls::config cfg = trusted();
+        cfg.groups = {tls::group::secp521r1};
+        return cfg;
+    };
+    size_t n = 0;
+    if (openssl) {
+        // our client to s_server, 1.3 and 1.2
+        {
+            SServer s("p521", "P-521");
+            ASSERT_TRUE(s.start());
+            ASSERT_FALSE(s.wait_for("ACCEPT").empty());
+            auto conn = tls::connect(sgcl::string(s.address()), client_config());
+            ASSERT_TRUE(conn.has_value()) << std::string(conn.error().message().view());
+            auto st = tls::state_of(*conn);
+            EXPECT_EQ(st->version, tls::version::tls13);
+            EXPECT_EQ(st->group, tls::group::secp521r1);
+            echo(*conn, "hello p521");
+            (void)conn->close();
+            ++n;
+        }
+        {
+            SServer12 s("p521", {"-groups", "P-521", "-sigalgs", "ecdsa_secp521r1_sha512"});
+            ASSERT_TRUE(s.start());
+            ASSERT_FALSE(s.wait_for("ACCEPT").empty()) << slurp(s.log);
+            auto conn = tls::connect(sgcl::string(s.address()), client_config());
+            ASSERT_TRUE(conn.has_value()) << std::string(conn.error().message().view());
+            auto st = tls::state_of(*conn);
+            EXPECT_EQ(st->version, tls::version::tls12);
+            EXPECT_EQ(st->group, tls::group::secp521r1);
+            echo(*conn, "hello p521 1.2");
+            (void)conn->close();
+            ++n;
+        }
+        // s_client to our server of a P-521 identity, the group P-521
+        {
+            auto l = net::tcp::listen("127.0.0.1:0");
+            ASSERT_TRUE(l.has_value());
+            Served served;
+            tls::config scfg = server_config("p521");
+            scfg.groups = {tls::group::secp521r1};
+            std::thread server([&] { serve_one(*l, scfg, served); });
+            Child c(openssl_path(), s_client_args(address_of(*l), {"-groups", "P-521", "-sigalgs", "ecdsa_secp521r1_sha512"}));
+            auto in = c.cmd.stdin_pipe();
+            ASSERT_TRUE(in.has_value());
+            ASSERT_TRUE(c.start());
+            ASSERT_TRUE(in->write(sgcl::string("hello from openssl\n")).has_value());
+            std::string out = c.wait_for("lssnepo morf olleh");
+            (void)in->close();
+            server.join();
+            (void)l->close();
+            EXPECT_FALSE(out.empty()) << slurp(c.log);
+            EXPECT_NE(out.find("Verification: OK"), std::string::npos);
+            EXPECT_TRUE(served.error.empty()) << served.error;
+            ASSERT_TRUE(served.state.has_value());
+            EXPECT_EQ(served.state->group, tls::group::secp521r1);
+            EXPECT_EQ(served.line, "hello from openssl");
+            ++n;
+        }
+    }
+    if (go) {
+        // our client to Go's server, 1.3 and 1.2
+        {
+            GoServer s("p521", int(tls::group::secp521r1));
+            ASSERT_TRUE(s.start());
+            std::string address = s.address();
+            ASSERT_FALSE(address.empty()) << slurp(s.log);
+            auto conn = tls::connect(sgcl::string(address), client_config());
+            ASSERT_TRUE(conn.has_value()) << std::string(conn.error().message().view());
+            EXPECT_EQ(tls::state_of(*conn)->group, tls::group::secp521r1);
+            echo(*conn, "hello go p521");
+            EXPECT_TRUE(conn->async_close().wait().has_value());
+            ++n;
+        }
+        {
+            Child g(go_oracle(), {sgcl::string("-cert"), sgcl::string(testdata() + "p521.pem"), sgcl::string("-key"), sgcl::string(testdata() + "p521.key"),
+                                  sgcl::string("-tls12"), sgcl::string("-curves"), sgcl::string(std::to_string(int(tls::group::secp521r1)))});
+            ASSERT_TRUE(g.start());
+            std::string address = go_address(g);
+            ASSERT_FALSE(address.empty()) << slurp(g.log);
+            auto conn = tls::connect(sgcl::string(address), client_config());
+            ASSERT_TRUE(conn.has_value()) << std::string(conn.error().message().view());
+            auto st = tls::state_of(*conn);
+            EXPECT_EQ(st->version, tls::version::tls12);
+            EXPECT_EQ(st->group, tls::group::secp521r1);
+            echo(*conn, "hello go p521 1.2");
+            (void)conn->close();
+            ++n;
+        }
+        // Go's client to our server
+        {
+            auto l = net::tcp::listen("127.0.0.1:0");
+            ASSERT_TRUE(l.has_value());
+            tls::config scfg = server_config("p521");
+            scfg.groups = {tls::group::secp521r1};
+            Served served;
+            std::thread server([&] { serve_one(*l, scfg, served); });
+            Child g(go_oracle(), {sgcl::string("-connect"), sgcl::string(address_of(*l)), sgcl::string("-ca"), sgcl::string(testdata() + "ca.pem"),
+                                  sgcl::string("-curves"), sgcl::string(std::to_string(int(tls::group::secp521r1)))});
+            ASSERT_TRUE(g.start());
+            std::string out = g.wait_for("CLOSED");
+            server.join();
+            (void)l->close();
+            EXPECT_FALSE(out.empty()) << slurp(g.log) << " / server: " << served.error;
+            EXPECT_NE(out.find("GOT og olleh"), std::string::npos) << out;
+            EXPECT_TRUE(served.error.empty()) << served.error;
+            ASSERT_TRUE(served.state.has_value());
+            EXPECT_EQ(served.state->group, tls::group::secp521r1);
+            ++n;
+        }
+    }
+    EXPECT_EQ(n, size_t(openssl) * 3 + size_t(go) * 3);
 }

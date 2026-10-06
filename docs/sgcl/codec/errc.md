@@ -37,7 +37,7 @@ when the format gave no words of its own.
 | `unexpected_end` | 3, the data ends in the middle; "unexpected end of data" |
 | `unsupported` | 4, valid data the module does not read (arithmetic-coded JPEG, 12-bit samples), data that is no format the module reads, a path whose extension is no format the module writes, HEIF on a system without its codec; "unsupported feature" |
 | `too_large` | 5, more than the [limits](limits.md) allow: the pixels, the metadata; "size limit exceeded" |
-| `invalid_argument` | 6, what the program asked makes no sense: a [decode_options](decode_options.md)`.want` outside the list of [pixel_format](pixel_format.md), for every decoder; a HEIC quality outside 1 to 100; an image the format cannot hold (a JPEG side past 65 535 pixels, a PNG side past 2^31 − 1) or the system's encoder does not take. JPEG's quality outside 1 to 100 and its subsampling outside the list are a `std::invalid_argument` thrown instead; "invalid argument" |
+| `invalid_argument` | 6, what the program asked makes no sense: a [decode_options](decode_options.md)`.want` outside the list of [pixel_format](pixel_format.md), for every decoder; a HEIC quality outside 1 to 100, GIF's colors outside 2 to 256, a WebP quality outside 1 to 100, an animation of no frame or of frames of different sizes; an image the format cannot hold (a JPEG or GIF side past 65 535 pixels, a WebP side past 16 384, a PNG side past 2^31 − 1) or the system's encoder does not take. JPEG's quality outside 1 to 100 and its subsampling outside the list are a `std::invalid_argument` thrown instead; "invalid argument" |
 | `io` | 7, the source or the sink failed, a file that does not open, read, write or rename: [io_error](error/io_error.md) says how; "input/output error" |
 
 ## Example

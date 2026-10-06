@@ -3,12 +3,14 @@
 # sgcl::generator\<T\>::begin
 
 ```cpp
-iterator begin();
+iterator begin() noexcept;
 ```
 
-Calls [next](next.md), so it runs the coroutine to its first value, and returns an [iterator](../generator-iterator.md)
-to it, or the end iterator when there is none. It is not repeatable: a second `begin()` advances the coroutine
-again, as a second `next()` would.
+Returns an [iterator](../generator-iterator.md) at the generator's next value, without running the coroutine: the
+iterator runs it, as [next](next.md) does, at its first look at a value (`*it`, `it->` or the comparison with
+[end](end.md)), and its `++` only marks the value used. A range-for left by a `break`, or a `std::views::take(n)`
+over the generator, has run the coroutine to the last value it looked at and no further, so the next `begin()`
+goes on from the value after it.
 
 ## Parameters
 
@@ -16,21 +18,22 @@ None.
 
 ## Return value
 
-An iterator to the current value, or the end iterator.
+An iterator at the next value, which it has not run the coroutine to yet.
 
 ## Complexity
 
-One resumption of the coroutine.
+Constant. A look at a value costs one resumption of the coroutine.
 
 ## Exceptions
 
-What the coroutine throws before its first value.
+None. What the coroutine throws comes out of the iterator's look that runs it.
 
 ## Example
 
 ```cpp
 #include "sgcl/core.h"
 #include "sgcl/io.h"
+#include <ranges>
 
 using namespace sgcl;
 
@@ -47,10 +50,13 @@ int main() {
     }
     println("{}", all);
 
-    generator<int> g = squares(3);
-    auto first = g.begin();
-    auto second = g.begin();  // one step further
-    println("{} {}", *second, first == second);
+    generator<int> g = squares(5);
+    for (int v : g | std::views::take(2)) {
+        println("taken {}", v);
+    }
+    for (int v : g) {  // goes on from the third value
+        println("then {}", v);
+    }
 }
 ```
 
@@ -58,11 +64,15 @@ Output:
 
 ```text
 [1, 4, 9, 16]
-4 true
+taken 1
+taken 4
+then 9
+then 16
+then 25
 ```
 
 ## See also
 
-- [end](end.md): the end iterator
+- [end](end.md): the end of a range-for
 - [iterator](../generator-iterator.md): what `begin` returns
 - [sgcl::generator\<T\>](README.md)

@@ -26,8 +26,9 @@ big-endian, from 1) and `Uj = HMAC(P, Uj-1)`. The class holds nothing: its two f
 ## Rules
 
 - **For deriving keys, not for storing passwords.** A server that keeps password hashes to check logins wants a
-  memory-hard function, which makes an attacker's specialised hardware no faster than the server: Argon2id or scrypt,
-  which the module will have after version 1. PBKDF2 costs time only, and GPUs have plenty of it.
+  memory-hard function, which makes an attacker's specialised hardware no faster than the server:
+  [argon2](../argon2/README.md) (Argon2id) or [scrypt](../scrypt/README.md). PBKDF2 costs time only, and GPUs have
+  plenty of it.
 - **The iterations** are the work factor: OWASP names 600 000 for HMAC-SHA-256 and 210 000 for HMAC-SHA-512 (2023).
   Zero is `std::invalid_argument` (RFC 8018 asks for at least one); so is an output of more than 2^32 − 1 blocks of
   the digest's size (RFC 8018 §5.2).

@@ -11,12 +11,13 @@ namespace sgcl::net::tls {
         x25519 = 0x001D,
         secp256r1 = 0x0017,
         secp384r1 = 0x0018,
+        secp521r1 = 0x0019,
     };
 }
 ```
 
 The groups of the key exchange, by their numbers on the wire (the `NamedGroup` of RFC 8446): Go's `tls.CurveID`.
-A [config](config.md) lists them in order of preference, `config::groups`, by default in the order of the
+A [config](config.md) lists them in order of preference, `config::groups`, by default the first four in the order of the
 declaration; a [state](state.md) says which one the handshake settled on. A client sends a key share of the first
 of its list, and of X25519 beside the hybrid, so that a server of either answers in one round trip; a server
 that takes neither asks for one of its own with a HelloRetryRequest.
@@ -27,6 +28,7 @@ that takes neither asks for one of its own with a HelloRetryRequest.
 | `x25519` | X25519 (RFC 7748, [x25519](../../crypto/x25519.md)); its share goes beside the hybrid's in a default ClientHello |
 | `secp256r1` | ECDHE over NIST P-256 ([p256](../../crypto/p256.md)); a server of it alone costs a default client a HelloRetryRequest |
 | `secp384r1` | ECDHE over NIST P-384 ([p384](../../crypto/p384.md)); the same |
+| `secp521r1` | ECDHE over NIST P-521 ([p521](../../crypto/p521.md)); not in the default list, as in Chrome: taken when a config lists it |
 
 ## Example
 

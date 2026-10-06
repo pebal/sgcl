@@ -23,6 +23,7 @@ at the lengths 16, 64, 1024, 65536 and 1048576 bytes.
 | `maphash` | the process's seed, its secret made once; Go's `maphash.Bytes` with a seed made once |
 | `siphash` | SipHash-2-4 with a fixed key; Go's `github.com/dchest/siphash` |
 | `string-hash` | the keyed hash a [string](../core/string/README.md) of core keeps of its bytes, one call, for comparing with `maphash` (SGCL only; 16 to 65536 bytes) |
+| `xxh32`, `xxh64` | XXH32 and XXH64 with the seed 0; Go's standard library has neither, so the other side is libxxhash's `XXH32` and `XXH64` (the variant `xxhash` of `bench_hash`, built where the library is found) |
 | `xxh3_64`, `xxh3_128` | XXH3 with the seed 0, the default secret; Go's `github.com/zeebo/xxh3`, which has NEON assembly on arm64 |
 | `xxh3_64-seeded` | XXH3 with a seed: past 240 bytes the seed's secret is made in each call |
 
@@ -62,6 +63,11 @@ road compiled, unverified until the x86 machine). Past 240 bytes XXH3 reads a se
 seed: a hasher makes it once, when its first stripe goes in, and `of` with a seed makes it on its stack in each call
 (24 additions), which `xxh3_64-seeded` measures. With `SGCL_HASH_PORTABLE` defined, the CRCs and XXH3 take the
 plain loops; the tests hold the paths against each other and all of them against the oracles.
+
+XXH32 and XXH64 are four lanes, each a multiplication, a rotation and a multiplication by a stripe of four words,
+the lanes independent of each other. They stay scalar: four lanes of XXH32 in one NEON vector are one chain of the
+three steps, slower than the four scalar chains side by side (measured), so the scalar loop holds its lanes behind
+a barrier that keeps the compiler from making that vector itself; NEON has no 64-bit multiplication for XXH64's.
 
 ## See also
 

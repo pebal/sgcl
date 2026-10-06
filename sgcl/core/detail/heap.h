@@ -45,6 +45,14 @@ namespace sgcl::detail {
         // Reachable with the parity of the epoch, stored by the collector at
         // every flip: one byte load for the barrier (page.h: reachable_state)
         std::atomic<State> current_reachable = {State(State::Reachable | State::Parity)};
+        // The cycle number in 64 bits, stored by the collector at every flip
+        // after current_reachable (release): a thread that reads the new
+        // value (acquire) reads the new current_reachable in every barrier
+        // after it. The tag of a thread's stack record (record_stack): 64
+        // bits so that a record never reads as current again (a 4-bit or a
+        // 32-bit tag comes round while a thread waits, deep in its stack,
+        // through enough cycles of the others).
+        std::atomic<uint64_t> stack_epoch = {0};
     };
 
     class Heap {
@@ -628,6 +636,43 @@ namespace sgcl::detail {
         std::atomic<size_t> _limit = {0};
         alignas(config::cache_line_size) std::mutex _mutex;
     };
+
+    // Prototype (proto-stack-sp, config.h: SGCL_STACK_SP). The thread's
+    // stack pointer, sampled after an acquire load of the epoch that reads
+    // the cycle's flip: every frame alive then and still alive when the
+    // collector scans lies above the sample, and every frame made after it
+    // is written by stores whose barriers read the new epoch (the acquire
+    // synchronizes with the flip, which stored current_reachable first), so
+    // what such a frame holds is reachable by state. Out of line, so that
+    // the pointer is this function's own, below every frame of its callers,
+    // each of which is calling and so holds nothing below its own pointer:
+    // the collector scans from exactly this pointer, no red zone.
+    // The pointer first, relaxed, then the epoch with release: a collector
+    // that reads the epoch (acquire) reads this pointer or a later one,
+    // each sampled after the same flip.
+    SGCL_NOINLINE inline uint64_t record_stack_slow(StackRecord& r) noexcept {
+        auto e = Heap::globals.stack_epoch.load(std::memory_order_acquire);
+        uintptr_t sp;
+#if defined(__aarch64__) && (defined(__GNUC__) || defined(__clang__))
+        asm volatile("mov %0, sp" : "=r"(sp) :: "memory");
+#elif defined(__x86_64__) && (defined(__GNUC__) || defined(__clang__))
+        asm volatile("mov %%rsp, %0" : "=r"(sp) :: "memory");
+#else
+        return e;   // no record: the full query for this thread
+#endif
+        r.sp.store(sp, std::memory_order_relaxed);
+        r.epoch.store(e, std::memory_order_release);
+        return e;
+    }
+
+    // The test of the allocators: one relaxed load of the epoch (the line
+    // of the heap's statics every allocation reads) against the epoch this
+    // allocator recorded last
+    SGCL_INLINE_HOT void record_stack(StackRecord& r, uint64_t& seen) noexcept {
+        if (Heap::globals.stack_epoch.load(std::memory_order_relaxed) != seen) [[unlikely]] {
+            seen = record_stack_slow(r);
+        }
+    }
 
     // A managed allocation refused after the full collection: the program
     // ends. Nothing can be done with the error (the memory a handler would

@@ -104,12 +104,16 @@ namespace sgcl::crypto::detail {
     };
 
     // A digest the module's hmac, hkdf and pbkdf2 are made over: one of
-    // the module's own (it says so with crypto_digest), trivially copyable,
-    // so that its state can be zeroed as bytes
+    // the module's own (it says so with crypto_digest), copyable and of
+    // standard layout with a trivially destructible state, so that its
+    // state can be zeroed as bytes (BLAKE2's hashers have a destructor of
+    // their own, which zeroes a keyed state, and are not trivially
+    // copyable for it)
     template<class H>
     inline constexpr bool crypto_digest = false;
 
     template<class H>
-    concept digest_type = crypto_digest<H> && std::is_trivially_copyable_v<H> && std::default_initializable<H>
+    concept digest_type = crypto_digest<H> && std::is_copy_constructible_v<H> && std::is_copy_assignable_v<H>
+                       && std::is_standard_layout_v<H> && std::default_initializable<H>
                        && requires { H::digest_size; H::block_size; };
 }

@@ -119,7 +119,8 @@ TEST(NetDnsResolvConf_Tests, LongLinesAndManyFields) {
     nd::ResolvConf r = nd::parse_resolv_conf(text, "");
     EXPECT_EQ(r.search.size(), 6u);
     EXPECT_EQ(servers(r), std::vector<std::string>{"10.9.8.7:53"});
-    std::string nul("nameserver 10.0.0.1\0garbage\nsearch a\0b\n", 41);
+    static const char with_nuls[] = "nameserver 10.0.0.1\0garbage\nsearch a\0b\n";
+    std::string nul(with_nuls, sizeof with_nuls - 1);
     r = nd::parse_resolv_conf(nul, "");
     EXPECT_TRUE(r.default_servers);   // "10.0.0.1\0garbage" is no address
 }

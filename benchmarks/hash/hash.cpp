@@ -7,7 +7,7 @@
 // length a run (benchmarks/go/hash has the Go side, the same cases over the
 // same bytes). Prints one line: ns per call and GB/s.
 //
-//   hash <case> sgcl [length=1024]
+//   hash <case> <sgcl|xxhash> [length=1024]
 //
 //   crc32 crc32c crc64 crc64_iso   the CRCs, the path the build has (on arm64
 //                                  folding by PMULL, the CRC-32 instructions
@@ -19,6 +19,11 @@
 //   xxh3_64 xxh3_128               XXH3, seed 0 (the default secret)
 //   xxh3_64-seeded                 XXH3 with a seed: past 240 bytes the
 //                                  seed's secret is made in each call
+//   xxh32 xxh64                    XXH32 and XXH64, seed 0; the variant xxhash
+//                                  is libxxhash's XXH32 and XXH64 (and XXH3_64bits
+//                                  for xxh3_64) when the build found it
+//                                  (SGCL_BENCH_XXHASH): Go's standard library
+//                                  has neither
 //   maphash                        the process's seed (its secret made once)
 //   siphash                        SipHash-2-4, a fixed key
 //   string-hash                    the core's keyed hash of a string's bytes
@@ -36,6 +41,10 @@
 // reads high, so a process runs one case.
 #include "benchmarks/common.h"
 #include "sgcl/hash/hash.h"
+
+#if SGCL_BENCH_XXHASH
+#include <xxhash.h>
+#endif
 
 #include <cstdint>
 #include <cstdio>
@@ -106,8 +115,8 @@ namespace {
 }
 
 int main(int argc, char** argv) {
-    if (argc < 3 || std::string(argv[2]) != "sgcl") {
-        std::fprintf(stderr, "usage: hash <crc32|crc32c|crc64|crc64_iso|crc32-portable|crc64-portable|adler32|fnv32|fnv32a|fnv64|fnv64a|fnv128|fnv128a|xxh3_64|xxh3_128|xxh3_64-seeded|maphash|siphash|string-hash|combine> sgcl [length]\n");
+    if (argc < 3 || (std::string(argv[2]) != "sgcl" && std::string(argv[2]) != "xxhash")) {
+        std::fprintf(stderr, "usage: hash <crc32|crc32c|crc64|crc64_iso|crc32-portable|crc64-portable|adler32|fnv32|fnv32a|fnv64|fnv64a|fnv128|fnv128a|xxh3_64|xxh3_128|xxh3_64-seeded|xxh32|xxh64|maphash|siphash|string-hash|combine> <sgcl|xxhash> [length]\n");
         return 2;
     }
     namespace hash = sgcl::hash;
@@ -121,6 +130,24 @@ int main(int argc, char** argv) {
         double gbs = what == "combine" ? 0 : double(n) * double(calls) / wall / 1e9;
         std::printf("hash %s length=%zu ns/op=%.2f GB/s=%.2f wall=%.2fs\n", what.c_str(), n, ns, gbs, wall);
     };
+    if (std::string(argv[2]) == "xxhash") {
+#if SGCL_BENCH_XXHASH
+        if (what == "xxh32") {
+            measure([](const unsigned char* p, size_t n) { return uint64_t(XXH32(p, n, 0)); });
+        } else if (what == "xxh64") {
+            measure([](const unsigned char* p, size_t n) { return uint64_t(XXH64(p, n, 0)); });
+        } else if (what == "xxh3_64") {
+            measure([](const unsigned char* p, size_t n) { return uint64_t(XXH3_64bits(p, n)); });
+        } else {
+            std::fprintf(stderr, "no xxhash variant of %s\n", what.c_str());
+            return 2;
+        }
+        return 0;
+#else
+        std::fprintf(stderr, "built without libxxhash\n");
+        return 2;
+#endif
+    }
     if (what == "crc32") {
         measure(one_shot<hash::crc32>());
     } else if (what == "crc32c") {
@@ -159,6 +186,10 @@ int main(int argc, char** argv) {
         measure([](const unsigned char* p, size_t n) {
             return hash::xxh3_64::of(sgcl::slice<const sgcl::byte>(reinterpret_cast<const sgcl::byte*>(p), n), 0x9e3779b97f4a7c15ull);
         });
+    } else if (what == "xxh32") {
+        measure(one_shot<hash::xxh32>());
+    } else if (what == "xxh64") {
+        measure(one_shot<hash::xxh64>());
     } else if (what == "maphash") {
         measure(one_shot<hash::maphash>());
     } else if (what == "siphash") {

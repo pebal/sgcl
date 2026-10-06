@@ -6,8 +6,9 @@
 #pragma once
 
 // The codec module: images in memory (image, pixel_format) and the file
-// formats PNG, JPEG, GIF and WebP, and HEIF and AVIF through the system
-// (heif.h); load and save on files (files.h)
+// formats PNG, JPEG, GIF, WebP, BMP, TIFF, ICO, QOI and Netpbm, and HEIF
+// and AVIF through the system (heif.h); load and save on files (files.h)
+#include "bmp.h"
 #include "decode.h"
 #include "error.h"
 #include "files.h"
@@ -15,8 +16,15 @@
 #include "frames.h"
 #include "gif.h"
 #include "heif.h"
+#include "ico.h"
 #include "image.h"
 #include "jpeg.h"
+#include "jxl.h"
+#include "metadata.h"
 #include "options.h"
 #include "png.h"
+#include "qr.h"
+#include "pnm.h"
+#include "qoi.h"
+#include "tiff.h"
 #include "webp.h"

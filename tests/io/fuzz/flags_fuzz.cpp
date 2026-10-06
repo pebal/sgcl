@@ -13,11 +13,15 @@
 //     read again gives the same value), and a plain decimal integer or
 //     number gives what std::from_chars gives;
 //   - the usage is made and holds every flag's name.
+// One addition of the library's is in the model: a token of one-letter
+// bools only (-bb), which Go refuses, is the bools combined
+// (tests/io/fuzz/flags_beyond_fuzz.cpp has the rest of them).
 // Go's own answers are the oracle of tests/io/flags.cpp; this is the model
 // of the control flow and the converters' consistency, on any bytes.
 // Built with libFuzzer (tests/fuzz/run.sh tests/io/fuzz/flags_fuzz.cpp) or
 // replayed by the library's own driver (tests/fuzz/driver.cpp).
 #include "sgcl/io/flags.h"
+#include "tests/fuzz/input.h"
 
 #include <charconv>
 #include <cmath>
@@ -119,7 +123,19 @@ namespace {
                 known = known || n == name;
             }
             if (!known) {
-                e.what = name == "h" || name == "help" ? Expect::help : Expect::undefined;
+                if (name == "h" || name == "help") {
+                    e.what = Expect::help;
+                    return e;
+                }
+                // beyond Go: -bb, one-letter bools combined (Go refuses the token)
+                bool combined = eq == std::string_view::npos && name.size() >= 2;
+                for (char c : name) {
+                    combined = combined && c == 'b';
+                }
+                if (combined) {
+                    continue;
+                }
+                e.what = Expect::undefined;
                 return e;
             }
             e.flag = name;
@@ -220,8 +236,13 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
                 check(false);
         }
     }
-    // the converters against std::from_chars on plain decimals
-    for (auto a : args) {
+    // the converters against std::from_chars on plain decimals, each
+    // argument in a buffer of its own size: one cut out of the input ends
+    // at the NUL before the next, where a read past it goes unseen
+    // (tests/fuzz/input.h)
+    for (auto piece : args) {
+        const sgcl_fuzz::exact arg(piece);
+        const std::string_view a = arg.view();
         if (plain_decimal(a)) {
             int64_t x;
             check(d::go_parse_int(a, 64, x) == d::GoNumber::ok);

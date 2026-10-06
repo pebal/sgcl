@@ -587,7 +587,9 @@ namespace sgcl::net::tls::detail {
         inline constexpr uint64_t recognized = client_hello | encrypted_extensions | certificate_request | bits({48});
     }
 
-    inline expected<void, Alert> validate_extensions(HandshakeType type, bool retry, const Extensions& x, uint64_t offered) noexcept {
+    // `ech`: an encrypted_client_hello was offered (RFC 9849), so one in a
+    // HelloRetryRequest or in EncryptedExtensions is the machine's to read
+    inline expected<void, Alert> validate_extensions(HandshakeType type, bool retry, const Extensions& x, uint64_t offered, bool ech = false) noexcept {
         using namespace ext_allowed;
         uint64_t allowed = 0;
         bool reply = false;
@@ -601,6 +603,9 @@ namespace sgcl::net::tls::detail {
             default: return failed(AlertDescription::internal_error, 0, "no extensions in this message");
         }
         for (auto e : x) {
+            if (e.type == 0xfe0d && ech && ((type == HandshakeType::server_hello && retry) || type == HandshakeType::encrypted_extensions)) {
+                continue;
+            }
             uint64_t bit = bit_of(e.type);
             bool is_known = (bit & ext_allowed::recognized) != 0;
             if (!is_known) {
@@ -739,6 +744,7 @@ namespace sgcl::net::tls::detail {
             case Group::x25519: return 32;
             case Group::secp256r1: return 65;
             case Group::secp384r1: return 97;
+            case Group::secp521r1: return 133;
             case Group::x25519_mlkem768: return server ? 1088 + 32 : 1184 + 32;
         }
         return 0;
@@ -758,7 +764,7 @@ namespace sgcl::net::tls::detail {
             (void)at;
             return false;
         }
-        if ((Group(group) == Group::secp256r1 || Group(group) == Group::secp384r1) && uint8_t(key[0]) != 4) {
+        if ((Group(group) == Group::secp256r1 || Group(group) == Group::secp384r1 || Group(group) == Group::secp521r1) && uint8_t(key[0]) != 4) {
             r.fail(AlertDescription::illegal_parameter, "a key share that is not an uncompressed point");
             return false;
         }
@@ -831,7 +837,8 @@ namespace sgcl::net::tls::detail {
             if (!share_ok(list, at, group, key, false)) {
                 return failed(list);
             }
-            unsigned bit = Group(group) == Group::x25519 ? 1 : Group(group) == Group::secp256r1 ? 2 : Group(group) == Group::secp384r1 ? 4 : Group(group) == Group::x25519_mlkem768 ? 8 : 0;
+            unsigned bit = Group(group) == Group::x25519 ? 1 : Group(group) == Group::secp256r1 ? 2 : Group(group) == Group::secp384r1 ? 4 : Group(group) == Group::x25519_mlkem768 ? 8
+                         : Group(group) == Group::secp521r1 ? 16 : 0;
             if (bit & seen) {
                 return failed(AlertDescription::illegal_parameter, at, "two key shares of one group");
             }

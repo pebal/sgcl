@@ -59,6 +59,17 @@
 namespace sgcl::net::tls::detail {
     // What the server offers and accepts: the lists are the codes on the
     // wire, the server's preference first (tls::config makes them, T6)
+    // A key of ECH's (RFC 9849) as the server opens with it: the ECHConfig,
+    // its id, KEM and suites, the HPKE private key (held by tls::ech_key's
+    // state, which the connection keeps)
+    struct EchServerKey {
+        std::vector<byte> config;
+        uint8_t id = 0;
+        uint16_t kem = 0;
+        std::vector<uint32_t> suites;     // kdf << 16 | aead
+        const crypto::hpke::private_key* key = nullptr;
+    };
+
     struct ServerSettings {
         vector<ServerIdentity> identities;
         vector<uint16_t> ciphers = {0x1301, 0x1302, 0x1303};
@@ -72,6 +83,8 @@ namespace sgcl::net::tls::detail {
         optional<crypto::x509::certificate_pool> client_roots;   // what a client's chain must lead to; nullopt: the system's
         TicketKeys* tickets = nullptr;                   // tickets issued and taken; null: neither
         uint32_t ticket_lifetime = 86400;                // seconds, at most 604800
+        std::vector<EchServerKey> ech_keys;              // RFC 9849: what a ClientHelloOuter is opened with; empty: no ECH
+        std::vector<byte> ech_retry_configs;             // the ECHConfigList sent when ECH is rejected; empty: none
     };
 
     // The identities of a client's pre_shared_key tried at most (§4.2.11)
@@ -95,6 +108,7 @@ namespace sgcl::net::tls::detail {
         crypto::x509::chain peer_certificates;           // the client's, the leaf first (mTLS; a resumed session's from its ticket)
         crypto::x509::chain verified_chain;              // the client's chain as verification built it, the leaf to a root
         bool staple_sent = false;                        // an OCSP response stapled to the leaf (the client asked, the identity had one)
+        bool ech_accepted = false;                       // the ClientHelloInner was decrypted and answered (RFC 9849)
     };
 
     class ServerHandshake {
@@ -127,6 +141,25 @@ namespace sgcl::net::tls::detail {
         // hello is fed
         SGCL_INLINE_HOT void set_identities(vector<ServerIdentity> identities) noexcept {
             _settings.identities = std::move(identities);
+        }
+
+        // The ClientHello the handshake answers, of the first one received:
+        // its ClientHelloInner when it carries ECH's outer extension and one
+        // of the keys opens it (RFC 9849 §7.1), else the hello itself; for
+        // the choice of the identity (tls::config::identity_for) before the
+        // hello is fed. The decryption is made once
+        Bytes hello_answered(const Bytes& message) noexcept {
+            if (_state != State::wait_client_hello) {
+                return message;
+            }
+            if (!_ech_tried) {
+                _ech_tried = true;
+                auto r = _ech_open_first(message);
+                if (!r) {
+                    _ech_error = r.error();
+                }
+            }
+            return _ech == 1 ? bytes_of(_s->inner_hello.data(), _s->inner_hello.size()) : message;
         }
 
         // An alert record from the client: the handshake is over
@@ -175,9 +208,15 @@ namespace sgcl::net::tls::detail {
             uint8_t random[32] = {};
             Secret psk;                  // a ticket's, once taken, until the schedule has it
             Step step;
+            // ECH (RFC 9849): the context the inner hellos open under, the
+            // inner hello decoded, its random
+            optional<crypto::hpke::recipient> ech;
+            std::vector<byte> inner_hello;
+            uint8_t inner_random[32] = {};
 
             SGCL_INLINE_HOT ~Secrets() {
                 crypto::detail::secure_zero(random, sizeof random);
+                crypto::detail::secure_zero(inner_random, sizeof inner_random);
             }
         };
 
@@ -195,6 +234,12 @@ namespace sgcl::net::tls::detail {
         optional<Alert> _peer_alert;
         uint16_t _psk_identity = 0;
         crypto::x509::reason _verify_reason = crypto::x509::reason::none;
+        uint8_t _ech = 0;                   // ECH: 0 none, 1 accepted, 2 offered and rejected (retry_configs sent)
+        bool _ech_tried = false;            // the first hello's decryption made
+        optional<Alert> _ech_error;         // an inner hello that decrypted and does not decode
+        uint8_t _ech_config = 0;            // the accepted hello's config id and suite, which the second must keep
+        uint16_t _ech_kdf = 0;
+        uint16_t _ech_aead = 0;
 
         static Alert _alert(AlertDescription d, const char* what) noexcept {
             return Alert{d, 0, what};
@@ -207,14 +252,33 @@ namespace sgcl::net::tls::detail {
             }
             const HandshakeType type = HandshakeType(h->type);
             switch (_state) {
-            case State::wait_client_hello:
+            case State::wait_client_hello: {
                 if (type != HandshakeType::client_hello) {
                     break;
                 }
+                const Bytes answered = hello_answered(message);
+                if (_ech_error) {
+                    return unexpected(*_ech_error);
+                }
+                if (_ech == 1) {
+                    auto inner = read_handshake(answered);
+                    return _client_hello(answered, inner->body, false);
+                }
                 return _client_hello(message, h->body, false);
+            }
             case State::wait_second_hello:
                 if (type != HandshakeType::client_hello) {
                     break;
+                }
+                if (_ech == 1) {
+                    // RFC 9849 §7.1.1: the second outer hello opened under the
+                    // first's context, enc empty, the same config and suite
+                    auto inner = _ech_open_second(message);
+                    if (!inner) {
+                        return unexpected(inner.error());
+                    }
+                    auto ih = read_handshake(bytes_of(_s->inner_hello.data(), _s->inner_hello.size()));
+                    return _client_hello(bytes_of(_s->inner_hello.data(), _s->inner_hello.size()), ih->body, true);
                 }
                 return _client_hello(message, h->body, true);
             case State::wait_certificate:
@@ -248,6 +312,152 @@ namespace sgcl::net::tls::detail {
                 }
             }
             return false;
+        }
+
+        // --- ECH (RFC 9849 §7) ------------------------------------------------------
+
+        // The outer extension of a hello and where its payload lies in the
+        // message; nullopt for a hello without one (or with one of type inner)
+        struct EchFound {
+            EchOuter outer;
+            size_t payload_at = 0;      // in the message
+        };
+
+        static expected<optional<EchFound>, Alert> _ech_find(const Bytes& message, const ClientHello& ch) noexcept {
+            auto e = ch.extensions.find(EchExtension);
+            if (!e) {
+                return optional<EchFound>();
+            }
+            auto type = ech_type(*e);
+            if (!type || *type != 0) {
+                return optional<EchFound>();
+            }
+            auto outer = read_ech_outer(*e);
+            if (!outer) {
+                return unexpected(outer.error());
+            }
+            EchFound f;
+            f.outer = *outer;
+            f.payload_at = size_t(e->data() - message.data()) + outer->payload_at;
+            return optional<EchFound>(f);
+        }
+
+        // The payload opened over the hello's body with the payload zeroed
+        // (ClientHelloOuterAAD, §5.2) and decoded into the inner hello
+        expected<bool, Alert> _ech_decode(const Bytes& message, const ClientHello& ch, const EchFound& f) {
+            std::vector<byte> aad(message.data() + 4, message.data() + message.size());
+            crypto::detail::secure_zero(aad.data() + (f.payload_at - 4), f.outer.payload.size());
+            auto plain = _s->ech->open(f.outer.payload, bytes_of(aad.data(), aad.size()));
+            if (!plain) {
+                return false;
+            }
+            auto inner = decode_inner(plain->as_slice(), ch);
+            if (!inner) {
+                return unexpected(inner.error());
+            }
+            _s->inner_hello = std::move(*inner);
+            std::memcpy(_s->inner_random, _s->inner_hello.data() + 6, 32);
+            return true;
+        }
+
+        // The first hello: a key of its config id, a suite it has, the
+        // context set up and the payload opened. A hello that does not open
+        // is answered as the outer hello, with retry_configs (§7.1); one that
+        // opens and does not decode is illegal_parameter
+        expected<void, Alert> _ech_open_first(const Bytes& message) {
+            if (_settings.ech_keys.empty()) {
+                return {};
+            }
+            auto h = read_handshake(message);
+            if (!h) {
+                return {};
+            }
+            auto ch = read_client_hello(h->body);
+            if (!ch) {
+                return {};
+            }
+            auto found = _ech_find(message, *ch);
+            if (!found) {
+                return unexpected(found.error());
+            }
+            if (!*found) {
+                return {};
+            }
+            const EchFound& f = **found;
+            _ech = 2;
+            const uint32_t suite = uint32_t(f.outer.kdf) << 16 | f.outer.aead;
+            for (const auto& k : _settings.ech_keys) {
+                bool has = false;
+                for (uint32_t x : k.suites) {
+                    has |= x == suite;
+                }
+                if (k.id != f.outer.config_id || !has || !ech_suite_known(suite)) {
+                    continue;
+                }
+                const auto info = ech_info(k.config);
+                auto r = crypto::hpke::recipient::setup(f.outer.enc, *k.key, crypto::hpke::suite{crypto::hpke::kdf(f.outer.kdf), crypto::hpke::aead(f.outer.aead)},
+                                                        bytes_of(info.data(), info.size()));
+                if (!r) {
+                    continue;
+                }
+                _s->ech.emplace(std::move(*r));
+                auto d = _ech_decode(message, *ch, f);
+                if (!d) {
+                    return unexpected(d.error());
+                }
+                if (*d) {
+                    _ech = 1;
+                    _ech_config = f.outer.config_id;
+                    _ech_kdf = f.outer.kdf;
+                    _ech_aead = f.outer.aead;
+                    _result.ech_accepted = true;
+                    return {};
+                }
+                _s->ech.reset();
+            }
+            return {};
+        }
+
+        expected<bool, Alert> _ech_open_second(const Bytes& message) {
+            auto fail = [](const char* what) {
+                return unexpected(Alert{AlertDescription::decrypt_error, 0, what});
+            };
+            auto h = read_handshake(message);
+            if (!h) {
+                return unexpected(h.error());
+            }
+            auto ch = read_client_hello(h->body);
+            if (!ch) {
+                return unexpected(ch.error());
+            }
+            auto found = _ech_find(message, *ch);
+            if (!found) {
+                return unexpected(found.error());
+            }
+            if (!*found) {
+                return unexpected(Alert{AlertDescription::missing_extension, 0, "a second ClientHello without encrypted_client_hello after ECH was accepted"});
+            }
+            const EchFound& f = **found;
+            if (!f.outer.enc.empty() || f.outer.config_id != _ech_config || f.outer.kdf != _ech_kdf || f.outer.aead != _ech_aead) {
+                return unexpected(Alert{AlertDescription::illegal_parameter, 0, "a second ClientHelloOuter with enc, or another config or suite"});
+            }
+            auto d = _ech_decode(message, *ch, f);
+            if (!d) {
+                return unexpected(d.error());
+            }
+            if (!*d) {
+                return fail("a second ClientHelloInner that does not open");
+            }
+            return true;
+        }
+
+        // The 8 bytes of a confirmation written into the message at `at`
+        // (zeros there now), over the transcript so far (§7.2)
+        void _ech_confirm(size_t message_at, size_t at, const char* label, const Transcript& t) noexcept {
+            auto& out = _s->step.out;
+            uint8_t confirmation[8];
+            ech_confirmation(_hash, confirmation, _s->inner_random, t, bytes_of(out.data() + message_at, out.size() - message_at), label);
+            sgcl::detail::copy_bytes(out.data() + at, confirmation, 8);
         }
 
         // --- the ClientHello -------------------------------------------------------
@@ -575,9 +785,21 @@ namespace sgcl::net::tls::detail {
                     auto e = w.extension(ExtensionType::cookie);
                     write_cookie(w, bytes_of(_settings.retry_cookie.data(), _settings.retry_cookie.size()));
                 }
-                auto e = w.extension(ExtensionType::supported_versions);
-                write_version_selected(w, Tls13);
+                {
+                    auto e = w.extension(ExtensionType::supported_versions);
+                    write_version_selected(w, Tls13);
+                }
+                if (_ech == 1) {
+                    // the HelloRetryRequest's acceptance (§7.2.1), last, zeros for now
+                    auto e = w.extension(EchExtension);
+                    for (int i = 0; i < 8; ++i) {
+                        w.u8(0);
+                    }
+                }
             });
+            if (_ech == 1) {
+                _ech_confirm(at, out.size() - 8, EchHrrAccept, *_s->transcript);
+            }
             _s->transcript->update(bytes_of(out.data() + at, out.size() - at));
             _push_send(Epoch::initial, at, out.size() - at);
             if (_session_id_size) {
@@ -650,6 +872,11 @@ namespace sgcl::net::tls::detail {
                     write_pre_shared_key_selected(w, _psk_identity);
                 }
             });
+            if (_ech == 1) {
+                // the acceptance in the last 8 bytes of the random (§7.2)
+                crypto::detail::secure_zero(out.data() + at + 4 + 2 + 24, 8);
+                _ech_confirm(at, at + 4 + 2 + 24, EchAccept, *_s->transcript);
+            }
             _s->transcript->update(bytes_of(out.data() + at, out.size() - at));
             _push_send(Epoch::initial, at, out.size() - at);
             if (_session_id_size && !_ccs_sent) {
@@ -687,6 +914,11 @@ namespace sgcl::net::tls::detail {
                     auto v = _result.alpn.view();
                     auto one = w.block8();
                     w.bytes(v.data(), v.size());
+                }
+                if (_ech == 2 && !_settings.ech_retry_configs.empty()) {
+                    // retry_configs (RFC 9849 §7.1): the ECHConfigList to try next
+                    auto e = w.extension(EchExtension);
+                    w.bytes(bytes_of(_settings.ech_retry_configs.data(), _settings.ech_retry_configs.size()));
                 }
             });
             _s->transcript->update(bytes_of(out.data() + at, out.size() - at));

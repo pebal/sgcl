@@ -46,7 +46,7 @@ as a stop that stopped nothing, neither the children of the source nor its deadl
 |---|---|
 | `value_type` | `T` |
 | `size_type` | `size_t` |
-| `iterator` | the channel's input iterator, which receives on each step ([begin](begin.md)) |
+| `iterator` | the channel's input iterator, which receives at the first look at an element ([begin](begin.md)) |
 | `receive_op` | the awaiter of a receive in a task ([receive](receive.md)) |
 | `receive_case<F>` | a receive case of a select ([on_receive](on_receive.md)) |
 
@@ -76,7 +76,7 @@ as a stop that stopped nothing, neither the children of the source nor its deadl
 | Function | Description |
 |---|---|
 | [begin](begin.md) | receives the first element, for a range-for |
-| [end](end.md) | the end iterator |
+| [end](end.md) | the end of a range-for, `std::default_sentinel` |
 
 #### Capacity
 

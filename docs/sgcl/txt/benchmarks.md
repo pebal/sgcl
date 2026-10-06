@@ -514,3 +514,155 @@ Two shapes are not the same question on both sides and are marked as such rather
 data does not carry writes nothing here and `<no value>` in Go, and the specification is a format specification here
 and a `printf` call there. The rest are the same source, the same data and the same output — the oracle
 ([tools/stencil_oracle.go](../../../tools/stencil_oracle.go)) is what keeps them so.
+
+## Locale data
+
+What a locale writes by CLDR's data ([number_format](number_format/README.md), [plural_of](plural_of.md),
+[format_list](format_list.md), [format_relative](format_relative.md), [date_format](../time/date_format/README.md)
+and the [display names](names.md)), one value at a time with the formatter made once, against ICU 78 — a C program
+over the same values, each object opened once — and, for numbers and plurals, Go's `golang.org/x/text`;
+`bench_cldr` in Polish, nanoseconds per value, the best of three:
+
+| Case | SGCL | ICU 78 | Ratio |
+|---|---|---|---|
+| a double in the decimal format | 96.5 | 284.4 | 2.9× |
+| the short compact form of an integer | 115.8 | 297.3 | 2.6× |
+| an amount of PLN | 104.4 | 262.6 | 2.5× |
+| the plural category of an integer | 9.0 | 121.7 | 13.5× |
+| a list of three items | 88.4 | 211.2 | 2.4× |
+| a relative time in days | 185.9 | 293.6 | 1.6× |
+| a full date and a short time | 133.9 | 632.1 | 4.7× |
+| a date of the skeleton `yMMMd` | 80.1 | 389.3 | 4.9× |
+| the name of a locale with a region | 332.4 | 1853.0 | 5.6× |
+| a full time with the zone's long name | 417.9 | 806.8 | 1.9× |
+
+Against `golang.org/x/text`: the decimal format 96.5 against 357.0 (3.7×), the plural category 9.0 against 15.6
+(1.7×). Measured on 6 October 2026 while other work ran on the machine (a load average near ten), both sides in the
+same minutes, so the ratios hold where the absolute numbers would read lower on a quiet machine.
+
+## Message catalogs
+
+A [catalog](catalog/README.md) of a thousand messages, every tenth a plural by the Polish rule, against GNU libintl
+1.0 (`dgettext`, `dngettext`) over the same .mo file, and a [message_format](message_format/README.md) of a plural,
+a select and a number against ICU 78's MessageFormat (its text turned to UTF-8, as this side hands it back);
+`bench_messages`, nanoseconds per call, the best of three, in the same sitting as the section above:
+
+| Case | SGCL | Reference | Ratio |
+|---|---|---|---|
+| a lookup by id | 18.3 | 273.5 | 14.9× |
+| a plural lookup | 69.0 | 222.1 | 3.2× |
+| a message with a plural, a select and a number | 452.6 | 1064.6 | 2.4× |
+
+Reading the .mo costs 200 ns a message ([parse_mo](catalog/parse_mo.md): a string of the library for every id and
+form, then the table), paid once. libintl's lookup is a hash into the file and a conversion to the codeset asked
+for; here it is one hash kept in the id's string, one comparison and the translation handed back as the string the
+catalog holds.
+
+## HTML templates
+
+An [html_stencil](html_stencil/README.md) against Go's `html/template` over the same templates and a stream of a
+thousand different values, each with characters to escape (`Ada & <Bob> "7" o'neil`); `bench_html_stencil` and
+[benchmarks/go/html_stencil](../../../benchmarks/go/html_stencil/main.go), nanoseconds per page, the best of three,
+in the sitting of the two sections above:
+
+| Template | SGCL | Go | Ratio |
+|---|---|---|---|
+| a link: its URL, its title and its text | 520.9 | 2041.0 | 3.9× |
+| a table of ten rows: an attribute, a URL and text in each | 8811.4 | 29958.9 | 3.4× |
+| a script: an object and a string | 603.4 | 1788.8 | 3.0× |
+| reading the table's source, its page written once | 10474.4 | 42669.7 | 4.1× |
+
+Go escapes at the first execution of a template, so its reading is measured with one page written; here the
+escaping of each field is chosen when the source is read, and a render runs the steps stencil runs with the
+field's escaper after its value.
+
+## HTML
+
+[html_document](html_document/README.md) against gumbo-parser 0.13 (C, Homebrew) over two real pages — the W3C PNG
+specification (657 KB) and the WHATWG URL standard (740 KB), which both parse into gumbo's own trees — and a page made
+by `bench_html`; megabytes of the page per second, gumbo's parse with its tree freed, in the sitting of the sections
+above (a load average near seventeen, both sides alike):
+
+| Document | Parse | Serialize | Sanitize | Gumbo's parse | Ratio of the parses |
+|---|---|---|---|---|---|
+| PNG specification | 56.2 | 308.7 | 43.7 | 32.0 | 1.8× |
+| URL standard | 64.9 | 462.5 | 51.3 | 33.6 | 1.9× |
+| the made page (100 KB) | 41.3 | 314.0 | 33.2 | — | — |
+
+A hundred thousand nested elements parse in about 20 ms, serialize in 5 and sanitize in 27: the stack of open
+elements counts its elements by name, so the scope checks of a deep document do not walk it, and nothing that walks
+the tree recurses.
+
+## Diff
+
+[unified_diff](unified_diff.md), [apply_patch](apply_patch.md) and [merge3](merge3.md) against the tools over the
+same files: 100,000 lines of source-like text (1.8 MB), a copy with 1,000 scattered changes and another with 1,000
+others, made by `bench_diff` (`bench_diff write <dir>` saves them); milliseconds per operation, the best of three
+runs here and of seven processes for the tools — whose time includes starting the process (about 3 ms) and reading
+the files — with a load average near sixteen:
+
+| Operation | SGCL | Tool | Ratio |
+|---|---|---|---|
+| unified diff, Myers | 10.8 | 31.5 (`git diff --no-index`), 42.7 (`diff -u`) | 2.9× |
+| unified diff, patience | 15.3 | 36.0 (`git diff --patience`) | 2.4× |
+| the edit script only ([diff_lines](diff_lines.md)) | 10.4 | — | — |
+| applying the patch | 4.0 | 42.8 (`patch`) | 10.6× |
+| three-way merge | 20.8 | 30.0 (`git merge-file`) | 1.4× |
+
+The lines are numbered through an open-addressing table of their first occurrences (no copy of the texts), Myers'
+search runs in linear space between the lines both texts share at the front and the back, and a patch is written
+into the new text as its hunks are found, never moving the lines after them.
+
+## Tab writer
+
+[align_tabs](align_tabs.md) and a [tab_writer](tab_writer/README.md) fed line by line against Go's `text/tabwriter`
+over the same table — 10,000 lines of four cells, a listing of files (370 KB) — made by `bench_tab_writer` and
+[benchmarks/go/tab_writer](../../../benchmarks/go/tab_writer/main.go); milliseconds per table, the best of three,
+with a load average near seventeen:
+
+| Writing | SGCL | Go | Ratio |
+|---|---|---|---|
+| the whole table at once | 1.26 | 2.15 | 1.7× |
+| line by line, then flushed | 1.40 | 2.10 | 1.5× |
+
+The bytes that end a cell are found by a table of 256 flags rather than a comparison each, and the columns are
+measured in one pass over the lines with a stack of open blocks, where Go recurses a column at a time.
+
+## Distances
+
+[levenshtein](levenshtein.md), [osa_distance](osa_distance.md), [damerau_levenshtein](damerau_levenshtein.md) and
+[lcs_length](lcs_length.md) against the tables everyone writes for them — two rows for Levenshtein and the
+subsequence, three for the alignment, Lowrance and Wagner's whole table for Damerau's distance — over the pairs of
+`bench_distance`: 10,000 words of 4 to 14 letters with one or two edits, 1,000 lines of 100 to 200 characters five
+edits apart, ten texts of 5,000 characters a hundred edits apart; nanoseconds a pair (microseconds for the long
+texts), the best of two, with other builds running:
+
+| Measure | Words | Table | Lines | Table | Long texts (µs) | Table (µs) |
+|---|---|---|---|---|---|---|
+| Levenshtein | 55 | 164 | 937 | 49,017 | 1,413 | 47,172 |
+| optimal string alignment | 63 | 268 | 975 | 59,717 | 1,355 | 54,185 |
+| Damerau | 147 | 233 | 35,608 | 91,568 | 72,212 | 83,477 |
+| longest common subsequence | 80 | 220 | 610 | 34,382 | 285 | 39,815 |
+| Jaro-Winkler | 149 | — | 5,460 | — | 3,549 | — |
+
+Levenshtein, the alignment and the subsequence are bit-parallel: a machine word holds 64 units of the shorter text
+and a step takes a unit of the longer, so lines run 50 to 60 times the table's speed and long texts 30 to 140 times.
+Damerau's distance has no such form; it is the table, a row at a time in linear memory.
+
+## Markdown
+
+[markdown_to_html](markdown_to_html.md) and [markdown_document::parse](markdown_document/parse.md) against md4c
+0.5 (C, Homebrew), the fastest CommonMark parser at hand, over the library's own documentation — every page of
+`docs/` in one file of 11 MB — and a document made by `bench_markdown`; megabytes of Markdown per second, md4c's
+HTML written into a growing buffer as the library's is, the better of two runs with a load average near twenty-two:
+
+| Reading | SGCL | Md4c | Ratio |
+|---|---|---|---|
+| CommonMark with GitHub's extensions, to HTML | 115.1 | 143.2 | 0.80× |
+| CommonMark alone, to HTML | 138.5 | 173.9 | 0.80× |
+| the tree of managed nodes (`markdown_document::parse`) | 93.7 | — | — |
+
+md4c writes its HTML as it reads, without a tree; here every document is a tree first — the one
+[markdown_document](markdown_document/README.md) gives, which the HTML is written from — its nodes small (the rare
+parts aside), their texts slices of the content or of one pool rather than strings of their own, the HTML written by
+a walk along the tree's links. What remains of the difference is the tree.

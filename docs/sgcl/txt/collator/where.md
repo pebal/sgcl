@@ -6,9 +6,9 @@
 locale where() const noexcept;
 ```
 
-Returns the locale the collator was made with: the language whose order it asked for, whether the library has one
-of its own for it or not ([tailored](tailored.md) says which). A collator of the root order has the empty locale,
-`locale()`.
+Returns the language the collator was made with, as a locale of the language alone: the language whose order it
+asked for, whether the library has one of its own for it or not ([tailored](tailored.md) says which). A collator made
+with `pl-PL` has `pl`, the order being the language's; a collator of the root order has the empty locale, `locale()`.
 
 ## Parameters
 

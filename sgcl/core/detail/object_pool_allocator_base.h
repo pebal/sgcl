@@ -69,8 +69,8 @@ namespace sgcl::detail {
         // The code is the same for every type (it was per type: the header
         // cache, the page header and the destructor, ~540 bytes each);
         // every type keeps its own pool.
-        ObjectPoolAllocatorBase(PageAllocator& pa, std::atomic<Page*>& pages, Metadata& m) noexcept
-        : ObjectAllocatorBase(pages)
+        ObjectPoolAllocatorBase(PageAllocator& pa, std::atomic<Page*>& pages, StackRecord& stack_record, Metadata& m) noexcept
+        : ObjectAllocatorBase(pages, stack_record)
         , _page_allocator(pa)
         , _metadata(m) {
         }
@@ -131,6 +131,9 @@ namespace sgcl::detail {
         // still see half done: zero or the final value.
         template<class Init>
         void* alloc(size_t, Init&& init) noexcept {
+            if constexpr(config::stack_sp == 2) {
+                record_stack(_stack_record, _stack_seen);
+            }
             auto free = _free_word;
             if (!free) {
                 _refill();
@@ -139,6 +142,9 @@ namespace sgcl::detail {
             auto bit = std::countr_zero(free);
             _free_word = free & (free - 1);
             auto p = (void*)(_word_base + bit * _object_size);
+#if defined(SGCL_ASAN)
+            SGCL_ASAN_UNPOISON(p, _metadata.user_size);   // the object's bytes; the redzone stays poisoned (os.h: SGCL_ASAN)
+#endif
             init(p);
             _word_states[bit].store(Page::unique_state(), std::memory_order_relaxed);
             _current_page->object_created.store(true, std::memory_order_release);
@@ -152,6 +158,7 @@ namespace sgcl::detail {
         std::atomic<State>* _word_states = nullptr;   // the states of the current word's slots
         size_t _object_size = 0;
         Page* _current_page = {nullptr};
+        uint64_t _stack_seen = 0;   // the epoch of this allocator's last stack record (heap.h: record_stack)
         Page::Flag* _free_bits = {nullptr};
         uint64_t* _summary = {nullptr};
         unsigned _summary_count = 0;
@@ -190,6 +197,9 @@ namespace sgcl::detail {
         // Loads a word with a free slot: the next one of the current page,
         // or the first of the next page.
         void _refill() noexcept {
+            if constexpr(config::stack_sp == 3) {
+                record_stack(_stack_record, _stack_seen);
+            }
             if (_current_page) {
                 // the cached word is exhausted: reflect it in the page
                 _free_bits[_cursor] = 0;
@@ -244,6 +254,9 @@ namespace sgcl::detail {
             if (os::forked_child.load(std::memory_order_relaxed)) [[unlikely]] {
                 os::fail_after_fork("a managed allocation");   // before the copied locks (os.h)
             }
+            if constexpr(config::stack_sp == 1) {
+                record_stack(_stack_record, _stack_seen);
+            }
             Page* page;
             {
                 // Slow path (once per page): a mutex instead of a lock-free
@@ -263,6 +276,9 @@ namespace sgcl::detail {
                 return page;
             }
             auto data = _page_allocator.alloc();
+#if defined(SGCL_ASAN)
+            SGCL_ASAN_UNPOISON(data, config::page_size);   // for the zeroing and the cells below: the page's last use left it poisoned
+#endif
             // Zeros where the collector reads them: every page a type whose
             // pointer map still has an offset takes from the heap is zeroed
             // here, on the allocating thread, before the page is published
@@ -276,6 +292,9 @@ namespace sgcl::detail {
                 std::memset(data, 0, config::page_size);
             }
             page = _create_page_parameters(data);   // all slots free
+#if defined(SGCL_ASAN)
+            SGCL_ASAN_POISON(data, config::page_size);   // every slot free: alloc() unpoisons the one it hands out
+#endif
             page->owned.store(true, std::memory_order_relaxed);
             Heap::set_pages(data, 1, page);
             // publish: the collector may exchange the list away at any time

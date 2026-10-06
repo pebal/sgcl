@@ -25,6 +25,16 @@
 //   fib     the n-th Fibonacci number by the same doubling as the C++ case
 //   harmonic the big.Rat sum 1/1 + 1/2 + … + 1/n, reported per term
 //
+// decimal, for orientation: Go has no decimal type, so big.Rat holds the
+// same values (n digits, two after the point) — dadd, daddmix, dmul as
+// Add and Mul; dmoney as Mul and FloatString(2) read back; ddiv as an
+// exact Quo; dsqrt has no Go side; dparse SetString; dformat
+// FloatString(2); dsum Add, per term
+//
+// big.Float (n the precision in bits, as bench_math's f cases): fadd, fmul,
+// fdiv, fsqrt (z of precision n), ftext (Text('g', -1)), fparse
+// (ParseFloat of that text at precision n)
+//
 // rand/v2 over ChaCha8 (n ignored):
 //   uint64  r.Uint64()
 //   intn    r.IntN(1000)
@@ -133,6 +143,139 @@ func fibonacci(n int) *big.Int {
 		}
 	}
 	return a
+}
+
+// n digits, the first not zero, with the point before the last two
+func decimalText(r *rand.Rand, n int) string {
+	b := make([]byte, 0, n+1)
+	for i := 0; i < n; i++ {
+		if i == 0 {
+			b = append(b, byte('1'+r.IntN(9)))
+		} else {
+			b = append(b, byte('0'+r.IntN(10)))
+		}
+	}
+	if n > 2 {
+		b = append(b[:n-2], '.', b[n-2], b[n-1])
+	}
+	return string(b)
+}
+
+func rat(s string) *big.Rat {
+	v, _ := new(big.Rat).SetString(s)
+	return v
+}
+
+func floatOp(op string, n int) float64 {
+	r := rand.New(rand.NewPCG(1, 2))
+	if n == 0 {
+		n = 256
+	}
+	prec := uint(n)
+	value := func() *big.Float {
+		m := randomBig(r, (n+63)/64)
+		m.Rsh(m, uint(((n+63)/64)*64-n))
+		f := new(big.Float).SetPrec(prec).SetInt(m)
+		return f.SetMantExp(f, -n/2)
+	}
+	a, b := value(), value()
+	run := func(f func(z *big.Float) *big.Float) float64 {
+		return measure(func(count int) {
+			for i := 0; i < count; i++ {
+				z := new(big.Float).SetPrec(prec)
+				sink += uint64(f(z).Sign() + 1)
+			}
+		})
+	}
+	switch op {
+	case "fadd":
+		return run(func(z *big.Float) *big.Float { return z.Add(a, b) })
+	case "fmul":
+		return run(func(z *big.Float) *big.Float { return z.Mul(a, b) })
+	case "fdiv":
+		return run(func(z *big.Float) *big.Float { return z.Quo(a, b) })
+	case "fsqrt":
+		return run(func(z *big.Float) *big.Float { return z.Sqrt(a) })
+	case "ftext":
+		return measure(func(count int) {
+			for i := 0; i < count; i++ {
+				sink += uint64(len(a.Text('g', -1)))
+			}
+		})
+	case "fparse":
+		text := a.Text('g', -1)
+		return measure(func(count int) {
+			for i := 0; i < count; i++ {
+				f, _, _ := big.ParseFloat(text, 10, prec, big.ToNearestEven)
+				sink += uint64(f.Sign() + 1)
+			}
+		})
+	}
+	return -1
+}
+
+func decimalOp(op string, n int) float64 {
+	r := rand.New(rand.NewPCG(1, 2))
+	at := decimalText(r, n)
+	a, b := rat(at), rat(decimalText(r, n))
+	switch op {
+	case "dadd", "daddmix", "dmul":
+		if op == "daddmix" {
+			b.Quo(b, big.NewRat(100, 1))
+		}
+		return measure(func(count int) {
+			for i := 0; i < count; i++ {
+				c := new(big.Rat)
+				if op == "dmul" {
+					c.Mul(a, b)
+				} else {
+					c.Add(a, b)
+				}
+				sink += uint64(c.Sign())
+			}
+		})
+	case "dmoney":
+		rate := rat("0.0825")
+		return measure(func(count int) {
+			for i := 0; i < count; i++ {
+				c := rat(new(big.Rat).Mul(a, rate).FloatString(2))
+				sink += uint64(c.Sign())
+			}
+		})
+	case "ddiv":
+		return measure(func(count int) {
+			for i := 0; i < count; i++ {
+				sink += uint64(new(big.Rat).Quo(a, b).Sign())
+			}
+		})
+	case "dparse":
+		return measure(func(count int) {
+			for i := 0; i < count; i++ {
+				sink += uint64(rat(at).Sign())
+			}
+		})
+	case "dformat":
+		return measure(func(count int) {
+			for i := 0; i < count; i++ {
+				sink += uint64(len(a.FloatString(2)))
+			}
+		})
+	case "dsum":
+		values := make([]*big.Rat, 1000)
+		for i := range values {
+			values[i] = rat(decimalText(r, n))
+		}
+		return measure(func(count int) {
+			for i := 0; i < count; i++ {
+				sum := new(big.Rat)
+				for _, v := range values {
+					sum.Add(sum, v)
+				}
+				sink += uint64(sum.Sign())
+			}
+		}) / 1000
+	}
+	return -1
 }
 
 func bigOp(op string, n int) float64 {
@@ -401,7 +544,13 @@ func main() {
 				n = 10
 			}
 		}
-		ns = bigOp(op, n)
+		if len(op) > 1 && op[0] == 'd' && op != "div" && op != "double" {
+			ns = decimalOp(op, n)
+		} else if len(op) > 1 && op[0] == 'f' && op != "fact" && op != "factorial" && op != "fib" {
+			ns = floatOp(op, n)
+		} else {
+			ns = bigOp(op, n)
+		}
 	}
 	if ns < 0 {
 		fmt.Fprintf(os.Stderr, "math: no op called %s\n", op)

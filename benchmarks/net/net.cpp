@@ -18,15 +18,50 @@
 //                           (Go: http.ReadRequest over a bufio.Reader of the same bytes)
 //   net http_hello sgcl [n] GET of a 13-byte body, the module's client and server on the loopback,
 //                           one kept connection, one request after another: per request
+//   net serve_range sgcl [n]  GET of bytes 1000-1999 of a file of 1 MB served by http::file_server (a weak ETag of
+//                           its size and time), the module's client and server on the loopback, one kept
+//                           connection: per request (Go: http.ServeContent with the same ETag set first)
+//   net serve_ranges sgcl [n] the same with two ranges of 100 bytes: a multipart/byteranges body
+//   net serve_etag sgcl [n] the same with If-None-Match the file's tag: a 304
+//   net serve_handler_range sgcl [n]  the handler alone, no network: file_server answering a test_request into a
+//                           response_recorder, bytes 1000-1999 of the file of 1 MB: per request (Go: httptest's
+//                           NewRequest and NewRecorder around the same http.ServeContent)
+//   net serve_handler_etag sgcl [n]   the same with If-None-Match the file's tag: a 304
+//   net mw_none sgcl [n]    a GET of a handler writing "hello" through the server's routing alone, into a
+//                           response_recorder, no network: per request (Go: the handler into httptest's recorder)
+//   net mw_chain_filter sgcl [n]  the same through ten filters of use(), (request, response_writer) -> bool
+//                           (Go: ten func(http.Handler) http.Handler that call the next)
+//   net mw_chain_around sgcl [n]  the same through ten arounds of use(), a task awaiting next(r, w)
+//   net mw_csrf sgcl [n]    a POST of Sec-Fetch-Site same-origin through csrf's origin check (Go:
+//                           http.CrossOriginProtection's Handler)
+//   net auth_basic sgcl [n] a GET with Authorization: Basic let in by basic_auth, into a recorder (Go:
+//                           r.BasicAuth and the same comparison before the handler)
+//   net oauth2_get sgcl [n] http_hello through a token source's client (oauth2::token_source::client): the
+//                           token taken under the source's lock and sent as Authorization: Bearer, which
+//                           the handler checks (Go: x/oauth2's Transport written with the standard library,
+//                           a mutex around the token and the request cloned with the header)
+//   net oidc_verify sgcl [n] an ID token of ES256 verified by a discovered provider, its keys fetched once:
+//                           the signature, iss, aud, exp, iat and the nonce (Go: the compact JWS split, ecdsa.Verify
+//                           and the claims of encoding/json checked by hand, the standard library alone)
+//   net compress_json sgcl [n]  a JSON body of 64 KB through the compression middleware, gzip at the standard level,
+//                           into a recorder: per response, and its bytes (Go: compress/gzip.NewWriter in the handler)
+//   net compress_stream sgcl [n]  the same body in 16 flushes of 4 KB, each a sync flush
 //   net dns_parse sgcl [n]  a DNS response read as the resolver reads it (the id and the question
 //                           checked, every section walked, the records of the type decoded into
 //                           strings), MX of five, TXT of three, SRV of three in turn: per message
+//   net dns_https_parse sgcl [n]  a DNS response of two HTTPS records (RFC 9460: alpn, ipv4hint, ech,
+//                           ipv6hint; alpn, port) read as the resolver reads it and each record typed as
+//                           dns::lookup_https gives it: per message (Go: a decoder written by hand, the
+//                           standard library having no HTTPS records)
 //   net dns_lookup sgcl [n] dns::async_lookup_mx of five records against a server on the loopback
 //                           that answers from memory, one lookup after another: per lookup
 //   net socks5_connect sgcl [n]  net::socks5::async_connect to an IPv4 target through a minimal SOCKS5
 //                           server on the loopback (no authentication; the server dials the target and
 //                           replies), then closed: per connection (Go: the same server and a minimal
 //                           client by hand, the standard library having no SOCKS dialer of its own)
+//   net socks5_server sgcl [n]  socks5_connect through the module's own server (net::socks5::server,
+//                           CONNECT, the relay both ways) instead of the minimal one: per connection
+//                           (Go: its socks5_connect, the standard library having no SOCKS5 server)
 //   net proxy_get sgcl [n]  GET of a 13-byte body as http_hello, through a minimal HTTP forward proxy on
 //                           the loopback (the request in absolute-form rewritten to origin-form, one kept
 //                           connection to the origin; the same proxy on both sides): per request
@@ -44,6 +79,8 @@
 //                           closed: per connection (run from the root of the tree: the certificates' paths)
 //   net tls_resume sgcl [n] the same, every handshake resuming the session of the one before (the client's cache)
 //   net tls_mtls sgcl [n]   tls_handshake with a client certificate (ECDSA P-256), required and verified
+//   net tls_ech sgcl [n]    tls_handshake with Encrypted Client Hello (RFC 9849): the server's key DHKEM(X25519) with
+//                           HKDF-SHA256 and AES-128-GCM, the public name public.example, the client given its list
 //   net tls_stream sgcl [mb]  stream over one TLS 1.3 connection (the configs of tls_handshake, AES-128-GCM): mb
 //                           megabytes (1024 by default) from the client to the server, 32 KB writes and reads,
 //                           records sealed and opened in the one process: per byte, and GB/s
@@ -125,6 +162,9 @@
 #include "sgcl/net/socks5.h"
 #include "sgcl/net/url.h"
 #include "sgcl/net/http/http.h"
+#include "sgcl/net/oauth2.h"
+#include "sgcl/net/oidc.h"
+#include "sgcl/crypto/jose.h"
 #include "sgcl/io.h"
 
 using namespace sgcl::net;
@@ -146,6 +186,9 @@ namespace {
         "123481800001000500000001076578616d706c6503636f6d00000f0001c00c000f000100000e10001b00050d676d61696c2d736d74702d696e016c06676f6f676c65c014c00c000f000100000e100009000f04616c7431c02bc00c000f000100000e100009001904616c7432c02bc00c000f000100000e100009002304616c7433c02bc00c000f000100000e100009002d04616c7434c02b00002904d0000000000000",
         "123481800001000300000001076578616d706c6503636f6d0000100001c00c001000010000012c002524763d7370663120696e636c7564653a5f7370662e6578616d706c652e636f6d207e616c6cc00c001000010000012c004544676f6f676c652d736974652d766572696669636174696f6e3d7744384e3769314a544e546b657a4a34397377765757343866385f39787665524556346f422d304866356fc00c001000010000012c002c2b4d533d4534413638423941423242423936373042434531353431324636323931363136344330423230424200002904d0000000000000",
         "1234818000010003000000010c5f786d70702d736572766572045f746370076578616d706c6503636f6d0000210001c00c002100010000012c001900050032149505786d707031076578616d706c6503636f6d00c00c002100010000012c001900050032149505786d707032076578616d706c6503636f6d00c00c002100010000012c001f000a000014950b786d70702d6261636b7570076578616d706c65036e65740000002904d0000000000000"};
+
+    // The response of dns_https_parse, the same bytes as the Go side's
+    const char* const DnsHttpsResponse = "1234818000010002000000010663727970746f0a636c6f7564666c61726503636f6d0000410001c00c004100010000012c00880001000001000602683302683200040008a29f874fa29f884f000500470045fe0d0041c100200020c063bcfdd11a9f78e21166c33d757f678ed09e7326ed43ad107274a5c45cc53a0004000100010012636c6f7564666c6172652d6563682e636f6d000000060020260647000007000000000000a29f874f260647000007000000000000a29f884fc00c004100010000012c0020000203616c74076578616d706c6503636f6d00000100030268320003000220fb00002904d0000000000000";
 
     std::string unhex(const char* h) {
         std::string out;
@@ -689,7 +732,7 @@ namespace {
 
 int main(int argc, char** argv) {
     if (argc < 3 || std::string(argv[2]) != "sgcl") {
-        std::fprintf(stderr, "usage: net <pingpong|stream|connect|parse|format|url|http_parse|http_hello|dns_parse|dns_lookup|socks5_connect|proxy_get|multipart_parse|multipart_write|udp_multicast|tls_handshake|tls_resume|tls_mtls|ws_echo|ws_throughput|sse_events|tls12_handshake|tls12_resume|cookie_jar|public_suffix|ocsp_verify|crl_1k|crl_100k|tls_staple|tls_nostaple|reverse_proxy_get|reverse_proxy_stream|acme_server|acme_order|acme_jws|tls_stream|dot_lookup|doh_lookup|mdns_parse|mdns_build|mdns_roundtrip> sgcl [n]\n");
+        std::fprintf(stderr, "usage: net <pingpong|stream|connect|parse|format|url|http_parse|http_hello|serve_range|serve_ranges|serve_etag|serve_handler_range|serve_handler_etag|mw_none|mw_chain_filter|mw_chain_around|mw_csrf|auth_basic|oauth2_get|oidc_verify|compress_json|compress_stream|dns_parse|dns_https_parse|dns_lookup|socks5_connect|socks5_server|proxy_get|multipart_parse|multipart_write|udp_multicast|tls_handshake|tls_resume|tls_mtls|tls_ech|ws_echo|ws_throughput|sse_events|tls12_handshake|tls12_resume|cookie_jar|public_suffix|ocsp_verify|crl_1k|crl_100k|tls_staple|tls_nostaple|reverse_proxy_get|reverse_proxy_stream|acme_server|acme_order|acme_jws|tls_stream|dot_lookup|doh_lookup|mdns_parse|mdns_build|mdns_roundtrip> sgcl [n]\n");
         return 2;
     }
     std::string what = argv[1];
@@ -813,6 +856,290 @@ int main(int argc, char** argv) {
         server.close();
         (void)serving.wait();
         ok = check == size_t(n) * 13;
+    } else if (what == "oauth2_get") {
+        n = n ? n : 50000;
+        net::http::server server;
+        server.route("GET /hello", [](net::http::request r, net::http::response_writer w) {
+            if (r.header("Authorization") != "Bearer at-1") {
+                w.set_status(401);
+                return;
+            }
+            w.write("hello, world\n");
+        });
+        auto l = tcp::listen("127.0.0.1:0");
+        auto serving = spawn(server.async_serve(*l));
+        net::oauth2::config cfg;
+        cfg.endpoints.token = "http://127.0.0.1:1/token";   // never asked: the token does not expire
+        net::oauth2::token t;
+        t.access_token = "at-1";
+        net::http::client client = cfg.source(t).client();
+        auto url = sgcl::string("http://127.0.0.1:" + std::to_string(l->local_endpoint().port()) + "/hello");
+        size_t check = 0;
+        auto t0 = bench::Clock::now();
+        auto run = [&]() -> task<> {
+            for (long i = 0; i < n; ++i) {
+                auto res = co_await client.async_get(url);
+                if (res) {
+                    check += (co_await res->async_text())->size();
+                }
+            }
+        };
+        spawn(run()).wait();
+        report("oauth2_get", bench::seconds_since(t0), double(n));
+        server.close();
+        (void)serving.wait();
+        ok = check == size_t(n) * 13;
+    } else if (what == "oidc_verify") {
+        n = n ? n : 20000;
+        auto key = sgcl::crypto::jose::jwk::generate(sgcl::crypto::jose::algorithm::es256, {.kid = "k1"});
+        auto jwks = sgcl::crypto::jose::jwk_set{key.public_key()}.to_json();
+        net::http::server server;
+        auto l = tcp::listen("127.0.0.1:0");
+        const auto issuer = sgcl::string("http://127.0.0.1:" + std::to_string(l->local_endpoint().port()));
+        server.route("GET /.well-known/openid-configuration", [issuer](net::http::request, net::http::response_writer w) {
+            w.write(sgcl::string::concat(R"({"issuer":")", issuer, R"(","jwks_uri":")", issuer, R"(/keys"})"));
+        });
+        server.route("GET /keys", [jwks](net::http::request, net::http::response_writer w) { w.write(jwks); });
+        auto serving = spawn(server.async_serve(*l));
+        auto provider = net::oidc::provider::discover(issuer);
+        auto claims = encoding::json::object({{"iss", issuer}, {"sub", "ann"}, {"aud", "web"}, {"nonce", "n-1"},
+                                              {"exp", time::now().unix() + 3600}, {"iat", time::now().unix()}});
+        auto token = sgcl::crypto::jose::jwt::sign(claims, key);
+        size_t check = 0;
+        (void)provider->verify(token, {.client_id = "web", .nonce = "n-1"});   // the keys fetched
+        auto t0 = bench::Clock::now();
+        auto run = [&]() -> task<> {
+            for (long i = 0; i < n; ++i) {
+                auto id = co_await provider->async_verify(token, {.client_id = "web", .nonce = "n-1"});
+                check += id && id->subject == "ann";
+            }
+        };
+        spawn(run()).wait();
+        report("oidc_verify", bench::seconds_since(t0), double(n));
+        server.close();
+        (void)serving.wait();
+        ok = check == size_t(n);
+    } else if (what == "mw_none" || what == "mw_chain_filter" || what == "mw_chain_around" || what == "mw_csrf") {
+        // the middleware chain alone, no network: a GET (mw_csrf: a POST of the same origin)
+        // of a handler writing "hello" through the server's use() chain, composed once,
+        // into a response_recorder; none, ten filters of the program's ((request,
+        // response_writer) -> bool), ten arounds (a task awaiting next), or csrf's origin
+        // check (Go: ten func(http.Handler) http.Handler; http.CrossOriginProtection)
+        n = n ? n : 1000000;
+        net::http::server srv;
+        if (what == "mw_chain_filter") {
+            for (int k = 0; k < 10; ++k) {
+                srv.use([](net::http::request&, net::http::response_writer&) { return true; });
+            }
+        } else if (what == "mw_chain_around") {
+            for (int k = 0; k < 10; ++k) {
+                srv.use([](net::http::request r, net::http::response_writer w, const net::http::handler& next) -> task<> { co_await next(r, w); });
+            }
+        } else if (what == "mw_csrf") {
+            srv.use(net::http::csrf());
+        }
+        srv.route("/hello", [](net::http::request, net::http::response_writer w) { w.write("hello"); });
+        auto& impl = net::http::detail::ServerAccess::impl(srv);
+        auto chain = net::http::detail::compose_chain(impl);
+        const bool post = what == "mw_csrf";
+        size_t check = 0;
+        auto run = [&]() -> task<> {
+            for (long i = 0; i < n; ++i) {
+                auto req = net::http::test_request(post ? "POST" : "GET", "/hello");
+                if (post) {
+                    req.set_header("Sec-Fetch-Site", "same-origin");
+                }
+                net::http::response_recorder rec;
+                auto w = rec.writer();
+                auto& ri = net::http::detail::RequestAccess::impl(req);
+                ri->dispatch_host = "example.com";
+                ri->dispatch_path = "/hello";
+                if (auto t = chain ? chain(req, w) : net::http::detail::dispatch(*impl, ri, req, w, ri->method.view(), "example.com", "/hello")) {
+                    co_await *t;
+                }
+                check += rec.status() == 200;
+            }
+        };
+        auto t0 = bench::Clock::now();
+        spawn(run()).wait();
+        report(what.c_str(), bench::seconds_since(t0), double(n));
+        ok = check == size_t(n);
+    } else if (what == "compress_json" || what == "compress_stream") {
+        // the compression middleware alone, no network: a JSON body of 64 KB (compress_json)
+        // or 16 flushes of 4 KB (compress_stream) gzipped at the standard level into a
+        // response_recorder (Go: the same handler writing through compress/gzip.NewWriter,
+        // its default level, the same flushes, through httptest)
+        n = n ? n : 3000;
+        std::string body = "[";
+        for (size_t i = 0; body.size() < 65536; ++i) {
+            body += "{\"id\":" + std::to_string(i) + ",\"name\":\"item " + std::to_string(i) + "\",\"ok\":true},";
+        }
+        body.resize(65536);
+        const sgcl::string json(body);
+        net::http::server srv;
+        srv.use(net::http::compression());
+        if (what == "compress_json") {
+            srv.route("/data", [json](net::http::request, net::http::response_writer w) {
+                w.set_header("Content-Type", "application/json");
+                w.write(json);
+            });
+        } else {
+            srv.route("/data", [json](net::http::request, net::http::response_writer w) -> task<> {
+                w.set_header("Content-Type", "application/json");
+                for (int k = 0; k < 16; ++k) {
+                    w.write(json.view().substr(size_t(k) * 4096, 4096));
+                    (void)co_await w.async_flush();
+                }
+            });
+        }
+        auto& impl = net::http::detail::ServerAccess::impl(srv);
+        auto chain = net::http::detail::compose_chain(impl);
+        size_t check = 0, out = 0;
+        auto run = [&]() -> task<> {
+            for (long i = 0; i < n; ++i) {
+                auto req = net::http::test_request("GET", "/data");
+                req.set_header("Accept-Encoding", "gzip");
+                net::http::response_recorder rec;
+                auto w = rec.writer();
+                auto& ri = net::http::detail::RequestAccess::impl(req);
+                ri->dispatch_host = "example.com";
+                ri->dispatch_path = "/data";
+                if (auto t = chain(req, w)) {
+                    co_await *t;
+                }
+                auto& wi = *net::http::detail::WriterAccess::impl(w);
+                wi.finishing = true;
+                wi.head_coming();
+                out += rec.body().size();
+                check += rec.header("Content-Encoding") == "gzip";
+            }
+        };
+        auto t0 = bench::Clock::now();
+        spawn(run()).wait();
+        char extra[64];
+        std::snprintf(extra, sizeof(extra), " bytes=%zu", out / size_t(n));
+        report(what.c_str(), bench::seconds_since(t0), double(n), extra);
+        ok = check == size_t(n);
+    } else if (what == "auth_basic") {
+        // the handler alone, no network: a GET with Authorization: Basic let in by basic_auth
+        // (its verify comparing the user and the password) into a response_recorder (Go:
+        // r.BasicAuth and the same comparison before the handler, through httptest)
+        n = n ? n : 1000000;
+        net::http::server srv;
+        srv.use(net::http::basic_auth("bench", [](const sgcl::string& u, const sgcl::string& p) { return u == "ann" && p == "s3cret"; }));
+        srv.route("/hello", [](net::http::request, net::http::response_writer w) { w.write("hello"); });
+        auto& impl = net::http::detail::ServerAccess::impl(srv);
+        auto chain = net::http::detail::compose_chain(impl);
+        size_t check = 0;
+        auto run = [&]() -> task<> {
+            for (long i = 0; i < n; ++i) {
+                auto req = net::http::test_request("GET", "/hello");
+                req.set_header("Authorization", "Basic YW5uOnMzY3JldA==");
+                net::http::response_recorder rec;
+                auto w = rec.writer();
+                auto& ri = net::http::detail::RequestAccess::impl(req);
+                ri->dispatch_host = "example.com";
+                ri->dispatch_path = "/hello";
+                if (auto t = chain(req, w)) {
+                    co_await *t;
+                }
+                check += rec.status() == 200;
+            }
+        };
+        auto t0 = bench::Clock::now();
+        spawn(run()).wait();
+        report("auth_basic", bench::seconds_since(t0), double(n));
+        ok = check == size_t(n);
+    } else if (what == "serve_handler_range" || what == "serve_handler_etag") {
+        // the handler alone, no network: http::file_server answering test_request into a
+        // response_recorder, a range of 1000 bytes of a file of 1 MB or its 304 (Go:
+        // httptest's NewRequest and NewRecorder around http.ServeContent with the same tag)
+        n = n ? n : 200000;
+        const char* tmp = std::getenv("TMPDIR");
+        std::string dir = std::string(tmp ? tmp : "/tmp") + "/sgcl_bench_serveh_" + std::to_string(::getpid());
+        (void)io::mkdir_all(sgcl::string(dir));
+        {
+            std::string data(1 << 20, '\0');
+            for (size_t i = 0; i < data.size(); ++i) {
+                data[i] = char('a' + i % 26);
+            }
+            (void)io::write_file(sgcl::string(dir + "/f.bin"), sgcl::string(data));
+        }
+        net::http::file_server files{sgcl::string(dir)};
+        net::http::response_recorder first;
+        files(net::http::test_request("GET", "/f.bin"), first.writer());
+        const sgcl::string tag = first.header("ETag");
+        const bool etag = what == "serve_handler_etag";
+        size_t check = 0;
+        auto t0 = bench::Clock::now();
+        for (long i = 0; i < n; ++i) {
+            auto req = net::http::test_request("GET", "/f.bin");
+            if (etag) {
+                req.set_header("If-None-Match", tag);
+            } else {
+                req.set_header("Range", "bytes=1000-1999");
+            }
+            net::http::response_recorder rec;
+            files(req, rec.writer());
+            check += rec.status() == (etag ? 304 : 206);
+        }
+        report(what.c_str(), bench::seconds_since(t0), double(n));
+        (void)io::remove_all(sgcl::string(dir));
+        ok = check == size_t(n);
+    } else if (what == "serve_range" || what == "serve_ranges" || what == "serve_etag") {
+        // a file of 1 MB in $TMPDIR served by http::file_server (a weak ETag of its size
+        // and time): a range of 1000 bytes (206), two ranges of 100 (multipart/byteranges),
+        // or a conditional GET whose If-None-Match is the file's tag (304); one kept connection
+        n = n ? n : 50000;
+        const char* tmp = std::getenv("TMPDIR");
+        std::string dir = std::string(tmp ? tmp : "/tmp") + "/sgcl_bench_serve_" + std::to_string(::getpid());
+        std::string file = dir + "/f.bin";
+        (void)io::mkdir_all(sgcl::string(dir));
+        {
+            std::string data(1 << 20, '\0');
+            for (size_t i = 0; i < data.size(); ++i) {
+                data[i] = char('a' + i % 26);
+            }
+            (void)io::write_file(sgcl::string(file), sgcl::string(data));
+        }
+        net::http::server server;
+        server.route("GET /{path...}", net::http::file_server(sgcl::string(dir)));
+        auto l = tcp::listen("127.0.0.1:0");
+        auto serving = spawn(server.async_serve(*l));
+        net::http::client client;
+        auto url = sgcl::string("http://127.0.0.1:" + std::to_string(l->local_endpoint().port()) + "/f.bin");
+        sgcl::string tag;
+        if (auto first = client.get(url)) {
+            tag = first->header("ETag");
+            (void)first->text();
+        }
+        const int expect = what == "serve_etag" ? 304 : 206;
+        const size_t expect_min = what == "serve_range" ? 1000 : what == "serve_ranges" ? 200 : 0;
+        size_t check = 0;
+        auto t0 = bench::Clock::now();
+        auto run = [&]() -> task<> {
+            for (long i = 0; i < n; ++i) {
+                net::http::request req("GET", url);
+                if (what == "serve_range") {
+                    req.set_header("Range", "bytes=1000-1999");
+                } else if (what == "serve_ranges") {
+                    req.set_header("Range", "bytes=0-99,5000-5099");
+                } else {
+                    req.set_header("If-None-Match", tag);
+                }
+                auto res = co_await client.async_send(req);
+                if (res && res->status() == expect) {
+                    auto body = co_await res->async_text();
+                    check += body && body->size() >= expect_min;
+                }
+            }
+        };
+        spawn(run()).wait();
+        report(what.c_str(), bench::seconds_since(t0), double(n));
+        server.close();
+        (void)serving.wait();
+        (void)io::remove_all(sgcl::string(dir));
+        ok = check == size_t(n);
     } else if (what == "dns_parse") {
         n = n ? n : 5000000;
         namespace nd = sgcl::net::detail;
@@ -835,6 +1162,24 @@ int main(int argc, char** argv) {
         }
         report("dns_parse", bench::seconds_since(t0), double(n));
         ok = check == size_t(n / 3) * 11 + (n % 3 > 0 ? 5 : 0) + (n % 3 > 1 ? 3 : 0);
+    } else if (what == "dns_https_parse") {
+        n = n ? n : 2000000;
+        namespace nd = sgcl::net::detail;
+        std::string message = unhex(DnsHttpsResponse);
+        nd::DnsName name;
+        nd::dns_name_from_text("crypto.cloudflare.com.", name);
+        size_t check = 0;
+        auto t0 = bench::Clock::now();
+        for (long i = 0; i < n; ++i) {
+            nd::DnsAnswer a;
+            nd::dns_read_answer(reinterpret_cast<const uint8_t*>(message.data()), message.size(), 0x1234, name, nd::dns_type::https, false, a);
+            for (auto& r : a.records) {
+                net::dns::svcb s = nd::DnsAccess::svcb_of(r, a.end);
+                check += s.alpn.size() + s.ipv4_hints.size() + s.ipv6_hints.size() + s.ech.size() + (s.port != 0);
+            }
+        }
+        report("dns_https_parse", bench::seconds_since(t0), double(n));
+        ok = check == size_t(n) * (2 + 2 + 2 + 71 + 1 + 1);
     } else if (what == "dns_lookup") {
         n = n ? n : 20000;
         auto s = net::udp::bind("127.0.0.1:0");
@@ -969,6 +1314,24 @@ int main(int argc, char** argv) {
         serving.wait();
         target->close();
         ok = made == n && taken == n;
+    } else if (what == "socks5_server") {
+        n = n ? n : 1000;   // as socks5_connect
+        auto target = tcp::listen("127.0.0.1:0");
+        auto acceptor = spawn(accept_all(*target, n));
+        auto proxy = tcp::listen("127.0.0.1:0");
+        net::socks5::server server;
+        auto serving = spawn(server.async_serve(*proxy));
+        auto t0 = bench::Clock::now();
+        long made = spawn(socks5_all(proxy->local_endpoint().to_string(), target->local_endpoint().to_string(), n)).wait();
+        if (made < n) {
+            target->close();
+        }
+        long taken = acceptor.wait();
+        report("socks5_server", bench::seconds_since(t0), double(n));
+        server.close();
+        serving.wait();
+        target->close();
+        ok = made == n && taken == n;
     } else if (what == "udp_multicast") {
         n = n ? n : 200000;
         net::network_interface lo;
@@ -1082,7 +1445,7 @@ int main(int argc, char** argv) {
         long served = serving.wait();
         l->close();
         ok = warm == 1 && done == n && served == n + 1;
-    } else if (what == "tls_handshake" || what == "tls_resume" || what == "tls_mtls") {
+    } else if (what == "tls_handshake" || what == "tls_resume" || what == "tls_mtls" || what == "tls_ech") {
         n = n ? n : 2000;   // ports: a TIME_WAIT each, as connect
         net::tls::config server;
         server.identities = {identity_of("ecdsa")};
@@ -1093,6 +1456,12 @@ int main(int argc, char** argv) {
         client.groups = {net::tls::group::x25519};
         if (what == "tls_resume") {
             client.session_cache = net::tls::session_cache();
+        }
+        if (what == "tls_ech") {
+            auto key = net::tls::ech_key::generate("public.example",
+                                                   {.suites = {crypto::hpke::suite{.aead = crypto::hpke::aead::aes128_gcm}}});
+            server.ech_keys = {key};
+            client.ech_config_list = net::tls::ech_config_list({key});
         }
         if (what == "tls_mtls") {
             server.client_auth = net::tls::client_auth::require;
@@ -1436,8 +1805,8 @@ int main(int argc, char** argv) {
         size_t check = 0;
         auto t0 = bench::Clock::now();
         for (long i = 0; i < n; ++i) {
-            sgcl::string h = net::acme::detail::header(st, kid, nonce, url);
-            check += net::acme::detail::jws(*st.key, h, payload).size();
+            sgcl::encoding::json h = net::acme::detail::header(st, kid, nonce, url);
+            check += net::acme::detail::jws(st, h, payload).size();
         }
         report("acme_jws", bench::seconds_since(t0), double(n));
         ok = check > 0;

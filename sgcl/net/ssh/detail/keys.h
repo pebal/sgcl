@@ -11,6 +11,7 @@
 #include "../../../crypto/gcm.h"
 #include "../../../crypto/p256.h"
 #include "../../../crypto/p384.h"
+#include "../../../crypto/p521.h"
 #include "../../../crypto/random.h"
 #include "../../../crypto/rsa.h"
 #include "../../../crypto/sha256.h"
@@ -28,7 +29,7 @@
 #include <string_view>
 
 // The keys of SSH: the public key blobs of RFC 4253 §6.6 (ssh-ed25519 of
-// RFC 8709, ecdsa-sha2-nistp256 and -nistp384 of RFC 5656, ssh-rsa with
+// RFC 8709, ecdsa-sha2-nistp256, -nistp384 and -nistp521 of RFC 5656, ssh-rsa with
 // the signatures rsa-sha2-256 and rsa-sha2-512 of RFC 8332) and OpenSSH's
 // certificates over them (PROTOCOL.certkeys); signatures made and checked;
 // and the private key file of OpenSSH (PROTOCOL.key: "openssh-key-v1",
@@ -43,13 +44,24 @@ namespace sgcl::net::ssh::detail {
         ecdsa_p256,
         ecdsa_p384,
         rsa,
+        ecdsa_p521,
     };
+
+    // ECDSA's widths: a coordinate and a scalar, 32, 48 or 66 bytes
+    SGCL_INLINE_HOT constexpr size_t ecdsa_width(KeyKind k) noexcept {
+        return k == KeyKind::ecdsa_p256 ? 32 : k == KeyKind::ecdsa_p384 ? 48 : 66;
+    }
+
+    SGCL_INLINE_HOT constexpr bool is_ecdsa(KeyKind k) noexcept {
+        return k == KeyKind::ecdsa_p256 || k == KeyKind::ecdsa_p384 || k == KeyKind::ecdsa_p521;
+    }
 
     SGCL_INLINE_HOT std::string_view key_name(KeyKind k) noexcept {
         switch (k) {
             case KeyKind::ed25519: return "ssh-ed25519";
             case KeyKind::ecdsa_p256: return "ecdsa-sha2-nistp256";
             case KeyKind::ecdsa_p384: return "ecdsa-sha2-nistp384";
+            case KeyKind::ecdsa_p521: return "ecdsa-sha2-nistp521";
             case KeyKind::rsa: return "ssh-rsa";
         }
         return "";
@@ -60,18 +72,19 @@ namespace sgcl::net::ssh::detail {
             case KeyKind::ed25519: return "ssh-ed25519-cert-v01@openssh.com";
             case KeyKind::ecdsa_p256: return "ecdsa-sha2-nistp256-cert-v01@openssh.com";
             case KeyKind::ecdsa_p384: return "ecdsa-sha2-nistp384-cert-v01@openssh.com";
+            case KeyKind::ecdsa_p521: return "ecdsa-sha2-nistp521-cert-v01@openssh.com";
             case KeyKind::rsa: return "ssh-rsa-cert-v01@openssh.com";
         }
         return "";
     }
 
     SGCL_INLINE_HOT std::string_view curve_name(KeyKind k) noexcept {
-        return k == KeyKind::ecdsa_p256 ? "nistp256" : "nistp384";
+        return k == KeyKind::ecdsa_p256 ? "nistp256" : k == KeyKind::ecdsa_p384 ? "nistp384" : "nistp521";
     }
 
     // The kind of a key type's name, plain or certificate
     inline bool kind_of_name(std::string_view name, KeyKind& kind, bool& cert) noexcept {
-        for (KeyKind k : {KeyKind::ed25519, KeyKind::ecdsa_p256, KeyKind::ecdsa_p384, KeyKind::rsa}) {
+        for (KeyKind k : {KeyKind::ed25519, KeyKind::ecdsa_p256, KeyKind::ecdsa_p384, KeyKind::ecdsa_p521, KeyKind::rsa}) {
             if (name == key_name(k)) {
                 kind = k;
                 cert = false;
@@ -101,11 +114,13 @@ namespace sgcl::net::ssh::detail {
         {"ssh-ed25519-cert-v01@openssh.com", KeyKind::ed25519, true, "ssh-ed25519"},
         {"ecdsa-sha2-nistp256-cert-v01@openssh.com", KeyKind::ecdsa_p256, true, "ecdsa-sha2-nistp256"},
         {"ecdsa-sha2-nistp384-cert-v01@openssh.com", KeyKind::ecdsa_p384, true, "ecdsa-sha2-nistp384"},
+        {"ecdsa-sha2-nistp521-cert-v01@openssh.com", KeyKind::ecdsa_p521, true, "ecdsa-sha2-nistp521"},
         {"rsa-sha2-512-cert-v01@openssh.com", KeyKind::rsa, true, "rsa-sha2-512"},
         {"rsa-sha2-256-cert-v01@openssh.com", KeyKind::rsa, true, "rsa-sha2-256"},
         {"ssh-ed25519", KeyKind::ed25519, false, "ssh-ed25519"},
         {"ecdsa-sha2-nistp256", KeyKind::ecdsa_p256, false, "ecdsa-sha2-nistp256"},
         {"ecdsa-sha2-nistp384", KeyKind::ecdsa_p384, false, "ecdsa-sha2-nistp384"},
+        {"ecdsa-sha2-nistp521", KeyKind::ecdsa_p521, false, "ecdsa-sha2-nistp521"},
         {"rsa-sha2-512", KeyKind::rsa, false, "rsa-sha2-512"},
         {"rsa-sha2-256", KeyKind::rsa, false, "rsa-sha2-256"},
     };
@@ -157,7 +172,8 @@ namespace sgcl::net::ssh::detail {
                 m.ed = r.string();
                 return r.ok() && m.ed.n == 32;
             case KeyKind::ecdsa_p256:
-            case KeyKind::ecdsa_p384: {
+            case KeyKind::ecdsa_p384:
+            case KeyKind::ecdsa_p521: {
                 Span curve = r.string();
                 m.point = r.string();
                 if (!r.ok() || curve.view() != curve_name(kind)) {
@@ -166,7 +182,10 @@ namespace sgcl::net::ssh::detail {
                 if (kind == KeyKind::ecdsa_p256) {
                     return m.point.n == 65 && crypto::p256::public_key::from_bytes(m.point.bytes()).has_value();
                 }
-                return m.point.n == 97 && crypto::p384::public_key::from_bytes(m.point.bytes()).has_value();
+                if (kind == KeyKind::ecdsa_p384) {
+                    return m.point.n == 97 && crypto::p384::public_key::from_bytes(m.point.bytes()).has_value();
+                }
+                return m.point.n == 133 && crypto::p521::public_key::from_bytes(m.point.bytes()).has_value();
             }
             case KeyKind::rsa:
                 m.e = r.mpint();
@@ -219,6 +238,7 @@ namespace sgcl::net::ssh::detail {
                 break;
             case KeyKind::ecdsa_p256:
             case KeyKind::ecdsa_p384:
+            case KeyKind::ecdsa_p521:
                 w.string(curve_name(m.kind));
                 w.string(m.point);
                 break;
@@ -259,28 +279,33 @@ namespace sgcl::net::ssh::detail {
                 return pk && pk->verify(message, sig.bytes());
             }
             case KeyKind::ecdsa_p256:
-            case KeyKind::ecdsa_p384: {
-                const bool p256 = k.kind == KeyKind::ecdsa_p256;
-                if (alg != (p256 ? "ecdsa-sha2-nistp256" : "ecdsa-sha2-nistp384")) {
+            case KeyKind::ecdsa_p384:
+            case KeyKind::ecdsa_p521: {
+                if (alg != key_name(k.kind)) {
                     return false;
                 }
                 Reader sr(sig);
                 Span rr = sr.mpint();
                 Span ss = sr.mpint();
-                const size_t w = p256 ? 32 : 48;
+                const size_t w = ecdsa_width(k.kind);
                 if (!sr.done() || rr.n > w || ss.n > w) {
                     return false;
                 }
-                uint8_t raw[96];
+                uint8_t raw[132];
                 left_pad(raw, w, rr);
                 left_pad(raw + w, w, ss);
-                if (p256) {
+                if (k.kind == KeyKind::ecdsa_p256) {
                     auto pk = crypto::p256::public_key::from_bytes(k.point.bytes());
                     auto d = crypto::sha256::of(message);
                     return pk && pk->verify_digest_raw(slice<const byte>(d.data(), d.size()), bytes_of(raw, 2 * w));
                 }
-                auto pk = crypto::p384::public_key::from_bytes(k.point.bytes());
-                auto d = crypto::sha384::of(message);
+                if (k.kind == KeyKind::ecdsa_p384) {
+                    auto pk = crypto::p384::public_key::from_bytes(k.point.bytes());
+                    auto d = crypto::sha384::of(message);
+                    return pk && pk->verify_digest_raw(slice<const byte>(d.data(), d.size()), bytes_of(raw, 2 * w));
+                }
+                auto pk = crypto::p521::public_key::from_bytes(k.point.bytes());
+                auto d = crypto::sha512::of(message);
                 return pk && pk->verify_digest_raw(slice<const byte>(d.data(), d.size()), bytes_of(raw, 2 * w));
             }
             case KeyKind::rsa: {
@@ -383,6 +408,7 @@ namespace sgcl::net::ssh::detail {
         optional<crypto::ed25519::private_key> ed25519;
         optional<crypto::p256::private_key> p256;
         optional<crypto::p384::private_key> p384;
+        optional<crypto::p521::private_key> p521;
         optional<crypto::rsa::private_key> rsa;
         Bytes public_blob;
         std::string comment;
@@ -410,6 +436,12 @@ namespace sgcl::net::ssh::detail {
                     w.string(b.data(), b.size());
                     break;
                 }
+                case KeyKind::ecdsa_p521: {
+                    auto b = p521->public_key().bytes();
+                    w.string(curve_name(kind));
+                    w.string(b.data(), b.size());
+                    break;
+                }
                 case KeyKind::rsa: {
                     auto pub = rsa->public_key();
                     uint64_t e = pub.exponent();
@@ -429,6 +461,7 @@ namespace sgcl::net::ssh::detail {
                 case KeyKind::ed25519: return "ssh-ed25519";
                 case KeyKind::ecdsa_p256: return "ecdsa-sha2-nistp256";
                 case KeyKind::ecdsa_p384: return "ecdsa-sha2-nistp384";
+                case KeyKind::ecdsa_p521: return "ecdsa-sha2-nistp521";
                 case KeyKind::rsa: return "rsa-sha2-512";
             }
             return "";
@@ -454,17 +487,22 @@ namespace sgcl::net::ssh::detail {
                     break;
                 }
                 case KeyKind::ecdsa_p256:
-                case KeyKind::ecdsa_p384: {
-                    const size_t width = kind == KeyKind::ecdsa_p256 ? 32 : 48;
-                    uint8_t raw[96];
+                case KeyKind::ecdsa_p384:
+                case KeyKind::ecdsa_p521: {
+                    const size_t width = ecdsa_width(kind);
+                    uint8_t raw[132];
                     if (kind == KeyKind::ecdsa_p256) {
                         auto d = crypto::sha256::of(message);
                         auto s = p256->sign_digest_raw(slice<const byte>(d.data(), d.size()));
                         sgcl::detail::copy_bytes(raw, s.data(), 64);
-                    } else {
+                    } else if (kind == KeyKind::ecdsa_p384) {
                         auto d = crypto::sha384::of(message);
                         auto s = p384->sign_digest_raw(slice<const byte>(d.data(), d.size()));
                         sgcl::detail::copy_bytes(raw, s.data(), 96);
+                    } else {
+                        auto d = crypto::sha512::of(message);
+                        auto s = p521->sign_digest_raw(slice<const byte>(d.data(), d.size()));
+                        sgcl::detail::copy_bytes(raw, s.data(), 132);
                     }
                     size_t at = w.begin_string();
                     w.mpint(raw, width);
@@ -630,15 +668,16 @@ namespace sgcl::net::ssh::detail {
                 break;
             }
             case KeyKind::ecdsa_p256:
-            case KeyKind::ecdsa_p384: {
+            case KeyKind::ecdsa_p384:
+            case KeyKind::ecdsa_p521: {
                 Span curve = r.string();
                 Span q = r.string();
                 Span d = r.mpint();
-                const size_t w = kind == KeyKind::ecdsa_p256 ? 32 : 48;
+                const size_t w = ecdsa_width(kind);
                 if (!r.ok() || curve.view() != curve_name(kind) || d.n > w) {
                     return false;
                 }
-                uint8_t scalar[48];
+                uint8_t scalar[66];
                 left_pad(scalar, w, d);
                 bool ok = false;
                 if (kind == KeyKind::ecdsa_p256) {
@@ -647,10 +686,16 @@ namespace sgcl::net::ssh::detail {
                         k.p256.emplace(std::move(*key));
                         ok = true;
                     }
-                } else {
+                } else if (kind == KeyKind::ecdsa_p384) {
                     auto key = crypto::p384::private_key::from_bytes(bytes_of(scalar, w));
                     if (key && q.n == 97 && std::memcmp(key->public_key().bytes().data(), q.p, 97) == 0) {
                         k.p384.emplace(std::move(*key));
+                        ok = true;
+                    }
+                } else {
+                    auto key = crypto::p521::private_key::from_bytes(bytes_of(scalar, w));
+                    if (key && q.n == 133 && std::memcmp(key->public_key().bytes().data(), q.p, 133) == 0) {
+                        k.p521.emplace(std::move(*key));
                         ok = true;
                     }
                 }
@@ -873,6 +918,14 @@ namespace sgcl::net::ssh::detail {
                 w.mpint(reinterpret_cast<const uint8_t*>(d.bytes().data()), d.bytes().size());
                 break;
             }
+            case KeyKind::ecdsa_p521: {
+                auto q = k.p521->public_key().bytes();
+                auto d = k.p521->bytes();
+                w.string(curve_name(k.kind));
+                w.string(q.data(), q.size());
+                w.mpint(reinterpret_cast<const uint8_t*>(d.bytes().data()), d.bytes().size());
+                break;
+            }
             case KeyKind::rsa:
                 rsa_parts(*k.rsa, w);
                 break;
@@ -962,6 +1015,9 @@ namespace sgcl::net::ssh::detail {
             } else if (auto p3 = crypto::p384::private_key::from_pkcs8_der(der)) {
                 k.kind = KeyKind::ecdsa_p384;
                 k.p384.emplace(std::move(*p3));
+            } else if (auto p5 = crypto::p521::private_key::from_pkcs8_der(der)) {
+                k.kind = KeyKind::ecdsa_p521;
+                k.p521.emplace(std::move(*p5));
             } else if (auto r = crypto::rsa::private_key::from_pkcs8_der(der)) {
                 k.kind = KeyKind::rsa;
                 k.rsa.emplace(std::move(*r));
@@ -975,6 +1031,9 @@ namespace sgcl::net::ssh::detail {
             } else if (auto p3 = crypto::p384::private_key::from_sec1_der(der)) {
                 k.kind = KeyKind::ecdsa_p384;
                 k.p384.emplace(std::move(*p3));
+            } else if (auto p5 = crypto::p521::private_key::from_sec1_der(der)) {
+                k.kind = KeyKind::ecdsa_p521;
+                k.p521.emplace(std::move(*p5));
             } else {
                 return KeyFileError::unsupported;
             }

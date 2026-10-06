@@ -189,9 +189,15 @@ namespace sgcl::compress::detail {
         return std::move(ErrorAccess::without_place(e));
     }
 
+    // The bytes as a new vector: its room made with no element constructed
+    // and filled by one copy (vector's constructor from a range constructs
+    // the bytes one by one, a third of the speed of the copy: 18% of an LZ4
+    // compress in memory)
     SGCL_INLINE_HOT vector<byte> to_vector(const uint8_t* p, size_t n) noexcept {
-        auto b = reinterpret_cast<const byte*>(p);
-        return vector<byte>(b, b + n);
+        vector<byte> v;
+        VectorOverwrite::resize(v, n);   // every byte written below
+        copy_out(v.data(), p, n);
+        return v;
     }
 
     // ISO 8859-1 to UTF-8, and back (nullopt for a character past U+00FF

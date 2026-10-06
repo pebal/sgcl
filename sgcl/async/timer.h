@@ -24,6 +24,14 @@
 #include <thread>
 #include <vector>
 
+#if defined(__APPLE__) && !defined(SGCL_TIMERS_CONDVAR)
+#include <sys/event.h>
+#include <unistd.h>
+#define SGCL_TIMERS_KQUEUE 1
+#else
+#define SGCL_TIMERS_KQUEUE 0
+#endif
+
 namespace sgcl::async {
     namespace detail { using namespace sgcl::detail; }
     // Time, the way Go has it: `co_await sleep(d)` suspends a task for d,
@@ -100,6 +108,29 @@ namespace sgcl::async {
         // lock, which the thread holds until it waits. Sequentially
         // consistent throughout: _next is the one word both sides meet
         // at.
+        //
+        // The sleep itself, on macOS, is a wait in a kqueue of the
+        // thread's own, on a one-shot EVFILT_TIMER armed for the point
+        // with NOTE_CRITICAL, and the notify a trigger of its EVFILT_USER
+        // event, which stays set until the wait takes it (so the lock
+        // need not be held across the wait, nor taken by the notify).
+        // The kernel lets a timer fire late by a share of its span, to
+        // fire timers together (timer coalescing): a condition variable's
+        // timed wait (pthread_cond_timedwait) and an EVFILT_TIMER of the
+        // default urgency a quarter of it, a kevent's timeout an eighth,
+        // at most a millisecond; NOTE_CRITICAL none. The timers' wakes
+        // were a quarter of the sleep late: 268 us for a sleep of 1 ms,
+        // 2.5 ms for one of 10 ms, where Go's (a kevent's timeout) are
+        // 138 us and 1.02 ms; with NOTE_CRITICAL they are some tens of
+        // microseconds, the core's way out of its idle state and the
+        // worker's wake (measured 2026-10-06, bench_async sleeplat). The
+        // thread wakes as often as before: once for the earliest timer.
+        // An add's trigger is made only while the thread is in (or on its
+        // way into) the wait, `_asleep`: the thread stores it and looks
+        // at _next once more, the add lowers _next and looks at it, both
+        // sequentially consistent, so one sees the other. Elsewhere, and when the
+        // queue cannot be made, the condition variable (Linux's timer
+        // slack is 50 us).
         class Timers {
         public:
             static constexpr unsigned ShardCount = Scheduler::MaxWorkers;   // the last one every thread that is no worker shares
@@ -110,6 +141,11 @@ namespace sgcl::async {
 
             SGCL_INLINE_HOT ~Timers() {
                 stop();
+#if SGCL_TIMERS_KQUEUE
+                if (_kq >= 0) {
+                    ::close(_kq);
+                }
+#endif
             }
 
             void add(root_ptr<Timer> t) {
@@ -140,7 +176,7 @@ namespace sgcl::async {
                     }
                     _stop = true;
                 }
-                _cv.notify_one();
+                _notify();
                 _thread.join();
                 std::lock_guard lock(_m);
                 _running = false;   // a timer added during the join stays in its heap, as one not yet due does, and fires when the next add starts the thread again
@@ -203,7 +239,7 @@ namespace sgcl::async {
                     return;
                 }
                 ++_epoch;
-                _cv.notify_one();
+                _notify();
                 _settled_cv.wait(lock, [this] { return _settled == _epoch; });
             }
 
@@ -251,6 +287,14 @@ namespace sgcl::async {
                 auto n = _next.load(std::memory_order_seq_cst);
                 while (w < n) {
                     if (_next.compare_exchange_weak(n, w, std::memory_order_seq_cst, std::memory_order_seq_cst)) {
+#if SGCL_TIMERS_KQUEUE
+                        if (_kq >= 0) {
+                            if (_asleep.load(std::memory_order_seq_cst)) {   // against the thread's store and look at _next (_sleep): one sees the other
+                                _trigger();   // stays set until the thread's wait takes it: no lock
+                            }
+                            return;
+                        }
+#endif
                         std::lock_guard lock(_m);   // the thread reads _next under this lock right before it sleeps
                         _cv.notify_one();
                         return;
@@ -267,6 +311,11 @@ namespace sgcl::async {
                 }
                 std::lock_guard lock(_m);
                 if (!_running) {
+#if SGCL_TIMERS_KQUEUE
+                    if (_kq < 0) {
+                        _open_queue();   // before the thread, kept to the end (a failure: the condition variable)
+                    }
+#endif
                     _stop = false;
                     _running = true;
                     _thread = std::thread([this] { _run(); });
@@ -319,11 +368,7 @@ namespace sgcl::async {
                         _settled_cv.notify_all();
                     }
                     clear_dead_stack(floor);   // the words the pass's frames left (a timer, what it kept, a frame it woke): scheduler.h
-                    if (target == Never || manual_clock_installed.load(std::memory_order_relaxed)) {
-                        _cv.wait(lock);         // under a manual clock time moves only by an advance, which wakes the thread
-                    } else {
-                        _cv.wait_until(lock, time_point(time_point::duration(target)));
-                    }
+                    _sleep(lock, target, target != Never && !manual_clock_installed.load(std::memory_order_relaxed));   // under a manual clock time moves only by an advance, which wakes the thread
                 }
             }
 
@@ -373,6 +418,82 @@ namespace sgcl::async {
                 return earliest;
             }
 
+            // The thread asleep until told, and to `target`, the point it
+            // published, when `timed`; the lock held on the way in and
+            // out; a wake may be spurious (the loop looks again)
+            void _sleep(std::unique_lock<std::mutex>& lock, time_point::rep target, bool timed) {
+#if SGCL_TIMERS_KQUEUE
+                if (_kq >= 0) {
+                    // asleep, then a look at _next: an add that lowered it
+                    // after the thread published `target` either is seen
+                    // here or sees `_asleep` and triggers (_lower); an add
+                    // while the thread is awake makes no call
+                    _asleep.store(true, std::memory_order_seq_cst);
+                    if (_next.load(std::memory_order_seq_cst) < target) {
+                        _asleep.store(false, std::memory_order_relaxed);
+                        return;
+                    }
+                    lock.unlock();   // a notify meanwhile leaves the user event set: the wait returns at once
+                    struct kevent change;
+                    int changes = 0;
+                    if (timed) {
+                        const auto rel = std::chrono::duration_cast<std::chrono::nanoseconds>(time_point::duration(target) - clock::now().time_since_epoch()).count();
+                        EV_SET(&change, TimerIdent, EVFILT_TIMER, EV_ADD | EV_ONESHOT, NOTE_NSECONDS | NOTE_CRITICAL, rel > 0 ? rel : 0, nullptr);   // armed again over a timer not yet fired
+                        changes = 1;
+                    }
+                    struct kevent events[2];
+                    (void)::kevent(_kq, &change, changes, events, 2, nullptr);   // an interruption is a spurious wake
+                    _asleep.store(false, std::memory_order_relaxed);   // a trigger seen stale is one spurious wake
+                    lock.lock();
+                    return;
+                }
+#endif
+                if (!timed) {
+                    _cv.wait(lock);
+                } else {
+                    _cv.wait_until(lock, time_point(time_point::duration(target)));
+                }
+            }
+
+            // The thread told: a timer earlier than its point, a stop, a
+            // change of the clock
+            void _notify() noexcept {
+#if SGCL_TIMERS_KQUEUE
+                if (_kq >= 0) {
+                    _trigger();
+                    return;
+                }
+#endif
+                _cv.notify_one();
+            }
+
+#if SGCL_TIMERS_KQUEUE
+            static constexpr uintptr_t TimerIdent = 1;   // the one-shot timer of the sleep
+            static constexpr uintptr_t WakeIdent = 2;    // the user event of a notify
+
+            SGCL_INLINE_HOT void _trigger() noexcept {
+                struct kevent ev;
+                EV_SET(&ev, WakeIdent, EVFILT_USER, 0, NOTE_TRIGGER, 0, nullptr);
+                (void)::kevent(_kq, &ev, 1, nullptr, 0, nullptr);
+            }
+
+            // Under _m, before the first thread: the queue and its user
+            // event; left at -1 when either fails
+            void _open_queue() noexcept {
+                int kq = ::kqueue();
+                if (kq < 0) {
+                    return;
+                }
+                struct kevent ev;
+                EV_SET(&ev, WakeIdent, EVFILT_USER, EV_ADD | EV_CLEAR, 0, 0, nullptr);
+                if (::kevent(kq, &ev, 1, nullptr, 0, nullptr) < 0) {
+                    ::close(kq);
+                    return;
+                }
+                _kq = kq;
+            }
+#endif
+
             static void _fire(const root_ptr<Timer>& t) {
                 if (t->cancelled.load(std::memory_order_acquire)) {
                     return;
@@ -398,8 +519,12 @@ namespace sgcl::async {
             std::atomic<bool> _started = {false};          // the thread started (an add's look without the lock)
             std::vector<root_ptr<Timer>> _due;             // the pass's heap of the due timers (the thread's alone)
             std::mutex _m;
-            std::condition_variable _cv;
+            std::condition_variable _cv;                   // the thread's sleep without the kqueue
             std::condition_variable _settled_cv;
+#if SGCL_TIMERS_KQUEUE
+            int _kq = -1;                                  // the thread's queue (_sleep): set under _m before the first thread, read by the adds after _started
+            std::atomic<bool> _asleep = {false};           // the thread in (or on its way into) its wait in the queue: an add's trigger is needed
+#endif
             std::thread _thread;
             bool _stop = false;
             bool _running = false;   // the thread started and not yet joined (under _m: the thread object itself is not looked at by two threads)

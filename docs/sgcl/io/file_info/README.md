@@ -15,7 +15,8 @@ namespace sgcl::io {
 **Requires [rooted](../../core/rooted/README.md) outside a stack or a managed object.**
 
 `io::file_info` is what [stat](../stat.md) says about a path, Go's `fs.FileInfo` as a plain struct: the name, the size,
-the type, the permissions and the time of the last modification. [lstat](../lstat.md),
+the type, the permissions, the time of the last modification, and the count of its names, its owner and its group
+that Go keeps in `Sys()`. [lstat](../lstat.md),
 [file::stat](../file/stat.md) and [directory_entry::info](../directory_entry/info.md) return one too. `file_time`, the type
 of `modified`, is the time of the system clock in nanoseconds, the resolution the file systems keep.
 
@@ -32,6 +33,9 @@ of `modified`, is the time of the system clock in nanoseconds, the resolution th
 | `file_type type` | the [file_type](../file_type.md); `file_type::unknown` by default |
 | `permissions mode` | the [permissions](../permissions.md), the set-id and sticky bits included; `permissions::none` by default |
 | `file_time modified` | the time of the last modification |
+| `uint64_t links` | the hard links to the file, its names ([link](../link.md)); 0 by default |
+| `uint32_t uid` | the owner ([chown](../chown.md)); 0 by default |
+| `uint32_t gid` | the group; 0 by default |
 
 ## Member functions
 

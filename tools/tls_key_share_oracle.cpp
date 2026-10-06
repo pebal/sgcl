@@ -6,7 +6,7 @@
 // key_share.h): OpenSSL's own key exchanges, written out as a C++ header
 // the tests include. Only in this tool, never in the library.
 //
-//   - X25519, P-256, P-384: a private key of random bytes (the bytes the
+//   - X25519, P-256, P-384, P-521: a private key of random bytes (the bytes the
 //     test gives its entropy), its public share as OpenSSL encodes it, a
 //     peer's key pair of OpenSSL's, and the secret OpenSSL derives;
 //   - X25519MLKEM768: the client's ML-KEM-768 seed d ‖ z and X25519 key
@@ -107,7 +107,8 @@ namespace {
 
     EVP_PKEY* ec_of(const char* curve, const bytes& priv) {
         BIGNUM* d = BN_bin2bn(priv.data(), int(priv.size()), nullptr);
-        EC_GROUP* g = EC_GROUP_new_by_curve_name(std::strcmp(curve, "P-256") == 0 ? NID_X9_62_prime256v1 : NID_secp384r1);
+        int nid = std::strcmp(curve, "P-256") == 0 ? NID_X9_62_prime256v1 : std::strcmp(curve, "P-384") == 0 ? NID_secp384r1 : NID_secp521r1;
+        EC_GROUP* g = EC_GROUP_new_by_curve_name(nid);
         EC_POINT* q = EC_POINT_new(g);
         EC_POINT_mul(g, q, d, nullptr, nullptr, nullptr);
         unsigned char pub[133];
@@ -144,10 +145,11 @@ namespace {
             mine = x25519_of(priv);
             peer = generate("X25519", nullptr);
         } else {
-            const char* curve = std::strcmp(group, "secp256r1") == 0 ? "P-256" : "P-384";
-            // a scalar below n: the top byte kept small enough
+            const char* curve = std::strcmp(group, "secp256r1") == 0 ? "P-256" : std::strcmp(group, "secp384r1") == 0 ? "P-384" : "P-521";
+            // a scalar below n: the top byte kept small enough (P-521's
+            // 66 bytes hold 521 bits, its top byte 0 or 1)
             priv = random_bytes(scalar);
-            priv[0] &= 0x7F;
+            priv[0] &= scalar == 66 ? 0x01 : 0x7F;
             mine = ec_of(curve, priv);
             peer = generate(nullptr, curve);
         }
@@ -196,6 +198,7 @@ int main() {
         classic("x25519", 32);
         classic("secp256r1", 32);
         classic("secp384r1", 48);
+        classic("secp521r1", 66);
     }
     std::printf("    };\n\n");
     std::printf("    // X25519MLKEM768: the client's seed d||z and X25519 key, its share, OpenSSL's\n");

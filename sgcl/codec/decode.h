@@ -9,10 +9,16 @@
 #include "format.h"
 #include "image.h"
 #include "options.h"
+#include "bmp.h"
 #include "gif.h"
 #include "heif.h"
+#include "jxl.h"
+#include "ico.h"
 #include "jpeg.h"
 #include "png.h"
+#include "pnm.h"
+#include "qoi.h"
+#include "tiff.h"
 #include "webp.h"
 #include "detail/input.h"
 #include "../core/aliases.h"
@@ -52,6 +58,18 @@ namespace sgcl::codec {
             case format::heif:
             case format::avif:
                 return detail::heif_decode_bytes(data, o);
+            case format::bmp:
+                return bmp::decode(data, o);
+            case format::tiff:
+                return tiff::decode(data, o);
+            case format::ico:
+                return ico::decode(data, o);
+            case format::qoi:
+                return qoi::decode(data, o);
+            case format::pnm:
+                return pnm::decode(data, o);
+            case format::jxl:
+                return detail::jxl_decode_bytes(data, o);
         }
         return unexpected(detail::unknown_format());
     }
@@ -79,6 +97,35 @@ namespace sgcl::codec {
             case format::heif:
             case format::avif:
                 return detail::heif_decode_stream(source, o);
+            case format::jxl:
+                return detail::jxl_decode_stream(source, o);
+            case format::bmp:
+                return detail::BmpDecoder<detail::ReaderInput>(source, o).run();
+            case format::qoi:
+                return detail::QoiDecoder<detail::ReaderInput>(source, o).run();
+            case format::pnm:
+                return detail::PnmDecoder<detail::ReaderInput>(source, o).run();
+            case format::tiff:
+            case format::ico: {
+                // read to the end: their directories point anywhere in the file
+                vector<byte> all;
+                for (;;) {
+                    const uint8_t* p;
+                    size_t got;
+                    if (!source.peek(65536, p, got)) {
+                        return unexpected(*source.failure);
+                    }
+                    if (got == 0) {
+                        break;
+                    }
+                    if (all.size() + got > o.limits.max_pixels * 8 + (uint64_t(64) << 20)) {
+                        return unexpected(error(errc::too_large, all.size()));
+                    }
+                    all.insert(all.end(), reinterpret_cast<const byte*>(p), reinterpret_cast<const byte*>(p) + got);
+                    source.consume(got);
+                }
+                return *f == format::tiff ? tiff::decode(all.as_slice(), o) : ico::decode(all.as_slice(), o);
+            }
         }
         return unexpected(detail::unknown_format());
     }

@@ -1,0 +1,1 @@
+{"issuer":"http://op.test","jwks_uri":"http://op.test/keys","token_endpoint":"x"}

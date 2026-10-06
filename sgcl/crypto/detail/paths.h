@@ -35,3 +35,12 @@
 #define SGCL_CRYPTO_X86 1
 #include <immintrin.h>
 #endif
+
+// A lambda that unrolls a round of a portable path, melted into the function
+// around it so that its words stay in registers (the target-marked paths
+// have their own _INLINE_ macros in cpu.h)
+#if defined(__GNUC__) || defined(__clang__)
+#define SGCL_CRYPTO_LAMBDA_INLINE __attribute__((always_inline))
+#else
+#define SGCL_CRYPTO_LAMBDA_INLINE
+#endif

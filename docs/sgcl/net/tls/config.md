@@ -38,6 +38,10 @@ namespace sgcl::net::tls {
         optional<tls::revocation_cache> revocation_cache;
         bool ocsp_stapling = false;
         identity_function identity_for;
+        vector<byte> ech_config_list;
+        vector<tls::ech_key> ech_keys;
+        bool ech_from_dns = false;
+        net::dns::options ech_dns;
     };
 
     using identity_function =
@@ -62,8 +66,8 @@ system's roots for the host it dials. A designated initializer names what differ
 
 - A config the handshake cannot start with is refused with `EINVAL` before a record is sent: one without a group or
   a cipher suite; one whose `min_version` is above its `max_version` or either no [version](version.md); a client's
-  with no version of the range that has a suite of its own in `ciphers`, or of 1.2 alone without X25519, P-256 or
-  P-384; a server's whose range has no 1.3 or whose list has no 1.3 suite (the server speaks 1.3 alone); a client's without a name to verify (no `server_name`, no `insecure_skip_verify`, and an address
+  with no version of the range that has a suite of its own in `ciphers`, or of 1.2 alone without X25519, P-256,
+  P-384 or P-521; a server's whose range has no 1.3 or whose list has no 1.3 suite (the server speaks 1.3 alone); a client's without a name to verify (no `server_name`, no `insecure_skip_verify`, and an address
   without a host, or [client](client.md), which has no address); a server's without an identity or an `identity_for`, with a
   `client_auth` of no value of its enumeration, or with tickets on and a `ticket_lifetime` under a second or past
   seven days; one with an ALPN protocol of 0 or more than 255 bytes; one with a `revocation` of no value of its
@@ -84,7 +88,7 @@ system's roots for the host it dials. A designated initializer names what differ
 | `server_name` | the client's: the name sent as SNI (never an IP address) and checked against the leaf's names, or its IP addresses for an address (Go's `ServerName`); empty, the default, is the host of the address [connect](connect.md) was given |
 | `roots` | the client's: the certificates the server's chain must lead to, a [crypto::x509::certificate_pool](../../crypto/x509.md) (Go's `RootCAs`); `nullopt`, the default, is the system's |
 | `identities` | the certificate chains with their keys ([identity](identity/README.md), Go's `Certificates`). A server's, at least one: the first whose leaf is for the name the client sent is chosen, else the first. A client's, sent when the server asks for a certificate: the first whose key signs a scheme the server takes and whose chain one of the authorities it names issued, else none; empty by default |
-| `groups` | the key exchange groups, in order of preference ([group](group.md), Go's `CurvePreferences`); a client sends a key share of the first, and of X25519 beside the hybrid when the list has it; by default X25519MLKEM768, X25519, P-256, P-384 |
+| `groups` | the key exchange groups, in order of preference ([group](group.md), Go's `CurvePreferences`); a client sends a key share of the first, and of X25519 beside the hybrid when the list has it; by default X25519MLKEM768, X25519, P-256, P-384 (P-521, `secp521r1`, when listed) |
 | `ciphers` | the cipher suites, in order of preference ([cipher](cipher.md)); Go's TLS 1.3 suites are not configurable; by default AES-128-GCM, ChaCha20-Poly1305, AES-256-GCM of 1.3, then the six ECDHE suites of 1.2 in the same order of AEADs; a client offers those of the versions it offers, a server takes the 1.3 ones |
 | `min_version` | the oldest version a client offers ([version](version.md), Go's `MinVersion`): `tls12` by default, for servers without 1.3; `tls13` requires 1.3, and a server of 1.2 alone then fails with `protocol_version`. A server's range must hold 1.3 |
 | `max_version` | the newest version a client offers (Go's `MaxVersion`): `tls13` by default; `tls12` keeps a client to 1.2 |
@@ -103,6 +107,10 @@ system's roots for the host it dials. A designated initializer names what differ
 | `revocation_cache` | where the online checks keep what they fetched, until its `nextUpdate` ([revocation_cache](revocation_cache/README.md)); `nullopt`, the default, is the process's own |
 | `ocsp_stapling` | the server's: whether it fetches the OCSP response of each identity's leaf from the responders of the leaf's authority information access, verified under the issuer the chain holds, staples it, and fetches the next halfway through its validity (a failed fetch tried again a minute later, the response there kept until its `nextUpdate`); the fetches run in tasks of their own, the first when the listener is made; `false` by default: an identity staples what [set_ocsp_staple](identity/set_ocsp_staple.md) gave it |
 | `identity_for` | the server's: its identity chosen for each connection (Go's `GetCertificate`), a [function](../../core/function/README.md) given the [client_hello](client_hello.md) (the name and the protocols the client asked for) and returning a task of the identity or of an error. The handshake waits for it once the first ClientHello is in, and serves the identity it gives; an error, or an exception of the function, ends the handshake with `internal_error`, as Go's server answers a `GetCertificate` that fails. In place of `identities`, which it is not combined with; empty by default. What [acme::manager](../acme/manager/README.md)'s [tls_config](../acme/manager/tls_config.md) sets |
+| `ech_config_list` | the client's: the server's ECHConfigList (RFC 9849), the `ech` of its DNS HTTPS record (RFC 9848) or its [ech_config_list](ech_config_list.md): the client then offers TLS 1.3 alone, seals its hello, with the name, the protocols and the rest, to the first config of the list it has a KEM and a suite of, and sends it inside an outer hello that names the config's public name; a server that does not open it answers the outer hello, the client checks its chain for the public name, sends `ech_required` and ends the handshake with that alert, and [connect](connect.md) dials once more with the `retry_configs` the server sent ([ech_retry_configs](ech_retry_configs.md) gives them from [client](client.md)'s error). No session is resumed with it. A list that does not read is refused with `crypto::errc::malformed`, one of no config the client can use with `crypto::errc::unsupported`; empty, the default: no ECH, Go's `EncryptedClientHelloConfigList` |
+| `ech_keys` | the server's: its keys of Encrypted Client Hello ([ech_key](ech_key/README.md), Go's `EncryptedClientHelloKeys`): a hello sealed to one of them is opened and answered; any other is answered as it came, with the configs of the keys whose `retry` is set as `retry_configs`. [state](state.md)'s `ech_accepted` says which; empty by default |
+| `ech_from_dns` | the client's: with `ech_config_list` empty, the list taken from the server name's DNS HTTPS record (RFC 9460, the record's `ech`, RFC 9848; [dns::lookup_https](../dns/lookup_https.md)), asked for `"name."` for port 443 and `"_port._https.name."` for another. [connect](connect.md) asks beside the TCP connect, [client](client.md) before the handshake, both giving up at half the time left to `handshake_timeout`. The list is the first record's, by priority, whose `ech` holds a config the client can use and whose `mandatory` keys are all ones dns reads; a lookup that fails, a name without such a record and a server name that is an address go on without ECH, as without a record (RFC 9849 §6.1), and a config that cannot offer TLS 1.3 asks nothing. `false` by default: Go does nothing of the kind, a lookup costs a round trip, and one in clear text shows the very name ECH hides |
+| `ech_dns` | the client's: how that record is looked up ([dns::options](../dns-options.md)); a server over TLS or HTTPS keeps the name out of clear text; empty by default: `/etc/resolv.conf`'s servers |
 | `handshake_timeout` | how long the handshake may take: for [connect](connect.md), the lookup, the TCP connect and the handshake together; for [listen](listen.md), each connection's handshake. It ends them with `ETIMEDOUT`: zero or less at once, before anything is sent; `duration::max()` is no limit; 10 seconds by default |
 
 ## Example

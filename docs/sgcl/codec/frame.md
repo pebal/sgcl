@@ -16,7 +16,8 @@ namespace sgcl::codec {
 **Requires [rooted](../core/rooted/README.md) outside a stack or a managed object.**
 
 `sgcl::codec::frame` is one frame of an animation, what [frames::next](frames/next.md) gives: the canvas as it is
-shown with this frame drawn on what came before, and how long it is shown. A plain struct of two fields.
+shown with this frame drawn on what came before, and how long it is shown; a slice of them is the animation
+[gif::encode](gif/encode.md) and [webp::encode](webp/encode.md) write. A plain struct of two fields.
 
 ## Member objects
 
@@ -61,5 +62,6 @@ Output:
 ## See also
 
 - [frames](frames/README.md): what reads them
+- [gif::encode](gif/encode.md), [webp::encode](webp/encode.md): an animation of frames written
 - [image](image/README.md): the picture
 - [codec](README.md)

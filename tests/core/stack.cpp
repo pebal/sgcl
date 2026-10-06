@@ -278,3 +278,183 @@ TEST(Stack_Tests, BigStacksAreScannedOnHelpers) {
         EXPECT_EQ(results[t], t + 1) << "thread " << t;   // every root along the recursion was intact
     }
 }
+
+// A stack scanned from the stack pointer a thread recorded at its allocation
+// (config.h: SGCL_STACK_SP): the frames above the record are scanned, and a
+// root in a frame made before the cycles and kept through them, while the
+// thread allocates below it, survives every one of them.
+namespace {
+    struct Garbage {
+        char bytes[256];
+    };
+
+    SGCL_NOINLINE int allocate_below(int depth, sgcl::atomic<bool>& stop) {
+        volatile char pad[512];
+        sgcl::detail::os::escape((const void*)pad);
+        pad[0] = (char)depth;
+        if (depth > 0) {
+            return allocate_below(depth - 1, stop) + (pad[0] == (char)depth ? 0 : 1);
+        }
+        int n = 0;
+        while (!stop.load(std::memory_order_relaxed)) {
+            for (int i = 0; i < 1000; ++i) {
+                tracked_ptr<Garbage> g = make_tracked<Garbage>();
+                g->bytes[0] = (char)i;
+            }
+            ++n;
+        }
+        return n - n;
+    }
+}
+
+TEST(Stack_Tests, RootAboveTheRecordedPointerSurvivesWhileTheThreadAllocates) {
+    auto& c = sgcl::detail::collector_instance();
+    const auto hits_before = c.stack_sp_hits();
+    sgcl::atomic<bool> stop = {false};
+    sgcl::atomic<int> phase = {0};
+    int seen = 0;
+    std::thread worker([&] {
+        tracked_ptr<Payload> local = make_tracked<Payload>(77);   // made before the cycles, kept through them
+        phase.store(1);
+        int r = allocate_below(16, stop);
+        seen = local->v + r;
+    });
+    while (phase.load() != 1) {
+        std::this_thread::yield();
+    }
+    for (int i = 0; i < 40; ++i) {
+        collector::force_collect(i % 2 == 0);
+    }
+    stop.store(true);
+    worker.join();
+    EXPECT_EQ(seen, 77);
+    if constexpr(sgcl::config::stack_sp != 0) {
+        EXPECT_GT(c.stack_sp_hits(), hits_before);   // the scan from the record was taken
+    }
+}
+
+// A thread that records its stack pointer near the top of its stack, then
+// goes deep, holds a root there and waits, allocating nothing, while the
+// other threads run cycle after cycle. Its record is never current again,
+// so every cycle queries its whole stack: a tag that comes round (four bits
+// of the epoch: -DSGCL_STACK_SP_TAG_MASK=0xF) took the old record for the
+// sixteenth cycle's, scanned only above the shallow pointer and freed the
+// object under the deep frame.
+namespace {
+    struct Watched {
+        int round;
+        Watched(int r) : round(r) {}
+        ~Watched() { gone[round].store(true); }
+        inline static std::atomic<bool> gone[3] = {};
+    };
+
+    struct WatchedHolder {
+        tracked_ptr<Watched> ptr;
+    };
+
+    SGCL_NOINLINE int wait_deep(int depth, const tracked_ptr<WatchedHolder>& holder, sgcl::atomic<int>& phase) {
+        volatile char pad[256];
+        sgcl::detail::os::escape((const void*)pad);
+        pad[0] = (char)depth;
+        if (depth == 0) {
+            tracked_ptr<Watched> local = holder->ptr;   // no allocation: no new record
+            holder->ptr = nullptr;
+            phase.store(2);
+            while (phase.load() != 3) {
+                std::this_thread::yield();
+            }
+            return local->round;
+        }
+        return wait_deep(depth - 1, holder, phase) + (pad[0] == (char)depth ? 0 : 1000);
+    }
+}
+
+TEST(Stack_Tests, IdleThreadDeepInItsStackKeepsItsRoots) {
+    for (int round = 0; round < 3; ++round) {
+        tracked_ptr<WatchedHolder> holder = make_tracked<WatchedHolder>();
+        holder->ptr = make_tracked<Watched>(round);
+        sgcl::atomic<int> phase = {0};
+        int seen = -1;
+        std::thread worker([&] {
+            for (int i = 0; i < 100000; ++i) {   // pages taken here, at the top of the stack: a record for this cycle
+                tracked_ptr<Garbage> g = make_tracked<Garbage>();
+            }
+            seen = wait_deep(200, holder, phase);
+        });
+        while (phase.load() != 2) {
+            std::this_thread::yield();
+        }
+        for (int i = 0; i < 40; ++i) {       // more than sixteen cycles, the thread waiting
+            collector::force_collect(true);
+        }
+        EXPECT_FALSE(Watched::gone[round].load()) << "round " << round;
+        phase.store(3);
+        worker.join();
+        EXPECT_EQ(seen, round) << "round " << round;
+    }
+}
+
+// Many threads alternating deep recursion, with a root in every few frames,
+// and bursts of allocation at the bottom, while another thread forces cycles:
+// every root is checked on the way back up.
+namespace {
+    struct Stamp {
+        int v;
+        Stamp(int x) : v(x) {}
+        ~Stamp() { v = -1; }
+    };
+
+    SGCL_NOINLINE int descend(int depth, int id, unsigned& seed) {
+        volatile char pad[128];
+        sgcl::detail::os::escape((const void*)pad);
+        pad[0] = (char)depth;
+        tracked_ptr<Stamp> here;
+        seed = seed * 1664525u + 1013904223u;
+        if ((seed >> 28) < 4) {
+            here = make_tracked<Stamp>(id * 100000 + depth);   // allocates at this depth: a record from here
+        }
+        int bad = 0;
+        if (depth > 0) {
+            bad += descend(depth - 1, id, seed);
+        } else {
+            for (int i = 0; i < 2000; ++i) {
+                tracked_ptr<Garbage> g = make_tracked<Garbage>();
+                g->bytes[1] = (char)i;
+            }
+        }
+        if (here && here->v != id * 100000 + depth) {
+            ++bad;
+        }
+        return bad + (pad[0] == (char)depth ? 0 : 1);
+    }
+}
+
+TEST(Stack_Tests, DeepRecursionAndAllocationOnManyThreads) {
+    sgcl::atomic<bool> stop = {false};
+    std::thread collector_thread([&] {
+        bool full = false;
+        while (!stop.load()) {
+            collector::force_collect(full = !full);
+        }
+    });
+    constexpr int Threads = 12;
+    std::vector<int> bad(Threads, 0);
+    std::vector<std::thread> workers;
+    for (int t = 0; t < Threads; ++t) {
+        workers.emplace_back([&, t] {
+            unsigned seed = 12345u + t;
+            for (int round = 0; round < 150; ++round) {
+                seed = seed * 1664525u + 1013904223u;
+                bad[t] += descend(int(seed >> 24) % 300, t + 1, seed);
+            }
+        });
+    }
+    for (auto& w : workers) {
+        w.join();
+    }
+    stop.store(true);
+    collector_thread.join();
+    for (int t = 0; t < Threads; ++t) {
+        EXPECT_EQ(bad[t], 0) << "thread " << t;
+    }
+}

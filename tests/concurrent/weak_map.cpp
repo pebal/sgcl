@@ -448,13 +448,20 @@ TEST(ConcurrentWeakSet_Tests, TheIteratorHoldsTheObjectItStandsOn) {
 
 // Every thread registers the same objects: one insertion per object wins;
 // and objects registered and dropped by the threads in a first round are
-// dead by a second, whose insertions sweep them out under the threads
+// dead by a second, whose insertions sweep them out under the threads.
+// The sweep runs when the insertions since the last one reach the count
+// the table had then (detail/concurrent_weak_table.h), which is where the
+// first round's last sweep fell, an interleaving's choice, at most every
+// entry of the first round: the second round inserts more than that, so a
+// sweep runs in it whatever the interleaving (with as many as the first,
+// a loaded machine left the threshold above them and no sweep ran)
 TEST(ConcurrentWeakSet_Tests, ManyThreadsRegisterAndDrop) {
     settle();
     const int before = Node::alive.load();
     const int threads = 8;
     const int shared = 2000;
     const int dropped_per_thread = 3000;
+    const int dropped_second = (shared + threads * dropped_per_thread) / threads + 500;
     concurrent::weak_set<Node> s;
     vector<tracked_ptr<Node>> objects;
     sgcl::atomic<int> inserted = {0};
@@ -462,7 +469,7 @@ TEST(ConcurrentWeakSet_Tests, ManyThreadsRegisterAndDrop) {
         for (int i = 0; i < shared; ++i) {
             objects.push_back(make_tracked<Node>(i));
         }
-        auto round = [&] {
+        auto round = [&](int dropped_each) {
             std::vector<std::thread> ws;
             for (int t = 0; t < threads; ++t) {
                 ws.emplace_back([&, t] {
@@ -471,7 +478,7 @@ TEST(ConcurrentWeakSet_Tests, ManyThreadsRegisterAndDrop) {
                             ++inserted;
                         }
                     }
-                    for (int i = 0; i < dropped_per_thread; ++i) {
+                    for (int i = 0; i < dropped_each; ++i) {
                         tracked_ptr dropped = make_tracked<Node>(-1);
                         s.insert(dropped);
                         if (i % 500 == 499 && t == 0) {
@@ -484,12 +491,13 @@ TEST(ConcurrentWeakSet_Tests, ManyThreadsRegisterAndDrop) {
                 w.join();
             }
         };
-        round();
+        round(dropped_per_thread);
         collector::force_collect(true);    // the dropped objects of the first round are dead
         collector::force_collect(true);
         const size_t first = s.size();
-        round();
-        EXPECT_LT(s.size(), first + size_t(threads * dropped_per_thread));   // a sweep ran under the second round
+        ASSERT_LE(first, size_t(shared + threads * dropped_per_thread));
+        round(dropped_second);
+        EXPECT_LT(s.size(), first + size_t(threads * dropped_second));   // a sweep ran under the second round
     });
     EXPECT_EQ(inserted.load(), shared);    // one winner per shared object, in the first round
     settle();

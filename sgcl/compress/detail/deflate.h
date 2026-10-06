@@ -9,6 +9,7 @@
 #include "../../core/detail/bytes.h"
 
 #include <algorithm>
+#include <array>
 #include <bit>
 #include <cstddef>
 #include <cstdint>
@@ -43,6 +44,18 @@ namespace sgcl::compress::detail {
 
     SGCL_INLINE_HOT void append_byte(std::vector<uint8_t>& out, uint8_t b) noexcept {
         out.push_back(b);
+    }
+
+    // Room for n more bytes written in place, where they begin; then the
+    // output ended where the writing stopped
+    SGCL_INLINE_HOT uint8_t* append_room(std::vector<uint8_t>& out, size_t n) noexcept {
+        const size_t at = out.size();
+        out.resize(at + n);
+        return out.data() + at;
+    }
+
+    SGCL_INLINE_HOT void append_end(std::vector<uint8_t>& out, const uint8_t* end) noexcept {
+        out.resize(size_t(end - out.data()));
     }
 
     // Appends bits least significant first, as the format packs them
@@ -97,44 +110,60 @@ namespace sgcl::compress::detail {
         uint32_t _count = 0;
     };
 
-    // Code lengths of at most max_bits for these frequencies: a Huffman
+    // A block's code of one alphabet: the length of each symbol's code (0:
+    // none), its canonical code bit-reversed for writing, and the symbols
+    // that have one in symbol order (used, used_n of them), so that what
+    // follows walks those alone and not the whole alphabet: a block a sync
+    // flush has some ten literals of the 286
+    struct HuffmanTable {
+        uint8_t lengths[288];
+        uint16_t codes[288];
+        uint16_t used[288];
+        unsigned used_n;
+    };
+
+    // The table of these frequencies, codes of at most max_bits: a Huffman
     // code (the two least frequent merged, again and again), its lengths
     // clamped to max_bits and the Kraft sum brought back to one by
     // lengthening the shortest codes that can take it; symbols of
-    // frequency 0 get no code. At least two codes are made when a table
-    // has any, so that every code the encoder writes is complete.
-    inline void huffman_lengths(const uint32_t* freq, unsigned count, unsigned max_bits, uint8_t* lengths) noexcept {
-        std::fill(lengths, lengths + count, uint8_t(0));
-        struct Leaf {
-            uint32_t freq;
-            uint16_t symbol;
-        };
-        Leaf leaves[320];
+    // frequency 0 get no code. At least two codes are made, so that every
+    // code the encoder writes is complete (a table of no symbol, the
+    // distances of a block without a match, gets symbols 0 and 1).
+    inline void huffman_table(const uint32_t* freq, unsigned count, unsigned max_bits, HuffmanTable& t) noexcept {
+        std::fill(t.lengths, t.lengths + count, uint8_t(0));
+        std::fill(t.codes, t.codes + count, uint16_t(0));
+        // a leaf as one word, its frequency above its symbol: sorted as
+        // plain integers, by frequency and then by symbol; the symbols with
+        // a frequency gathered without a branch
+        uint64_t leaves[288];
         unsigned n = 0;
         for (unsigned i = 0; i < count; ++i) {
-            if (freq[i]) {
-                leaves[n++] = {freq[i], uint16_t(i)};
-            }
+            leaves[n] = (uint64_t(freq[i]) << 16) | i;
+            t.used[n] = uint16_t(i);
+            n += freq[i] != 0;
         }
-        if (n == 0) {
+        if (n < 2) {
+            // a second code beside the only one (or two beside none): 0 and 1 by symbol order
+            const unsigned only = n ? t.used[0] : 0;
+            const unsigned other = only == 0 ? 1 : 0;
+            const unsigned low = std::min(only, other), high = std::max(only, other);
+            t.lengths[low] = t.lengths[high] = 1;
+            t.codes[low] = 0;
+            t.codes[high] = 1;
+            t.used[0] = uint16_t(low);
+            t.used[1] = uint16_t(high);
+            t.used_n = 2;
             return;
         }
-        if (n == 1) {
-            // a second code beside the only one, so that the code is complete
-            lengths[leaves[0].symbol] = 1;
-            lengths[leaves[0].symbol == 0 ? 1 : 0] = 1;
-            return;
-        }
-        std::sort(leaves, leaves + n, [](const Leaf& a, const Leaf& b) noexcept {
-            return a.freq != b.freq ? a.freq < b.freq : a.symbol < b.symbol;
-        });
+        t.used_n = n;
+        std::sort(leaves, leaves + n);
         // The two-queue construction over the sorted leaves: the internal
         // nodes come out in order of weight, so the smallest two are
         // always at the heads of the two queues
-        uint32_t weight[640];
-        int16_t parent[640];
+        uint32_t weight[576];
+        int16_t parent[576];
         for (unsigned i = 0; i < n; ++i) {
-            weight[i] = leaves[i].freq;
+            weight[i] = uint32_t(leaves[i] >> 16);
         }
         unsigned leaf = 0, node = n, next = n;
         auto smallest = [&]() noexcept {
@@ -152,7 +181,7 @@ namespace sgcl::compress::detail {
             ++next;
         }
         // depths from the root down: the root is the last node
-        uint8_t depth[640];
+        uint8_t depth[576];
         depth[next - 1] = 0;
         for (int i = int(next) - 2; i >= 0; --i) {
             depth[i] = uint8_t(std::min(depth[parent[i]] + 1, 63));
@@ -161,10 +190,6 @@ namespace sgcl::compress::detail {
         unsigned bl_count[64] = {};
         for (unsigned i = 0; i < n; ++i) {
             ++bl_count[std::min<unsigned>(depth[i], max_bits)];
-        }
-        for (unsigned d = max_bits + 1; d < 64; ++d) {
-            bl_count[max_bits] += bl_count[d];
-            bl_count[d] = 0;
         }
         uint64_t total = 0;
         for (unsigned len = 1; len <= max_bits; ++len) {
@@ -187,69 +212,103 @@ namespace sgcl::compress::detail {
         unsigned i = 0;
         for (unsigned len = max_bits; len >= 1; --len) {
             for (unsigned c = 0; c < bl_count[len]; ++c) {
-                lengths[leaves[i++].symbol] = uint8_t(len);
+                t.lengths[leaves[i++] & 0xFFFF] = uint8_t(len);
             }
         }
-    }
-
-    // The canonical codes of the lengths, bit-reversed for writing
-    inline void canonical_codes(const uint8_t* lengths, unsigned count, uint16_t* codes) noexcept {
-        unsigned bl_count[16] = {};
-        for (unsigned i = 0; i < count; ++i) {
-            ++bl_count[lengths[i]];
-        }
-        bl_count[0] = 0;
+        // the canonical codes (RFC 1951 §3.2.2), of the symbols that have one, in symbol order
+        // (bl_count[0] is 0: every leaf is below the root)
         uint32_t next_code[16] = {};
         uint32_t code = 0;
-        for (unsigned len = 1; len <= 15; ++len) {
+        for (unsigned len = 1; len <= max_bits; ++len) {
             code = (code + bl_count[len - 1]) << 1;
             next_code[len] = code;
         }
-        for (unsigned i = 0; i < count; ++i) {
-            codes[i] = lengths[i] ? uint16_t(reverse_bits(next_code[lengths[i]]++, lengths[i])) : 0;
+        for (unsigned k = 0; k < n; ++k) {
+            const unsigned s = t.used[k];
+            const unsigned len = t.lengths[s];
+            t.codes[s] = uint16_t(reverse_bits(next_code[len]++, len));
         }
     }
 
-    inline uint32_t length_code(uint32_t length) noexcept {
-        // 3..258 to 257..285
-        static const auto table = [] {
-            struct T {
-                uint8_t code[259];
-            } t{};
-            for (unsigned c = 0; c < 29; ++c) {
-                unsigned hi = c == 28 ? 258 : LengthBase[c] + (1u << LengthExtra[c]) - 1;
-                for (unsigned l = LengthBase[c]; l <= hi && l <= 258; ++l) {
-                    t.code[l] = uint8_t(c);
+    // The fixed codes (RFC 1951 §3.2.6): the lengths and the codes of the
+    // literal/length symbols and of the distances, and the extra bits of
+    // each literal/length symbol (0 below 257)
+    inline constexpr auto FixedLitLengths = [] {
+        std::array<uint8_t, 288> t{};
+        for (unsigned s = 0; s < 288; ++s) {
+            t[s] = s < 144 ? 8 : s < 256 ? 9 : s < 280 ? 7 : 8;
+        }
+        return t;
+    }();
+
+    inline constexpr auto FixedLitCodes = [] {
+        std::array<uint16_t, 288> t{};
+        for (unsigned s = 0; s < 288; ++s) {
+            // 0..143: 00110000 up, 144..255: 110010000 up, 256..279: 0000000 up, 280..287: 11000000 up
+            const uint32_t c = s < 144 ? 0x30 + s : s < 256 ? 0x190 + (s - 144) : s < 280 ? s - 256 : 0xC0 + (s - 280);
+            t[s] = uint16_t(reverse_bits(c, FixedLitLengths[s]));
+        }
+        return t;
+    }();
+
+    inline constexpr uint8_t FixedDistLengths[30] = {5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
+
+    inline constexpr auto FixedDistCodes = [] {
+        std::array<uint16_t, 30> t{};
+        for (unsigned s = 0; s < 30; ++s) {
+            t[s] = uint16_t(reverse_bits(s, 5));
+        }
+        return t;
+    }();
+
+    inline constexpr auto LitLenExtra = [] {
+        std::array<uint8_t, 286> t{};
+        for (unsigned s = 257; s < 286; ++s) {
+            t[s] = LengthExtra[s - 257];
+        }
+        return t;
+    }();
+
+    // The length code (0..28, symbol 257 + it) of each match length 3..258,
+    // and the distance code of each distance 1..256, of the larger by their
+    // top bits ((distance - 1) >> 7)
+    inline constexpr auto LengthCodes = [] {
+        std::array<uint8_t, 259> t{};
+        for (unsigned c = 0; c < 29; ++c) {
+            const unsigned hi = c == 28 ? 258 : LengthBase[c] + (1u << LengthExtra[c]) - 1;
+            for (unsigned l = LengthBase[c]; l <= hi && l <= 258; ++l) {
+                t[l] = uint8_t(c);
+            }
+        }
+        t[258] = 28;
+        return t;
+    }();
+
+    inline constexpr auto DistanceCodes = [] {
+        struct T {
+            uint8_t small[257];
+            uint8_t large[256];
+        } t{};
+        for (unsigned c = 0; c < 30; ++c) {
+            const unsigned lo = DistanceBase[c];
+            const unsigned hi = lo + (1u << DistanceExtra[c]) - 1;
+            for (unsigned d = lo; d <= hi; ++d) {
+                if (d <= 256) {
+                    t.small[d] = uint8_t(c);
+                } else {
+                    t.large[(d - 1) >> 7] = uint8_t(c);
                 }
             }
-            t.code[258] = 28;
-            return t;
-        }();
-        return table.code[length];
+        }
+        return t;
+    }();
+
+    SGCL_INLINE_HOT uint32_t length_code(uint32_t length) noexcept {
+        return LengthCodes[length];
     }
 
-    inline uint32_t distance_code(uint32_t distance) noexcept {
-        // 1..32768: the codes of 1..256 from a table, the larger by the top bits
-        static const auto table = [] {
-            struct T {
-                uint8_t small[257];
-                uint8_t large[256];
-            } t{};
-            for (unsigned c = 0; c < 30; ++c) {
-                unsigned lo = DistanceBase[c];
-                unsigned hi = lo + (1u << DistanceExtra[c]) - 1;
-                for (unsigned d = lo; d <= hi && d <= 256; ++d) {
-                    t.small[d] = uint8_t(c);
-                }
-                for (unsigned d = lo; d <= hi; ++d) {
-                    if (d > 256) {
-                        t.large[(d - 1) >> 7] = uint8_t(c);
-                    }
-                }
-            }
-            return t;
-        }();
-        return distance <= 256 ? table.small[distance] : table.large[(distance - 1) >> 7];
+    SGCL_INLINE_HOT uint32_t distance_code(uint32_t distance) noexcept {
+        return distance <= 256 ? DistanceCodes.small[distance] : DistanceCodes.large[(distance - 1) >> 7];
     }
 
     // The tuning of a level. Levels 1 to 6 are the table encoder: one
@@ -510,7 +569,7 @@ namespace sgcl::compress::detail {
             w.put(0, 3);
             w.align();
             const uint8_t marker[4] = {0, 0, 0xFF, 0xFF};
-            append_bytes(out, marker, 4);
+            append_bytes(w.out(), marker, 4);
             _save(w);
         }
 
@@ -883,13 +942,11 @@ namespace sgcl::compress::detail {
                 return;
             }
             _lit_freq[256] = 1;
-            uint8_t lit_len[286], dist_len[30];
-            huffman_lengths(_lit_freq, 286, 15, lit_len);
-            huffman_lengths(_dist_freq, 30, 15, dist_len);
-            if (std::all_of(dist_len, dist_len + 30, [](uint8_t l) { return l == 0; })) {
-                dist_len[0] = 1;
-                dist_len[1] = 1;
-            }
+            HuffmanTable lit, dist;
+            huffman_table(_lit_freq, 286, 15, lit);
+            huffman_table(_dist_freq, 30, 15, dist);   // a block without a match: two codes of one bit
+            const uint8_t* lit_len = lit.lengths;
+            const uint8_t* dist_len = dist.lengths;
             unsigned hlit = 286;
             while (hlit > 257 && lit_len[hlit - 1] == 0) {
                 --hlit;
@@ -948,8 +1005,9 @@ namespace sgcl::compress::detail {
                 }
                 i += run;
             }
-            uint8_t cl_len[19];
-            huffman_lengths(cl_freq, 19, 7, cl_len);
+            HuffmanTable cl;
+            huffman_table(cl_freq, 19, 7, cl);
+            const uint8_t* cl_len = cl.lengths;
             unsigned hclen = 19;
             while (hclen > 4 && cl_len[CodeLengthOrder[hclen - 1]] == 0) {
                 --hclen;
@@ -961,24 +1019,20 @@ namespace sgcl::compress::detail {
             }
             uint64_t fixed_bits = 3;
             uint64_t extra_bits = 0;
-            for (unsigned s = 0; s < 286; ++s) {
-                if (!_lit_freq[s]) {
-                    continue;
-                }
-                uint32_t fl = s < 144 ? 8 : s < 256 ? 9 : s < 280 ? 7 : 8;
-                dynamic_bits += uint64_t(_lit_freq[s]) * lit_len[s];
-                fixed_bits += uint64_t(_lit_freq[s]) * fl;
-                if (s >= 257) {
-                    extra_bits += uint64_t(_lit_freq[s]) * LengthExtra[s - 257];
-                }
+            // over the symbols the block has (a code without one adds 0)
+            for (unsigned k = 0; k < lit.used_n; ++k) {
+                const unsigned s = lit.used[k];
+                const uint64_t f = _lit_freq[s];
+                dynamic_bits += f * lit_len[s];
+                fixed_bits += f * FixedLitLengths[s];
+                extra_bits += f * LitLenExtra[s];
             }
-            for (unsigned s = 0; s < 30; ++s) {
-                if (!_dist_freq[s]) {
-                    continue;
-                }
-                dynamic_bits += uint64_t(_dist_freq[s]) * dist_len[s];
-                fixed_bits += uint64_t(_dist_freq[s]) * 5;
-                extra_bits += uint64_t(_dist_freq[s]) * DistanceExtra[s];
+            for (unsigned k = 0; k < dist.used_n; ++k) {
+                const unsigned s = dist.used[k];
+                const uint64_t f = _dist_freq[s];
+                dynamic_bits += f * dist_len[s];
+                fixed_bits += f * 5;
+                extra_bits += f * DistanceExtra[s];
             }
             dynamic_bits += extra_bits;
             fixed_bits += extra_bits;
@@ -989,12 +1043,7 @@ namespace sgcl::compress::detail {
             } else if (fixed_bits <= dynamic_bits) {
                 w.put(last ? 1 : 0, 1);
                 w.put(1, 2);
-                uint8_t fl[288], fd[30];
-                for (unsigned s = 0; s < 288; ++s) {
-                    fl[s] = s < 144 ? 8 : s < 256 ? 9 : s < 280 ? 7 : 8;
-                }
-                std::fill(fd, fd + 30, uint8_t(5));
-                _symbols(w, fl, 288, fd, 30);
+                _symbols(w, FixedLitLengths.data(), FixedLitCodes.data(), FixedDistLengths, FixedDistCodes.data(), fixed_bits);
             } else {
                 w.put(last ? 1 : 0, 1);
                 w.put(2, 2);
@@ -1004,15 +1053,13 @@ namespace sgcl::compress::detail {
                 for (unsigned i = 0; i < hclen; ++i) {
                     w.put(cl_len[CodeLengthOrder[i]], 3);
                 }
-                uint16_t cl_code[19];
-                canonical_codes(cl_len, 19, cl_code);
                 for (unsigned i = 0; i < rle_n; ++i) {
-                    w.put(cl_code[rle[i]], cl_len[rle[i]]);
+                    w.put(cl.codes[rle[i]], cl_len[rle[i]]);
                     if (rle[i] >= 16) {
                         w.put(rle_extra[i], rle[i] == 16 ? 2 : rle[i] == 17 ? 3 : 7);
                     }
                 }
-                _symbols(w, lit_len, 286, dist_len, 30);
+                _symbols(w, lit_len, lit.codes, dist_len, dist.codes, dynamic_bits);
             }
             _lit.clear();
             _dist.clear();
@@ -1021,31 +1068,54 @@ namespace sgcl::compress::detail {
             _block_start = end;
         }
 
+        // The symbols of the block and its end, block_bits at most: written
+        // straight into room made for them in out, the bits in a register,
+        // each symbol's (at most 48 bits: a length's code and extra bits, a
+        // distance's) added and the whole bytes stored as one word of eight
         template<class Out>
-        void _symbols(BitWriter<Out>& w, const uint8_t* lit_len, unsigned lit_count, const uint8_t* dist_len, unsigned dist_count) noexcept {
-            uint16_t lit_code[288], dist_code[30];
-            canonical_codes(lit_len, lit_count, lit_code);
-            canonical_codes(dist_len, dist_count, dist_code);
-            for (size_t i = 0; i < _lit.size(); ++i) {
-                uint32_t v = _lit[i];
+        void _symbols(BitWriter<Out>& w, const uint8_t* lit_len, const uint16_t* lit_code, const uint8_t* dist_len, const uint16_t* dist_code,
+                      uint64_t block_bits) noexcept {
+            uint64_t bits = w.pending_value();
+            uint32_t count = w.pending_bits();
+            uint8_t* o = append_room(w.out(), size_t(block_bits >> 3) + 24);
+            // the whole bytes out, fewer than 8 bits left (count below 64)
+            auto spill = [&]() noexcept {
+                const uint64_t le = std::endian::native == std::endian::little ? bits : __builtin_bswap64(bits);
+                std::memcpy(o, &le, 8);
+                o += count >> 3;
+                bits >>= count & ~7u;
+                count &= 7;
+            };
+            spill();   // a BitWriter leaves fewer than 32
+            const uint16_t* lits = _lit.data();
+            const uint16_t* dists = _dist.data();
+            const size_t symbols = _lit.size();
+            for (size_t i = 0; i < symbols; ++i) {
+                const uint32_t v = lits[i];
                 if (v < 256) {
-                    w.put(lit_code[v], lit_len[v]);
-                    continue;
+                    bits |= uint64_t(lit_code[v]) << count;
+                    count += lit_len[v];
+                } else {
+                    const uint32_t length = v - 253;
+                    const uint32_t lc = length_code(length);
+                    bits |= uint64_t(lit_code[257 + lc]) << count;
+                    count += lit_len[257 + lc];
+                    bits |= uint64_t(length - LengthBase[lc]) << count;
+                    count += LengthExtra[lc];
+                    const uint32_t distance = dists[i];
+                    const uint32_t dc = distance_code(distance);
+                    bits |= uint64_t(dist_code[dc]) << count;
+                    count += dist_len[dc];
+                    bits |= uint64_t(distance - DistanceBase[dc]) << count;
+                    count += DistanceExtra[dc];
                 }
-                uint32_t length = v - 253;
-                uint32_t lc = length_code(length);
-                w.put(lit_code[257 + lc], lit_len[257 + lc]);
-                if (LengthExtra[lc]) {
-                    w.put(length - LengthBase[lc], LengthExtra[lc]);
-                }
-                uint32_t distance = _dist[i];
-                uint32_t dc = distance_code(distance);
-                w.put(dist_code[dc], dist_len[dc]);
-                if (DistanceExtra[dc]) {
-                    w.put(distance - DistanceBase[dc], DistanceExtra[dc]);
-                }
+                spill();
             }
-            w.put(lit_code[256], lit_len[256]);
+            bits |= uint64_t(lit_code[256]) << count;
+            count += lit_len[256];
+            spill();
+            append_end(w.out(), o);
+            w.restore(bits, count);
         }
 
         // Stored blocks of at most 65535 bytes over the n bytes at p (of the

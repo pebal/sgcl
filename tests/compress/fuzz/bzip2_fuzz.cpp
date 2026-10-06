@@ -3,11 +3,15 @@
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
-// The decoder of bzip2 on any bytes, in memory and through the reader fed
-// in pieces of every size the last byte picks; and against libbz2: a
-// stream libbz2 takes whole, the library takes, with the same bytes (the
-// other way is not asked: libbz2 takes randomised blocks, which the
-// library refuses as Go does, and it finds some errors at other bits).
+// bzip2 on any bytes, two ways:
+//   - the bytes as a stream: the decoder in memory and through the reader
+//     fed in pieces of every size the last byte picks; and against libbz2:
+//     a stream libbz2 takes whole, the library takes, with the same bytes
+//     (the other way is not asked: libbz2 takes randomised blocks, which the
+//     library refuses as Go does, and it finds some errors at other bits);
+//   - the bytes as data: compressed at the level the first byte picks, by
+//     compress and by the writer in pieces (flushed or not), decoded by the
+//     library and by libbz2 to the same.
 #include "sgcl/compress/compress.h"
 
 #include <bzlib.h>
@@ -95,6 +99,44 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             __builtin_trap();
         }
         if (std::string(reinterpret_cast<const char*>(whole->data()), whole->size()) != z) {
+            __builtin_trap();
+        }
+    }
+    // as data
+    if (size >= 2) {
+        const int level = 1 + data[0] % 9;
+        const bool flush = data[0] & 0x80;
+        const uint8_t* p = data + 1;
+        const size_t n = size - 1;
+        const std::string plain(reinterpret_cast<const char*>(p), n);
+        auto c = compress::bzip2::compress(slice<const std::byte>(reinterpret_cast<const std::byte*>(p), n), {.level = level});
+        auto back = compress::bzip2::decompress(c);
+        if (!back || std::string(reinterpret_cast<const char*>(back->data()), back->size()) != plain) {
+            __builtin_trap();
+        }
+        bool fine = false;
+        if (bz_decompress(reinterpret_cast<const uint8_t*>(c.data()), c.size(), fine) != plain || !fine) {
+            __builtin_trap();
+        }
+        io::buffer sink;
+        {
+            compress::bzip2::writer w(sink, {.level = level});
+            for (size_t at = 0; at < n;) {
+                const size_t k = std::min(n - at, step * 97);
+                if (!w.write(slice<const std::byte>(reinterpret_cast<const std::byte*>(p + at), k))) {
+                    __builtin_trap();
+                }
+                at += k;
+                if (flush && !w.flush()) {
+                    __builtin_trap();
+                }
+            }
+            if (!w.close()) {
+                __builtin_trap();
+            }
+        }
+        auto streamed = compress::bzip2::decompress(sink.data());
+        if (!streamed || std::string(reinterpret_cast<const char*>(streamed->data()), streamed->size()) != plain) {
             __builtin_trap();
         }
     }

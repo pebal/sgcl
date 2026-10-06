@@ -729,7 +729,7 @@ TEST(TlsServer, ClientHelloRefusals) {
     check(client_hello([](tls::Builder& w) { groups(w); share(w); schemes(w); }), AlertDescription::protocol_version, "no supported_versions");
     check(client_hello([](tls::Builder& w) { groups(w); share(w); versions(w, {0x0303}); schemes(w); }), AlertDescription::protocol_version, "TLS 1.2 alone");
     check(client_hello(all, {0x1304}), AlertDescription::handshake_failure, "no suite in common");
-    check(client_hello([](tls::Builder& w) { groups(w, {0x0019}); versions(w); schemes(w); { auto e = w.extension(tls::ExtensionType::key_share); w.u16(0); } }), AlertDescription::handshake_failure, "no group in common");
+    check(client_hello([](tls::Builder& w) { groups(w, {0x001E}); versions(w); schemes(w); { auto e = w.extension(tls::ExtensionType::key_share); w.u16(0); } }), AlertDescription::handshake_failure, "no group in common");
     check(client_hello([](tls::Builder& w) { groups(w); share(w); versions(w); }), AlertDescription::missing_extension, "no signature_algorithms");
     check(client_hello([](tls::Builder& w) { share(w); versions(w); schemes(w); }), AlertDescription::missing_extension, "no supported_groups");
     check(client_hello([](tls::Builder& w) { groups(w, {0x001D}); share(w, 0x0017); versions(w); schemes(w); }), AlertDescription::illegal_parameter, "a share of a group not supported");

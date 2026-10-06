@@ -6,7 +6,7 @@
 key_kind kind() const noexcept;
 ```
 
-The kind of the key the view is of: `key_kind::p256`, `p384`, `ed25519` or `rsa` ([key_kind](../x509-key_kind.md)).
+The kind of the key the view is of: `key_kind::p256`, `p384`, `p521`, `ed25519` or `rsa` ([key_kind](../x509-key_kind.md)).
 
 ## Parameters
 

@@ -46,7 +46,7 @@ The class holds nothing: its functions are static, and the PRK between the two s
 - **Every `slice<const byte>`** takes bytes or text: a `vector<byte>`, a `string`, a literal (to its first NUL), a
   `std::string_view`, a `uint8_t` array.
 - **Not for passwords**: HKDF assumes its input already has the entropy. A password goes through [pbkdf2](../pbkdf2/README.md)
-  (or Argon2id after version 1) first.
+  or [argon2](../argon2/README.md) first.
 
 ## Template parameters
 

@@ -8,7 +8,8 @@
 // on writing is dropped, not gathered for a flush that never writes —
 // memory a long-running writer would hold without bound. The text is
 // plain memory: measured by what the system's allocator holds (as
-// tests/net/http/heap.cpp measures its wire).
+// tests/net/http/heap.cpp measures its wire), with the collector held at a
+// gate so that only the writer allocates in the window.
 #include "common.h"
 
 #if defined(__APPLE__)
@@ -47,6 +48,10 @@ TEST(EncodingWriters_Tests, CsvDropsWhatComesAfterItsStreamFailed) {
 #if !defined(__APPLE__)
     GTEST_SKIP() << "the allocator's statistics are read on macOS";
 #endif
+    // no cycle while the writers are measured: the collector's own lists
+    // are the system allocator's too, and a cycle in the window (more likely
+    // on a loaded machine) read as the writer's memory
+    sgcl::collector::stepper quiet;
     sgcl::tracked_ptr out = make_tracked<flaky>();
     csv::writer w(out);
     w.write({"a", "b"});
@@ -92,6 +97,10 @@ TEST(EncodingWriters_Tests, JsonDropsWhatComesAfterItsStreamFailed) {
 #if !defined(__APPLE__)
     GTEST_SKIP() << "the allocator's statistics are read on macOS";
 #endif
+    // no cycle while the writers are measured: the collector's own lists
+    // are the system allocator's too, and a cycle in the window (more likely
+    // on a loaded machine) read as the writer's memory
+    sgcl::collector::stepper quiet;
     sgcl::tracked_ptr out = make_tracked<flaky>();
     json::writer w(out);
     w.value(1);
@@ -139,6 +148,10 @@ TEST(EncodingWriters_Tests, XmlDropsWhatComesAfterItsStreamFailed) {
 #if !defined(__APPLE__)
     GTEST_SKIP() << "the allocator's statistics are read on macOS";
 #endif
+    // no cycle while the writers are measured: the collector's own lists
+    // are the system allocator's too, and a cycle in the window (more likely
+    // on a loaded machine) read as the writer's memory
+    sgcl::collector::stepper quiet;
     sgcl::tracked_ptr out = make_tracked<flaky>();
     xml::writer w(out);
     w.start("log");

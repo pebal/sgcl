@@ -3,11 +3,13 @@
 # sgcl::async::channel\<T\>::end
 
 ```cpp
-iterator end() const noexcept;
+std::default_sentinel_t end() const noexcept;
 ```
 
-The end iterator of a range-for over the channel: the one an iterator from [begin](begin.md) becomes once the
-channel is closed and drained. It receives nothing and holds no element. `channel<void>` has no `end`.
+The end of a range-for over the channel: `std::default_sentinel`, which an iterator from [begin](begin.md) compares
+equal to once the channel is closed and drained. The comparison is a look: an iterator that holds no element yet
+receives one, waiting for it, to tell whether the channel has ended. `end` itself receives nothing.
+`channel<void>` has no `end`.
 
 ## Parameters
 
@@ -15,7 +17,7 @@ None.
 
 ## Return value
 
-The end iterator.
+`std::default_sentinel`.
 
 ## Complexity
 
@@ -57,5 +59,5 @@ true
 
 ## See also
 
-- [begin](begin.md): receives the first element
+- [begin](begin.md): the iterator, which receives at the first look
 - [sgcl::async::channel\<T\>](README.md)

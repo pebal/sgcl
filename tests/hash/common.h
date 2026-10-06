@@ -135,5 +135,5 @@ namespace hash_test {
 
     using All = ::testing::Types<hash::crc32, hash::crc32c, hash::crc64, hash::crc64_iso, hash::adler32,
                                  hash::fnv32, hash::fnv32a, hash::fnv64, hash::fnv64a, hash::fnv128, hash::fnv128a,
-                                 hash::xxh3_64, hash::xxh3_128, hash::maphash, hash::siphash>;
+                                 hash::xxh3_64, hash::xxh3_128, hash::xxh32, hash::xxh64, hash::maphash, hash::siphash>;
 }

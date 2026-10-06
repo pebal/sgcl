@@ -6,17 +6,21 @@
 #pragma once
 
 // The compress module: DEFLATE and its wrappings (flate, zlib, gzip),
-// bzip2, LZW, LZMA and xz, and the zip, tar and 7z archives
+// bzip2, LZW, LZMA and xz, LZ4, Snappy, zstd, brotli, and the zip, tar and 7z archives
+#include "brotli.h"
 #include "bzip2.h"
 #include "error.h"
 #include "flate.h"
 #include "gzip.h"
 #include "level.h"
 #include "limits.h"
+#include "lz4.h"
 #include "lzma.h"
 #include "lzw.h"
 #include "sevenzip.h"
+#include "snappy.h"
 #include "tar.h"
 #include "xz.h"
 #include "zip.h"
 #include "zlib.h"
+#include "zstd.h"

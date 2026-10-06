@@ -41,6 +41,22 @@ namespace sgcl::detail {
         std::memset(bytes + sizeof(StringHeader) + s.size() * sizeof(CharT), 0, sizeof(CharT));
     }
 
+#if defined(SGCL_ASAN)
+    // Under the address sanitizer (os.h: SGCL_ASAN): the bytes of the
+    // string's object past its first `bytes` (the header, the characters and
+    // the terminator) poisoned, the slack of its size class or of the bound
+    // it was made for (make_unfilled, finish): a read past the terminator is
+    // reported. The object's size from its page: a class's object
+    // (Metadata::user_size) or a buffer's capacity (one byte an element).
+    inline void string_poison_past(const void* p, size_t bytes) noexcept {
+        auto& m = Page::metadata_of(p);
+        size_t size = m.is_array ? (static_cast<const ArrayBase*>(p) - 1)->capacity : m.user_size;
+        if (bytes < size) {
+            SGCL_ASAN_POISON(static_cast<const char*>(p) + bytes, size - bytes);
+        }
+    }
+#endif
+
     // The object of a size class: the bytes, written by StringMaker
     // (make_slot, make_unfilled_slot), never constructed; the type names
     // the class's pool (its typeid, its size, its traits: string_class_constants
@@ -165,6 +181,9 @@ namespace sgcl::detail {
         SGCL_NOINLINE static Slot make_slot(unsigned c, std::basic_string_view<CharT> s) noexcept {
             auto p = StringPools::alloc(c);
             string_fill((unsigned char*)p, s);
+#if defined(SGCL_ASAN)
+            string_poison_past(p, sizeof(StringHeader) + (s.size() + 1) * sizeof(CharT));
+#endif
             return Slot(UniquePtr<void>(p));
         }
 
@@ -242,6 +261,9 @@ namespace sgcl::detail {
             }
             const size_t bytes = sizeof(StringHeader) + (bound + 1) * sizeof(CharT);
             Slot slot = bytes <= 256 ? make_unfilled_slot((unsigned)((bytes - 1) / 4)) : _unfilled_large(bytes);
+#if defined(SGCL_ASAN)
+            string_poison_past(slot.get(), bytes);   // the bound's bytes stay writable, the class's slack past them not
+#endif
             chars = reinterpret_cast<CharT*>(static_cast<unsigned char*>(slot.get()) + sizeof(StringHeader));
             return slot;
         }
@@ -265,6 +287,9 @@ namespace sgcl::detail {
             }
             ::new(p) StringHeader{(uint32_t)used, {0}};
             chars[used] = CharT();
+#if defined(SGCL_ASAN)
+            string_poison_past(p, sizeof(StringHeader) + (used + 1) * sizeof(CharT));   // the bound's characters left over
+#endif
             return Word(std::move(slot));
         }
 

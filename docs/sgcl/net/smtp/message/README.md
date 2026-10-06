@@ -33,6 +33,7 @@ those bytes ([read](read.md)), all of them at once ([bytes](bytes.md)), or the m
 | [size](size.md) | the size in bytes |
 | [bytes](bytes.md) | the whole message |
 | [email](email.md) | the message parsed |
+| [sender_verdict](sender_verdict.md) | what the server's checks of SPF, DKIM and DMARC found |
 | [operator bool](operator_bool.md) | whether the handle holds a message |
 
 ## Example

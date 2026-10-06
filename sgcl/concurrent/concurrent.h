@@ -8,8 +8,12 @@
 // are core's (core/atomic.h).
 #pragma once
 
+#include "bloom_filter.h"
 #include "bounded_queue.h"
 #include "cache.h"
+#include "count_min_sketch.h"
+#include "error.h"
+#include "hyperloglog.h"
 #include "sorted_map.h"
 #include "priority_queue.h"
 #include "queue.h"

@@ -318,11 +318,12 @@ namespace sgcl::crypto::x509::detail {
         }
     }
 
-    inline expected<void, error> parse_ocsp_request(OcspRequestData& d) noexcept {
-        if (d.raw.size() > max_ocsp_size) {
+    // der is the caller's: the parse reads it in place, raw is copied after
+    inline expected<void, error> parse_ocsp_request(OcspRequestData& d, const slice<const byte>& der) noexcept {
+        if (der.size() > max_ocsp_size) {
             return unexpected<error>(ocsp_fail(0, "an OCSP request larger than 1 MiB"));
         }
-        DerReader in(reinterpret_cast<const unsigned char*>(d.raw.data()), d.raw.size());
+        DerReader in(reinterpret_cast<const unsigned char*>(der.data()), der.size());
         DerReader req, tbs, list;
         if (!in.read(der::sequence, req) || !in.empty()) {
             return unexpected<error>(ocsp_fail(in.offset(), "not an OCSPRequest SEQUENCE"));
@@ -468,11 +469,13 @@ namespace sgcl::crypto::x509::detail {
         }
     };
 
-    inline expected<void, error> parse_ocsp_response(OcspData& d) noexcept {
-        if (d.raw.size() > max_ocsp_size) {
+    // der is the caller's: the parse reads it in place, raw is copied after
+    inline expected<void, error> parse_ocsp_response(OcspData& d, const slice<const byte>& der) noexcept {
+        if (der.size() > max_ocsp_size) {
             return unexpected<error>(ocsp_fail(0, "an OCSP response larger than 1 MiB"));
         }
-        DerReader in(d.bytes_at(0), d.raw.size());
+        const auto* base = reinterpret_cast<const unsigned char*>(der.data());
+        DerReader in(base, der.size());
         DerReader resp, bytes, type, octets;
         if (!in.read(der::sequence, resp) || !in.empty()) {
             return unexpected<error>(ocsp_fail(in.offset(), "not an OCSPResponse SEQUENCE"));
@@ -512,7 +515,7 @@ namespace sgcl::crypto::x509::detail {
         if (!basic.read_element(der::sequence, tbs_el)) {
             return unexpected<error>(ocsp_fail(basic.offset(), "not a ResponseData SEQUENCE"));
         }
-        d.tbs_at = size_t(tbs_el.data() - d.bytes_at(0));
+        d.tbs_at = size_t(tbs_el.data() - base);
         d.tbs_size = tbs_el.size();
         tbs_el.read(der::sequence, tbs);
         DerReader opt;
@@ -749,9 +752,8 @@ namespace sgcl::crypto::x509::detail {
     // The entries of revokedCertificates: SEQUENCE { serial, revocationDate,
     // crlEntryExtensions OPTIONAL } each. The loop of a CRL of a hundred
     // thousand entries: reads in place, nothing allocated but the index
-    inline expected<void, error> parse_crl_entries(CrlData& d, DerReader list) noexcept {
+    inline expected<void, error> parse_crl_entries(CrlData& d, DerReader list, const unsigned char* base) noexcept {
         static constexpr unsigned char ce[] = {0x55, 0x1d};
-        const unsigned char* base = d.bytes_at(0);
         d.entries.reserve(list.size() / 40);   // an entry with its reason is about 40 bytes: one growth or none
         while (!list.empty()) {
             size_t at = list.offset();
@@ -866,11 +868,13 @@ namespace sgcl::crypto::x509::detail {
         return int(d.only_user) + int(d.only_ca) + int(d.only_attribute) <= 1;
     }
 
-    inline expected<void, error> parse_crl(CrlData& d) noexcept {
-        if (d.raw.size() > std::numeric_limits<uint32_t>::max()) {
+    // der is the caller's: the parse reads it in place, raw is copied after
+    inline expected<void, error> parse_crl(CrlData& d, const slice<const byte>& der) noexcept {
+        if (der.size() > std::numeric_limits<uint32_t>::max()) {
             return unexpected<error>(ocsp_fail(0, "a CRL of 4 GiB or more"));
         }
-        DerReader in(d.bytes_at(0), d.raw.size());
+        const auto* base = reinterpret_cast<const unsigned char*>(der.data());
+        DerReader in(base, der.size());
         DerReader list, tbs_el, tbs, alg_in, alg_out;
         if (!in.read(der::sequence, list) || !in.empty()) {
             return unexpected<error>(ocsp_fail(in.offset(), "not a CertificateList SEQUENCE"));
@@ -878,7 +882,7 @@ namespace sgcl::crypto::x509::detail {
         if (!list.read_element(der::sequence, tbs_el)) {
             return unexpected<error>(ocsp_fail(list.offset(), "not a TBSCertList SEQUENCE"));
         }
-        d.tbs_at = size_t(tbs_el.data() - d.bytes_at(0));
+        d.tbs_at = size_t(tbs_el.data() - base);
         d.tbs_size = tbs_el.size();
         tbs_el.read(der::sequence, tbs);
         if (tbs.peek(der::integer)) {
@@ -926,7 +930,7 @@ namespace sgcl::crypto::x509::detail {
         if (tbs.peek(der::sequence)) {
             DerReader entries;
             tbs.read(der::sequence, entries);
-            if (auto r = parse_crl_entries(d, entries); !r) {
+            if (auto r = parse_crl_entries(d, entries, base); !r) {
                 return r;
             }
         }

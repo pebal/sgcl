@@ -6,7 +6,7 @@
 static private_key generate(key_type type = key_type::ed25519, size_t rsa_bits = 3072);
 ```
 
-A new key from `crypto::random`: Ed25519 by default, ECDSA on P-256 or P-384, or RSA of `rsa_bits` (2048 to 16384,
+A new key from `crypto::random`: Ed25519 by default, ECDSA on P-256, P-384 or P-521, or RSA of `rsa_bits` (2048 to 16384,
 ssh-keygen's 3072 by default). Its comment is empty ([with_comment](with_comment.md)).
 
 ## Parameters

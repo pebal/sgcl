@@ -297,7 +297,11 @@ namespace sgcl::detail {
                     auto metadata = array->metadata;
                     return metadata->object_size;
                 } else {
+#if defined(SGCL_ASAN)
+                    return metadata.user_size;   // the type's size, not its slot with the redzone (page_info.h: SlotSize)
+#else
                     return metadata.object_size;
+#endif
                 }
             }
             return 0;

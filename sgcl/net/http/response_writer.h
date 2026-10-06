@@ -12,6 +12,7 @@
 #include "detail/wire.h"
 #include "../connection.h"
 #include "../../core/aliases.h"
+#include "../../core/function.h"
 #include "../../core/make_tracked.h"
 #include "../../core/string.h"
 #include "../../core/tracked_ptr.h"
@@ -263,6 +264,15 @@ namespace sgcl::net::http {
             int flushes = 0;
         };
 
+        // A transform of a body's bytes as they go out (a compression
+        // middleware's coding): what is buffered handed to it before each
+        // flush and at the end, replaced by what it encodes to; `last` the
+        // end of the body
+        struct BodyFilter {
+            virtual ~BodyFilter() = default;
+            virtual void transform(BodyBuffer& body, bool last) = 0;
+        };
+
         // The server's side of one exchange: the response as the handler
         // builds it, and how it goes out (over the wire of HTTP/1.1, or on
         // an HTTP/2 stream when h2 is set, or into a record when record is
@@ -295,6 +305,31 @@ namespace sgcl::net::http {
             http::headers trailers;           // sent after the body (a chunked body's trailer section, HTTP/2's trailing HEADERS)
             std::string trailer_tail;         // the last chunk and the trailer section of HTTP/1.1, while they are written
             tracked_ptr<RecordState> record;  // a response recorder's writer: nothing sent, everything kept
+            // the hooks of middlewares: before_head once, when the head is
+            // about to be made (a flush, or the end: the fields' last
+            // changes, a session's cookie); after_end once the response has
+            // gone, with the body's bytes (a log's record). Each chains the
+            // one set before it
+            function<void(WriterImpl&)> before_head;
+            function<void(const WriterImpl&, uint64_t)> after_end;
+            tracked_ptr<BodyFilter> filter;   // the body's coding, when a middleware set one at the head
+            bool finishing = false;            // the end of the response is being made (finish_start): a hook sees the whole body
+
+            // before_head run, once, as the head is about to be made; then
+            // the filter, when one is set, given what is buffered (a file
+            // kept for sendfile read in first: the coding goes through
+            // memory)
+            SGCL_INLINE_HOT void head_coming() {
+                if (before_head && !head_sent && !hijacked) [[unlikely]] {
+                    auto f = std::move(before_head);
+                    before_head = nullptr;
+                    f(*this);
+                }
+                if (filter && !hijacked) [[unlikely]] {
+                    take_file();
+                    filter->transform(body, finishing);
+                }
+            }
 
             SGCL_INLINE_HOT static bool bodiless(int status) noexcept {
                 return (status >= 100 && status < 200) || status == 204 || status == 304;
@@ -350,12 +385,19 @@ namespace sgcl::net::http {
                     return;
                 }
                 has_file = false;
-                uint64_t from = file_at;
-                const uint64_t end = file_at + file_n;
-                const int fd = file.fd();
-                body.append_read([&](std::byte* at, size_t room) -> size_t {
+                append_region(file.fd(), file_at, file_n);
+                file = io::file();
+            }
+
+            // Bytes [at, at + n) of the file read into the body by pread
+            // (the file's position untouched): how many there were, fewer
+            // when the file shrank
+            uint64_t append_region(int fd, uint64_t at, uint64_t n) noexcept {
+                uint64_t from = at;
+                const uint64_t end = at + n;
+                body.append_read([&](std::byte* to, size_t room) -> size_t {
                     while (from < end) {
-                        ssize_t got = ::pread(fd, at, size_t(std::min<uint64_t>(room, end - from)), off_t(from));
+                        ssize_t got = ::pread(fd, to, size_t(std::min<uint64_t>(room, end - from)), off_t(from));
                         if (got < 0 && errno == EINTR) {
                             continue;
                         }
@@ -367,7 +409,24 @@ namespace sgcl::net::http {
                     }
                     return 0;
                 });
-                file = io::file();
+                return from - at;
+            }
+
+            // Bytes [at, at + n) of the file as the body's next bytes
+            // (serve.h's ranges): kept as the file, to go by sendfile after
+            // the head, when they are all the body will be (as write_file),
+            // else read into the body now
+            void write_region(const io::file& f, uint64_t at, uint64_t n) {
+                touched = true;
+                if (wire && !h2 && !head_sent && !has_file && body.empty()) {
+                    file = f;
+                    file_at = at;
+                    file_n = n;
+                    has_file = true;
+                    return;
+                }
+                take_file();
+                append_region(f.fd(), at, n);
             }
 
             // The head (in the wire's buffer), then the file by sendfile
@@ -691,6 +750,7 @@ namespace sgcl::net::http {
             // only for what would wait (and for HTTP/2's stream). A server's
             // event (events.h) flushed this way costs its own frame alone
             optional<async::task<expected<void, io::error>>> flush_start(expected<void, io::error>& now) {
+                head_coming();
                 if (failed) {
                     now = io::detail::fail(*failed);
                     return nullopt;
@@ -733,6 +793,8 @@ namespace sgcl::net::http {
             // and sent as far as the connection takes it at once (the
             // result in `now`), a task only for what would wait
             optional<async::task<expected<void, io::error>>> finish_start(expected<void, io::error>& now) {
+                finishing = true;
+                head_coming();
                 ended = true;
                 if (hijacked) {
                     now = expected<void, io::error>();

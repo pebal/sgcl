@@ -5,6 +5,8 @@
 //------------------------------------------------------------------------------
 #include "tests/types.h"
 
+#include <ranges>
+
 using namespace sgcl::async;
 
 #include <string>
@@ -126,6 +128,22 @@ TEST(IoBuffered_Tests, LinesWithAndWithoutTerminators) {
     l = r.read_line();
     ASSERT_TRUE(l);
     EXPECT_FALSE(*l);         // and stays the end
+}
+
+// lines() reads a line at the look at it, and ++ reads nothing: take(n)
+// reads n lines, and the reader goes on from the next one
+TEST(IoBuffered_Tests, TakeOfLinesLeavesTheRestToTheReader) {
+    sgcl::tracked_ptr src = make_tracked<dribble>(std::string("one\ntwo\nthree\n"), 1 << 20);
+    buffered_reader r(src);
+    int taken = 0;
+    for (auto line : r.lines() | std::views::take(1)) {
+        EXPECT_EQ(line, "one");
+        ++taken;
+    }
+    EXPECT_EQ(taken, 1);
+    auto l = r.read_line();
+    ASSERT_TRUE(l && *l);
+    EXPECT_EQ(**l, "two");
 }
 
 TEST(IoBuffered_Tests, ReadsInBlocksNotBytes) {

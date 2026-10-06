@@ -10,3 +10,11 @@ The Public Suffix List (https://publicsuffix.org), Mozilla Public License 2.0
   sgcl/net/http/detail/public_suffix_table.h  the list compiled by tools/gen_public_suffix.py
 Both files are covered by the MPL 2.0, not by the Apache License; their source
 is the list above, and they keep the list's notice.
+
+Brotli's static dictionary and transforms (RFC 7932, Appendices A and B) and
+the lookup tables of its literal contexts (section 7.1), MIT License,
+Copyright 2013 Google Inc. (https://opensource.org/licenses/MIT).
+  sgcl/compress/detail/brotli_dictionary.h    the data, written by tools/gen_brotli_dictionary.c
+                                              from libbrotli 1.2.0's tables
+The file is covered by the MIT License, not by the Apache License, and keeps
+the data's notice.

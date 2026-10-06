@@ -821,7 +821,7 @@ namespace sgcl::net::http::detail::h2 {
                     h->_cfg->observe(r);
                 }
                 try {
-                    if (auto t = dispatch(*h->_s, req, r, writer, method, host_text, path)) {
+                    if (auto t = run_request(*h->_cfg, *h->_s, req, r, writer, method, host_text, path)) {
                         co_await *t;
                     }
                 } catch (const std::exception& e) {
@@ -857,6 +857,9 @@ namespace sgcl::net::http::detail::h2 {
                 sent = co_await *rest;
             }
             log_access(*h->_cfg, *req, *w, body_bytes, path, "HTTP/2.0", start);
+            if (w->after_end) [[unlikely]] {
+                w->after_end(*w, body_bytes);
+            }
             // a request whose body did not end: RST_STREAM NO_ERROR after a
             // whole response (§8.1), CANCEL after a broken one
             if (body && !body->done()) {

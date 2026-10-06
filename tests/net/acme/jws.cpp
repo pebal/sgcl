@@ -83,7 +83,7 @@ TEST(AcmeJws, Rfc8037Ed25519) {
     EXPECT_EQ(text(key->jwk()), R"({"crv":"Ed25519","kty":"OKP","x":"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo"})");
     EXPECT_EQ(text(key->thumbprint()), "kPrK_qmxVWaYVA9wwBF6Iuo3vVzz7TxHCTwXBygrS4k");
     const auto& st = jd::KeyAccess::state(*key);
-    string jws = jd::jws(*st.key, string(R"({"alg":"EdDSA"})"), string("Example of Ed25519 signing"));
+    string jws = jd::jws(st, encoding::json(), string("Example of Ed25519 signing"));
     auto j = encoding::json::parse(jws);
     ASSERT_TRUE(j.has_value());
     EXPECT_EQ(text((*j)["protected"].as_string(string())), "eyJhbGciOiJFZERTQSJ9");
@@ -152,8 +152,8 @@ TEST(AcmeJws, EveryKindSignsAndVerifies) {
         EXPECT_EQ(text(parsed->thumbprint), text(key.thumbprint()));
         EXPECT_EQ(std::string(parsed->alg()), std::string(st.alg));
         // a request as the client signs it, read as the server reads it
-        string header = jd::header(st, string(), string("nonce-1"), string("https://ca.test/acme/new-account"));
-        string body = jd::jws(*st.key, header, string(R"({"termsOfServiceAgreed":true})"));
+        encoding::json header = jd::header(st, string(), string("nonce-1"), string("https://ca.test/acme/new-account"));
+        string body = jd::jws(st, header, string(R"({"termsOfServiceAgreed":true})"));
         auto p = jd::parse_jws(body);
         ASSERT_TRUE(p.has_value()) << text(p.error());
         EXPECT_EQ(text(p->alg), std::string(st.alg));
@@ -165,8 +165,8 @@ TEST(AcmeJws, EveryKindSignsAndVerifies) {
         string input = p->signing_input();
         EXPECT_TRUE(jd::jws_verify(*parsed, p->alg.view(), slice<const byte>(reinterpret_cast<const byte*>(input.data()), input.size()), p->signature.as_slice()));
         // with a kid, and a POST-as-GET's empty payload
-        string h2 = jd::header(st, string("https://ca.test/acme/acct/1"), string("n2"), string("https://ca.test/acme/order/1"));
-        auto p2 = jd::parse_jws(jd::jws(*st.key, h2, string()));
+        encoding::json h2 = jd::header(st, string("https://ca.test/acme/acct/1"), string("n2"), string("https://ca.test/acme/order/1"));
+        auto p2 = jd::parse_jws(jd::jws(st, h2, string()));
         ASSERT_TRUE(p2.has_value());
         EXPECT_EQ(text(p2->kid), "https://ca.test/acme/acct/1");
         EXPECT_TRUE(p2->jwk.is_null());

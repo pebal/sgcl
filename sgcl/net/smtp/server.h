@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "sender_checks.h"
 #include "envelope.h"
 #include "detail/machine.h"
 #include "detail/wire.h"
@@ -45,6 +46,7 @@ namespace sgcl::net::smtp {
             smtp::envelope env;
             vector<byte> data;
             size_t at = 0;
+            optional<smtp::sender_verdict> auth;
         };
 
         struct MessageAccess;
@@ -122,6 +124,7 @@ namespace sgcl::net::smtp {
         struct SmtpServerSettings {
             MachineSettings machine;
             optional<net::tls::config> starttls;
+            optional<smtp::sender_checks> checks;
             duration timeout = 5 * minute;
             function<void(const string&)> on_error;
 
@@ -173,6 +176,12 @@ namespace sgcl::net::smtp {
             return _s->data;
         }
 
+        // What the server's checks found (server::sender_checks set):
+        // SPF, DKIM and DMARC of the message; nullopt without checks
+        const optional<smtp::sender_verdict>& sender_verdict() const noexcept {
+            return _s->auth;
+        }
+
         // The message parsed (encoding::email::parse)
         expected<encoding::email, encoding::error> email() const {
             return encoding::email::parse(_s->data);
@@ -198,9 +207,10 @@ namespace sgcl::net::smtp {
 
     namespace detail {
         struct MessageAccess {
-            static smtp::message make(const smtp::envelope& env, const std::string& data) {
+            static smtp::message make(const smtp::envelope& env, const std::string& data, optional<smtp::sender_verdict> auth = nullopt) {
                 tracked_ptr s = make_tracked<MessageState>();
                 s->env = env;
+                s->auth = std::move(auth);
                 VectorOverwrite::resize(s->data, data.size());
                 if (!data.empty()) {
                     copy_bytes(s->data.data(), data.data(), data.size());
@@ -262,7 +272,19 @@ namespace sgcl::net::smtp {
                     break;
                 }
                 if (step == MachineStep::message) {
-                    smtp::message msg = MessageAccess::make(m.env, m.data());
+                    optional<smtp::sender_verdict> auth;
+                    if (cfg->checks) {
+                        auth = co_await smtp::async_check_sender(string(m.data()), m.env, *cfg->checks);
+                        if (cfg->checks->reject && auth->dmarc && auth->dmarc->status == dmarc::status::fail && auth->dmarc->disposition == dmarc::policy::reject) {
+                            m.data().clear();
+                            m.message_done(smtp::reply{550, string("5.7.1"), string::concat("Rejected by the DMARC policy of ", auth->dmarc->domain)});
+                            continue;
+                        }
+                        if (cfg->checks->add_header) {
+                            m.data() = with_results(m.data(), auth->results(cfg->checks->authserv_id));
+                        }
+                    }
+                    smtp::message msg = MessageAccess::make(m.env, m.data(), std::move(auth));
                     m.data().clear();
                     smtp::reply r = co_await run_handler(s, cfg, msg);
                     m.message_done(r);
@@ -437,6 +459,7 @@ namespace sgcl::net::smtp {
         bool allow_insecure_auth = false;                        // AUTH offered without TLS too
         function<reply(const envelope&)> on_sender;              // MAIL decided: a code of 0 takes it
         function<reply(const envelope&, const string&)> on_recipient;   // RCPT decided: a code of 0 takes it
+        optional<smtp::sender_checks> sender_checks;         // SPF, DKIM and DMARC checked after DATA, the results to the handler
         uint64_t max_message_bytes = uint64_t(32) << 20;         // SIZE announced; a message past it 552
         size_t max_recipients = 100;                             // RCPT past it 452
         size_t max_line_bytes = 2048;                            // a command past it 500
@@ -471,6 +494,10 @@ namespace sgcl::net::smtp {
             m.on_sender = on_sender;
             m.on_recipient = on_recipient;
             cfg->starttls = starttls;
+            cfg->checks = sender_checks;
+            if (cfg->checks && cfg->checks->authserv_id.empty()) {
+                cfg->checks->authserv_id = m.hostname;
+            }
             cfg->timeout = timeout > duration::zero() ? timeout : 5 * minute;
             cfg->on_error = on_error;
             return cfg;

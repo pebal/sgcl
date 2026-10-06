@@ -1737,7 +1737,7 @@ namespace sgcl::net::ssh::detail {
                 Bytes b;
                 Writer w(b);
                 w.u8(MsgExtInfo).u32(1).string("server-sig-algs");
-                std::vector<std::string_view> algs = {"ssh-ed25519", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp384", "rsa-sha2-512", "rsa-sha2-256"};
+                std::vector<std::string_view> algs = {"ssh-ed25519", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp521", "rsa-sha2-512", "rsa-sha2-256"};
                 w.name_list(algs);
                 post(std::move(b), true);
             }

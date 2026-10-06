@@ -385,6 +385,8 @@ namespace sgcl::net {
     // target; client does the asking over a connection to a proxy there
     // is (one made through TLS, or through another proxy).
     struct socks5 {
+        class server;   // socks5_server.h
+
         // How a connection is asked for: the credentials of RFC 1929
         // (offered when the username is not empty: 1 to 255 bytes, the
         // password 0 to 255), the longest the whole of it may take, a stop
@@ -457,3 +459,5 @@ namespace sgcl::net {
         }
     };
 }
+
+#include "socks5_server.h"

@@ -1,0 +1,5 @@
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 100
+
+{"device_code":"d","user_code":"U-1","verification_uri":"http://as/d","expires_in":600,"interval":5}

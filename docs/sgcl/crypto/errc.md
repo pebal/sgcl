@@ -12,7 +12,9 @@ namespace sgcl::crypto {
         invalid_signature,
         malformed,
         unsupported,
-        verification
+        verification,
+        expired,
+        not_yet_valid
     };
 }
 
@@ -33,7 +35,9 @@ in error codes.
 | `invalid_signature` | a signature that cannot be one: out of range, badly encoded |
 | `malformed` | DER, ASN.1 or PEM that cannot be read |
 | `unsupported` | an algorithm, a curve or a parameter the module does not do, an encrypted private key |
-| `verification` | a certificate chain that does not verify; the error's [reason](error/reason.md) says why |
+| `verification` | a signature, a token's claims or a certificate chain that do not verify; for a chain, the error's [reason](error/reason.md) says why |
+| `expired` | a token past its expiry: a [JWT](jose-jwt/README.md)'s `exp` |
+| `not_yet_valid` | a token before its start: a JWT's `nbf`, an `iat` in the future |
 
 A broken contract of the program — a key of the wrong length given by the program, a nonce of the wrong size, more
 output than an algorithm can give — is not here: it is `std::invalid_argument`, thrown.

@@ -117,7 +117,10 @@ func main() {
 	case "format_rfc3339":
 		measure(func(i int) uint64 { buf = local[i].AppendFormat(buf[:0], time.RFC3339); return uint64(len(buf)) })
 	case "format_http":
-		measure(func(i int) uint64 { buf = local[i].UTC().AppendFormat(buf[:0], http.TimeFormat); return uint64(len(buf)) })
+		measure(func(i int) uint64 {
+			buf = local[i].UTC().AppendFormat(buf[:0], http.TimeFormat)
+			return uint64(len(buf))
+		})
 	case "format_pattern":
 		measure(func(i int) uint64 { buf = local[i].AppendFormat(buf[:0], "02.01.2006 15:04"); return uint64(len(buf)) })
 	case "format_string":
@@ -160,6 +163,15 @@ func main() {
 		fmt.Printf("time %s variant=go zones=%d ns/op=%.2f wall=%.2fs\n", what, len(names), wall*1e9/float64(len(names)), wall)
 	case "load_cached":
 		measure(func(int) uint64 { l, _ := time.LoadLocation("America/New_York"); return uint64(len(l.String())) })
+	case "cron_parse":
+		measure(func(int) uint64 { c, _ := parseCron("*/5 9-17 * * mon-fri"); return c.minute })
+	case "cron_next_utc", "cron_next_local":
+		c, _ := parseCron("*/5 9-17 * * mon-fri")
+		ts := utc
+		if what == "cron_next_local" {
+			ts = local
+		}
+		measure(func(i int) uint64 { return uint64(c.next(ts[i]).Unix()) })
 	default:
 		fmt.Fprintf(os.Stderr, "unknown case %s\n", what)
 		os.Exit(2)

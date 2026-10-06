@@ -116,6 +116,7 @@ an `expected<T, io::error>` whose code is the server's answer read into [errc](e
 
 - [net](../README.md): the connections and listeners under the client and the server
 - [tls](../tls/README.md): STARTTLS and `imaps://`
+- [pop3](../pop3/README.md): the same backends served over POP3
 - [compress](../../compress/README.md): the DEFLATE under COMPRESS=DEFLATE
 - [encoding::email](../../encoding/email/README.md): a message parsed and built; [message](message/README.md)'s
   `email()` and [smtp](../smtp/README.md)'s server and client use it

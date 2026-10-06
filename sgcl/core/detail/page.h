@@ -503,6 +503,10 @@ namespace sgcl::detail {
             Heap::globals.epoch.store(e, std::memory_order_relaxed);
             Heap::set_epoch(e);
             Heap::globals.current_reachable.store(State(State::Reachable | ((e & 1) << 6)), std::memory_order_release);
+            if constexpr(config::stack_sp != 0) {
+                // after current_reachable: a thread that reads this epoch reads the new state in its barriers (heap.h: record_stack)
+                Heap::globals.stack_epoch.store(Heap::globals.stack_epoch.load(std::memory_order_relaxed) + 1, std::memory_order_release);
+            }
         }
 
         // slots freed by the collector since the page was last handed out

@@ -556,9 +556,11 @@ TEST(CodecFormat_Tests, SniffTheCorpora) {
         CODEC_ORACLE(data, file.path);
         EXPECT_EQ(codec::sniff(codec_test::bytes(data)), file.f) << file.path;
     }
-    // what is none of them
+    // a Netpbm file, and what is none of them
     CODEC_ORACLE(ppm, "libjpeg-turbo/libjpeg-turbo-3.2.0/testimages/testorig.ppm");
-    EXPECT_EQ(codec::sniff(codec_test::bytes(ppm)), nullopt);
+    EXPECT_EQ(codec::sniff(codec_test::bytes(ppm)), codec::format::pnm);
+    static constexpr char text[] = "hello, world";
+    EXPECT_EQ(codec::sniff(slice<const byte>(reinterpret_cast<const byte*>(text), sizeof(text) - 1)), nullopt);
 }
 
 TEST(CodecError_Tests, CodeOffsetAndMessage) {

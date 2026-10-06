@@ -114,6 +114,8 @@ namespace sgcl::crypto::x509::detail {
                     ok = key.p256().verify_digest(digest(id, tbs), sig);
                 } else if (key.kind() == key_kind::p384) {
                     ok = key.p384().verify_digest(digest(id, tbs), sig);
+                } else if (key.kind() == key_kind::p521) {
+                    ok = key.p521().verify_digest(digest(id, tbs), sig);
                 } else {
                     matched = false;
                 }

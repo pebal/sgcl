@@ -18,7 +18,10 @@
 #include "../encoding/base64.h"
 
 namespace sgcl::net {
-    namespace detail { using namespace sgcl::detail; }
+    namespace detail {
+        using namespace sgcl::detail;
+        struct DnsAccess;
+    }
     // Names to addresses and back, and the records of a name.
     //
     // The addresses (lookup, reverse_lookup) go through the system's
@@ -32,7 +35,7 @@ namespace sgcl::net {
     // and no resolver.
     //
     // The records (lookup_mx, lookup_txt, lookup_srv, lookup_ns,
-    // lookup_cname) go through the module's own stub resolver
+    // lookup_cname, lookup_https, lookup_svcb) go through the module's own stub resolver
     // (detail/dns_resolver.h): queries over UDP on the scheduler's sockets,
     // TCP for an answer truncated, to the servers of /etc/resolv.conf (its
     // search list, ndots, timeout, attempts, rotate) or to the one the
@@ -60,6 +63,44 @@ namespace sgcl::net {
             uint16_t weight = 0;
 
             friend bool operator==(const srv&, const srv&) noexcept = default;
+        };
+
+        // A SvcParam of a key svcb has no field for (RFC 9460 §14.3:
+        // ohttp, tls-supported-groups, the keys of later RFCs, key65280…
+        // of private use): its key and its value's bytes as they came
+        struct svc_param {
+            uint16_t key = 0;
+            vector<byte> value;
+
+            friend bool operator==(const svc_param&, const svc_param&) noexcept = default;
+        };
+
+        // A service binding (RFC 9460): an HTTPS or SVCB record in
+        // ServiceMode, the endpoint of a service and how to reach it. Its
+        // priority (the lower the first), its target, absolute (a record's
+        // "." already its owner's name, §2.5.2), and its SvcParams typed:
+        // the protocols (ALPN ids), whether the scheme's default protocol
+        // is left out, the port (0: the scheme's), the addresses to try
+        // before the target's own A and AAAA answer, the ECHConfigList of
+        // Encrypted Client Hello (RFC 9848; tls::config::ech_config_list
+        // takes it), DoH's URI template (RFC 9461), the keys a client must
+        // understand to use the record; every other key raw. Priority 0
+        // only when an alias led to a name with no records: connect to the
+        // target as without a record (§2.4.2)
+        struct svcb {
+            uint16_t priority = 0;
+            string target;
+            vector<string> alpn;
+            bool no_default_alpn = false;
+            uint16_t port = 0;
+            vector<ip_address> ipv4_hints;
+            vector<ip_address> ipv6_hints;
+            vector<byte> ech;
+            string dohpath;
+            vector<uint16_t> mandatory;
+            vector<svc_param> params;
+
+            friend bool operator==(const svcb&, const svcb&) noexcept = default;
         };
 
         // A server to ask: its address with the transport as a scheme, and
@@ -262,7 +303,50 @@ namespace sgcl::net {
             return _co_lookup_cname(name, o, std::move(stop));
         }
 
+        // The HTTPS records of the name (RFC 9460 §9): the service bindings
+        // of https://name, by priority, those of one priority in a random
+        // order (§2.4.1); AliasMode followed to the records of its target.
+        // The name for another port than 443 is "_8443._https.name" (§9.1)
+        // `dns::lookup_https(...)` on this thread, `co_await dns::async_lookup_https(...)` in a task
+        SGCL_INLINE_HOT static expected<vector<svcb>, io::error> lookup_https(const string& name) {
+            return _co_lookup_svcb(name, net::detail::dns_type::https, options(), async::stop_token()).wait();
+        }
+
+        SGCL_INLINE_HOT static expected<vector<svcb>, io::error> lookup_https(const string& name, const options& o) {
+            return _co_lookup_svcb(name, net::detail::dns_type::https, o, async::stop_token()).wait();
+        }
+
+        SGCL_INLINE_HOT static async::task<expected<vector<svcb>, io::error>> async_lookup_https(const string& name, async::stop_token stop = {}) noexcept {
+            return _co_lookup_svcb(name, net::detail::dns_type::https, options(), std::move(stop));
+        }
+
+        SGCL_INLINE_HOT static async::task<expected<vector<svcb>, io::error>> async_lookup_https(const string& name, const options& o, async::stop_token stop = {}) noexcept {
+            return _co_lookup_svcb(name, net::detail::dns_type::https, o, std::move(stop));
+        }
+
+        // The SVCB records of the name, as a service's protocol names it
+        // ("_dns.resolver.arpa" of RFC 9462, "_8443._foo.api.example.com"
+        // of RFC 9460 §2.3): as lookup_https, of type SVCB
+        // `dns::lookup_svcb(...)` on this thread, `co_await dns::async_lookup_svcb(...)` in a task
+        SGCL_INLINE_HOT static expected<vector<svcb>, io::error> lookup_svcb(const string& name) {
+            return _co_lookup_svcb(name, net::detail::dns_type::svcb, options(), async::stop_token()).wait();
+        }
+
+        SGCL_INLINE_HOT static expected<vector<svcb>, io::error> lookup_svcb(const string& name, const options& o) {
+            return _co_lookup_svcb(name, net::detail::dns_type::svcb, o, async::stop_token()).wait();
+        }
+
+        SGCL_INLINE_HOT static async::task<expected<vector<svcb>, io::error>> async_lookup_svcb(const string& name, async::stop_token stop = {}) noexcept {
+            return _co_lookup_svcb(name, net::detail::dns_type::svcb, options(), std::move(stop));
+        }
+
+        SGCL_INLINE_HOT static async::task<expected<vector<svcb>, io::error>> async_lookup_svcb(const string& name, const options& o, async::stop_token stop = {}) noexcept {
+            return _co_lookup_svcb(name, net::detail::dns_type::svcb, o, std::move(stop));
+        }
+
     private:
+        friend struct net::detail::DnsAccess;
+
         // A name under .local the system's resolver does not know (a Linux
         // without nss-mdns) asked again by the module's multicast DNS; on
         // macOS mDNSResponder answers those itself, and is left alone
@@ -483,6 +567,111 @@ namespace sgcl::net {
             co_return net::detail::fail(net::detail::dns_error(worse, host));
         }
 
+        // A ServiceMode record typed: its priority, its target ("." its
+        // owner's name), its SvcParams (p, n), checked by the resolver
+        static svcb _svcb_of(uint16_t priority, const string& target, const net::detail::DnsName& owner, const uint8_t* p, size_t n) noexcept {
+            namespace key = net::detail::dns_svc_key;
+            svcb out;
+            out.priority = priority;
+            out.target = target.view() == "." ? net::detail::dns_name_string(owner) : target;
+            auto bytes = [](const uint8_t* v, size_t n) {
+                return vector<byte>(reinterpret_cast<const byte*>(v), reinterpret_cast<const byte*>(v) + n);
+            };
+            net::detail::dns_svc_params_each(p, n, [&](uint16_t k, const uint8_t* v, size_t n) {
+                switch (k) {
+                    case key::mandatory:
+                        out.mandatory.reserve(n / 2);
+                        for (size_t i = 0; i < n; i += 2) {
+                            out.mandatory.push_back(net::detail::dns_u16(v + i));
+                        }
+                        break;
+                    case key::alpn:
+                        for (size_t i = 0; i < n; i += size_t(v[i]) + 1) {
+                            out.alpn.push_back(string(std::string_view(reinterpret_cast<const char*>(v + i + 1), v[i])));
+                        }
+                        break;
+                    case key::no_default_alpn:
+                        out.no_default_alpn = true;
+                        break;
+                    case key::port:
+                        out.port = net::detail::dns_u16(v);
+                        break;
+                    case key::ipv4hint:
+                        out.ipv4_hints.reserve(n / 4);
+                        for (size_t i = 0; i < n; i += 4) {
+                            out.ipv4_hints.push_back(ip_address::v4(v[i], v[i + 1], v[i + 2], v[i + 3]));
+                        }
+                        break;
+                    case key::ipv6hint:
+                        out.ipv6_hints.reserve(n / 16);
+                        for (size_t i = 0; i < n; i += 16) {
+                            array<uint8_t, 16> a;
+                            net::detail::copy_bytes(a.data(), v + i, 16);
+                            out.ipv6_hints.push_back(ip_address::v6(a));
+                        }
+                        break;
+                    case key::ech:
+                        out.ech = bytes(v, n);
+                        break;
+                    case key::dohpath:
+                        out.dohpath = string(std::string_view(reinterpret_cast<const char*>(v), n));
+                        break;
+                    default:
+                        out.params.push_back(svc_param{k, bytes(v, n)});
+                }
+            });
+            return out;
+        }
+
+        // SVCB and HTTPS: an AliasMode record (one in an RRset is enough:
+        // its ServiceMode records are then ignored, RFC 9460 §2.4.2)
+        // followed to its target, at most DnsMaxHops of them; the
+        // ServiceMode records of the name reached, ordered
+        static async::task<expected<vector<svcb>, io::error>> _co_lookup_svcb(string name, uint16_t type, options o, async::stop_token stop) noexcept {
+            auto settings = _settings(o);
+            if (!settings) {
+                co_return net::detail::fail(settings);
+            }
+            string current = name;
+            for (int aliases = 0;; ++aliases) {
+                auto a = co_await net::detail::dns_lookup(current, type, false, *settings, stop);
+                if (a.status == net::detail::DnsStatus::nodata && aliases > 0) {
+                    vector<svcb> one;   // the alias's target has no records: the target itself (§2.4.2)
+                    svcb s;
+                    s.target = current;
+                    one.push_back(std::move(s));
+                    co_return one;
+                }
+                if (a.status != net::detail::DnsStatus::ok) {
+                    co_return net::detail::fail(net::detail::dns_error(a, name));
+                }
+                const net::detail::DnsRecordData* alias = nullptr;
+                for (auto& r : a.records) {
+                    if (r.first == 0) {
+                        alias = &r;
+                        break;
+                    }
+                }
+                if (alias) {
+                    if (alias->name.view() == ".") {   // the service is not offered (§2.4.2)
+                        co_return net::detail::fail(net::detail::net_error(errc::no_data, "lookup", name));
+                    }
+                    if (aliases == net::detail::DnsMaxHops) {
+                        co_return net::detail::fail(net::detail::net_error(errc::server_misbehaving, "lookup", name));
+                    }
+                    current = alias->name;
+                    continue;
+                }
+                vector<svcb> out;
+                out.reserve(a.records.size());
+                for (auto& r : a.records) {
+                    out.push_back(_svcb_of(r.first, r.name, a.end, reinterpret_cast<const uint8_t*>(r.text.data()), r.text.size()));
+                }
+                net::detail::dns_order_svcb(out);
+                co_return out;
+            }
+        }
+
         // asked as A: a recursive server follows the chain to its end in
         // one answer, and a name that exists is its own canonical name
         static async::task<expected<string, io::error>> _co_lookup_cname(string name, options o, async::stop_token stop) noexcept {
@@ -497,4 +686,25 @@ namespace sgcl::net {
             co_return net::detail::dns_name_string(a.end);
         }
     };
+
+    namespace detail {
+        // The settings of the module's resolver made of dns::options, for
+        // the checks of mail (spf, dkim, dmarc) that ask for records of
+        // their own types; the typing of a ServiceMode record, for the
+        // tests, the benchmark and the fuzzer (which gives the SvcParams in
+        // a buffer of their own)
+        struct DnsAccess {
+            static expected<DnsSettings, io::error> settings(const dns::options& o) noexcept {
+                return dns::_settings(o);
+            }
+
+            static dns::svcb svcb_of(uint16_t priority, const string& target, const DnsName& owner, const uint8_t* params, size_t size) noexcept {
+                return dns::_svcb_of(priority, target, owner, params, size);
+            }
+
+            static dns::svcb svcb_of(const DnsRecordData& r, const DnsName& owner) noexcept {
+                return dns::_svcb_of(r.first, r.name, owner, reinterpret_cast<const uint8_t*>(r.text.data()), r.text.size());
+            }
+        };
+    }
 }

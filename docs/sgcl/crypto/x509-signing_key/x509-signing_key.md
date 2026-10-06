@@ -5,16 +5,18 @@
 ```cpp
 signing_key(const p256::private_key& k) noexcept;       // (1)
 signing_key(const p384::private_key& k) noexcept;       // (2)
-signing_key(const ed25519::private_key& k) noexcept;    // (3)
-signing_key(const rsa::private_key& k) noexcept;        // (4)
+signing_key(const p521::private_key& k) noexcept;       // (3)
+signing_key(const ed25519::private_key& k) noexcept;    // (4)
+signing_key(const rsa::private_key& k) noexcept;        // (5)
 ```
 
 A view of the key `k`, implicit: a function that takes a `signing_key` takes the key itself.
 
 1. A P-256 key: ECDSA over SHA-256.
 2. A P-384 key: ECDSA over SHA-384.
-3. An Ed25519 key.
-4. An RSA key: PKCS #1 v1.5 over SHA-256.
+3. A P-521 key: ECDSA over SHA-512.
+4. An Ed25519 key.
+5. An RSA key: PKCS #1 v1.5 over SHA-256.
 
 ## Parameters
 

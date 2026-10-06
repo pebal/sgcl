@@ -917,7 +917,11 @@ namespace {
             ASSERT_EQ(s.c_str()[expect.size()], CharT());
             auto& m = detail::Page::metadata_of(reinterpret_cast<const unsigned char*>(s.data()) - sizeof(detail::StringHeader));
             if (bytes) {
+#if defined(SGCL_ASAN)
+                ASSERT_EQ(m.user_size, bytes) << expect.size();   // object_size is the slot, with its redzone (page_info.h: SlotSize)
+#else
                 ASSERT_EQ(m.object_size, bytes) << expect.size();
+#endif
                 ASSERT_TRUE(m.is_string);
                 ASSERT_NE(std::string(m.type_info.name()).find("StringSlot"), std::string::npos);
             } else {

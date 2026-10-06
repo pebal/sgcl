@@ -66,5 +66,5 @@ false
 ## See also
 
 - [value](value.md): the value of the last `co_yield`
-- [begin](begin.md): the same first step, as an iterator
+- [begin](begin.md): an iterator, which takes the same steps at its looks
 - [sgcl::generator\<T\>](README.md)

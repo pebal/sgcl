@@ -23,10 +23,16 @@
 //      one near it, half the rest each
 //   9  VP8L's predictors that read the pixel to the left: a mode, a row
 //      above and a row of residuals
+//  10  image's eight transforms (orient.h): the bytes of a pixel, the
+//      transform and the sides from the next bytes, the pixels the rest
+//  11  the VP8 encoder's residue DCT, quantizer and squared error: two
+//      blocks of pixels, the quantizers and first from the next bytes
 #include "sgcl/codec/detail/jpeg_color.h"
 #include "sgcl/codec/detail/jpeg_fdct.h"
 #include "sgcl/codec/detail/jpeg_idct.h"
+#include "sgcl/codec/detail/orient.h"
 #include "sgcl/codec/detail/png_filter.h"
+#include "sgcl/codec/detail/vp8_encoder.h"
 #include "sgcl/codec/detail/vp8l_simd.h"
 #include "sgcl/core/detail/bytes.h"
 
@@ -231,11 +237,69 @@ namespace {
     }
 }
 
+namespace {
+    // image's transforms: the vector road against the plain one
+    void orient_case(const uint8_t* data, size_t size) {
+        if (size < 4) {
+            return;
+        }
+        static constexpr unsigned sizes[] = {1, 2, 3, 4, 6, 8};
+        const unsigned b = sizes[data[0] % 6];
+        const unsigned o = 1 + data[1] % 8;
+        const size_t w = 1 + data[2] % 80, h = 1 + data[3] % 80;
+        data += 4;
+        size -= 4;
+        const size_t n = w * h * b;
+        bytes src(new uint8_t[n]), x(new uint8_t[n]), y(new uint8_t[n]);
+        for (size_t i = 0; i < n; ++i) {
+            src[i] = size ? data[i % size] : uint8_t(i);
+        }
+        orient::apply(src.get(), w, h, b, o, x.get());
+        orient::apply_plain(src.get(), w, h, b, o, y.get());
+        if (std::memcmp(x.get(), y.get(), n) != 0) {
+            std::abort();
+        }
+    }
+
+    // the VP8 encoder's kernels: the vector road against the plain one
+    void vp8_case(const uint8_t* data, size_t size) {
+        if (size < 35) {
+            return;
+        }
+        static constexpr int16_t qs[] = {4, 7, 8, 30, 64, 157, 200, 314};
+        const vp8::Quantizer4 k(qs[data[0] % 8], qs[(data[0] >> 3) % 8]);
+        const int first = data[1] & 1;
+        uint8_t src[16], pred[16];
+        sgcl::detail::copy_bytes(src, data + 2, 16);
+        sgcl::detail::copy_bytes(pred, data + 18, 16);
+        int16_t a[16], c[16];
+        vp8::residue_dct(src, 4, pred, 4, a);
+        vp8::residue_dct_plain(src, 4, pred, 4, c);
+        if (std::memcmp(a, c, sizeof a) != 0) {
+            std::abort();
+        }
+        int16_t la[16], lc[16], da[16], dc[16];
+        if (vp8::quantize(a, first, k, la, da) != vp8::quantize_plain(a, first, k, lc, dc) || std::memcmp(la, lc, sizeof la) != 0 ||
+            std::memcmp(da, dc, sizeof da) != 0) {
+            std::abort();
+        }
+        if (vp8::sse(src, 4, pred, 4, 4, 4) != vp8::sse_plain(src, 4, pred, 4, 4, 4)) {
+            std::abort();
+        }
+        const size_t n = std::min<size_t>(size - 34, 256);
+        if (n == 256) {
+            if (vp8::sse(data + 34, 16, data + 34, 16, 16, 16) != 0) {
+                std::abort();
+            }
+        }
+    }
+}
+
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     if (size == 0) {
         return 0;
     }
-    switch (data[0] % 10) {
+    switch (data[0] % 12) {
     case 0:
         idct_case(data + 1, size - 1);
         break;
@@ -263,8 +327,14 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     case 8:
         upsample_case(data + 1, size - 1);
         break;
-    default:
+    case 9:
         predict_left_case(data + 1, size - 1);
+        break;
+    case 10:
+        orient_case(data + 1, size - 1);
+        break;
+    default:
+        vp8_case(data + 1, size - 1);
         break;
     }
     return 0;

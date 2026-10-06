@@ -11,7 +11,8 @@ namespace sgcl::crypto::x509 {
         rsa,
         p256,
         p384,
-        ed25519
+        ed25519,
+        p521
     };
 }
 ```
@@ -21,11 +22,12 @@ index of the key in the public key's `value()`.
 
 | Value | Description |
 |---|---|
-| `none` | an algorithm the module has no type for (DSA, X25519, P-521, ML-DSA), or a key its type refuses |
+| `none` | an algorithm the module has no type for (DSA, X25519, ML-DSA, another curve), or a key its type refuses |
 | `rsa` | an [rsa::public_key](rsa-public_key/README.md) |
 | `p256` | a [p256::public_key](p256-public_key/README.md) |
 | `p384` | a p384::public_key ([p384](p384.md)) |
 | `ed25519` | an [ed25519::public_key](ed25519-public_key/README.md) |
+| `p521` | a p521::public_key ([p521](p521.md)); after `ed25519`, so that the values of version 1.0 stay |
 
 ## Example
 

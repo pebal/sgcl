@@ -1,0 +1,100 @@
+[sgcl](../../README.md) › [compress](../README.md) › [snappy](../snappy/README.md) › [writer](README.md)
+
+# sgcl::compress::snappy::writer::write, async_write
+
+```cpp
+expected<size_t, io::error> write(const slice<const byte>& data);                         // (1)
+async::task<expected<size_t, io::error>> async_write(slice<const byte> data) noexcept;    // (2)
+```
+
+Takes `data` into the writer, compressing and writing to `out` what fills the writer's buffer; the rest waits for
+more, a [flush](flush.md) or the [close](close.md). The first write writes the stream identifier first.
+
+1. Blocks the calling thread for the work and the writes of `out`.
+2. Returns a task that does the same in portions of 64 KB with a yield between them, and gives the worker back
+   while `out` writes. The bytes are read when the task runs: `data` lives until the task is done.
+
+The text forms (a string, a literal, a `std::string_view`) and one byte come from
+[mixin::writer](../../io/mixin/writer/README.md).
+
+## Parameters
+
+| Parameter | Description |
+|---|---|
+| `data` | the bytes to compress |
+
+## Return value
+
+The number of bytes taken, `data.size()`, or the writer's error: a failure of `out` (kept as the first error), a
+write after the close (`io::errc::closed`, kept too), or the first error the writer gave before.
+
+## Complexity
+
+Linear in the size of `data`.
+
+## Exceptions
+
+- (1) What the `write` of `out` throws; the errors of the stream and of the format are returned.
+- (2) None: the task carries what it throws.
+
+## Example
+
+```cpp
+#include "sgcl/compress.h"
+#include "sgcl/io.h"
+
+using namespace sgcl;
+
+int main() {
+    io::buffer sink;
+    compress::snappy::writer w(sink);
+    auto n = w.write("hello, hello, hello");
+    println("{} bytes taken, {} written", *n, sink.size());
+    (void)w.close();
+    println("{} written after the close", sink.size());
+}
+```
+
+Output:
+
+```text
+19 bytes taken, 10 written
+37 written after the close
+```
+
+In a task:
+
+```cpp
+#include "sgcl/async.h"
+#include "sgcl/compress.h"
+#include "sgcl/io.h"
+
+using namespace sgcl;
+
+async::task<> pack(io::buffer sink) {
+    compress::snappy::writer w(sink);
+    for (int i : {1, 2, 3}) {
+        co_await w.async_write(string("the same words again and again "));
+    }
+    co_await w.async_close();
+}
+
+int main() {
+    io::buffer sink;
+    async::spawn(pack(sink)).wait();
+    compress::snappy::reader r(sink);
+    println("{}", r.read_all_text()->size());
+}
+```
+
+Output:
+
+```text
+93
+```
+
+## See also
+
+- [flush](flush.md): what was written, out now
+- [close](close.md): the rest of the output
+- [sgcl::compress::snappy::writer](README.md)

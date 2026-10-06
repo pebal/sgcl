@@ -22,7 +22,7 @@ the server takes and whose chain one of the authorities it names issued.
 It is a handle of one word whose state is made in the constructor, as a [string](../../../core/string/README.md) is: copies
 share one chain and one key. The private key sits in an unmanaged block of its own, never copied (copies of the
 handle and of a config share it), and is zeroed by the keys' own destructors when the identity is collected. Its
-kinds are those TLS 1.3 signs `CertificateVerify` with: Ed25519; ECDSA P-256 with SHA-256; ECDSA P-384 with SHA-384;
+kinds are those TLS 1.3 signs `CertificateVerify` with: Ed25519; ECDSA P-256 with SHA-256; ECDSA P-384 with SHA-384; ECDSA P-521 with SHA-512;
 RSA with RSASSA-PSS over SHA-256, SHA-384 or SHA-512 (`rsa_pss_rsae_*`), each where the key holds its digest and salt:
 a key of 1024 bits has no room for SHA-512's, and a client that offers that scheme alone is refused with
 `handshake_failure`, as one with no scheme in common. The key is checked against the leaf, by a signature verified
@@ -47,6 +47,7 @@ under the leaf's public key, before the identity exists.
 | [(constructor)](identity.md) | an identity of a chain and a key in PEM, a broken one thrown; a copy |
 | [operator=](operator_assign.md) | makes this handle one of another's identity |
 | [from_pem](from_pem.md) | an identity of a chain and a key in PEM, a broken one returned as an error, `static` |
+| [from_pkcs12](from_pkcs12.md) | an identity of a PKCS #12 file, its bytes and password or the file read, `static` |
 
 #### Observers
 

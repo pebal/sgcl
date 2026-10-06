@@ -5,7 +5,7 @@
 //------------------------------------------------------------------------------
 // What the tests of X.509 share: certificates made by OpenSSL's libcrypto in
 // the test itself (a builder over X509_new with OpenSSL's own extension
-// syntax, signed with RSA PKCS #1 v1.5 or PSS, ECDSA on P-256 and P-384,
+// syntax, signed with RSA PKCS #1 v1.5 or PSS, ECDSA on P-256, P-384 and P-521,
 // Ed25519, over any digest), X509_verify_cert as the oracle of a chain with
 // its error mapped to x509::reason, a small DER writer for certificates
 // OpenSSL will not make (broken times, bad encodings, limits), and the data
@@ -136,7 +136,7 @@ namespace x509_test {
     //--------------------------------------------------------------------
     // Keys
     //--------------------------------------------------------------------
-    enum class key_type { rsa2048, rsa1024, p256, p384, ed25519 };
+    enum class key_type { rsa2048, rsa1024, p256, p384, ed25519, p521 };
 
     inline const char* key_name(key_type k) {
         switch (k) {
@@ -145,6 +145,7 @@ namespace x509_test {
             case key_type::p256: return "P-256";
             case key_type::p384: return "P-384";
             case key_type::ed25519: return "Ed25519";
+            case key_type::p521: return "P-521";
         }
         return "?";
     }
@@ -181,6 +182,9 @@ namespace x509_test {
                 break;
             case key_type::ed25519:
                 k = EVP_PKEY_Q_keygen(nullptr, nullptr, "ED25519");
+                break;
+            case key_type::p521:
+                k = EVP_PKEY_Q_keygen(nullptr, nullptr, "EC", "P-521");
                 break;
         }
         return pkey_ptr(k, EVP_PKEY_free);
@@ -384,7 +388,7 @@ namespace x509_test {
     // The signature algorithm a key signs with in the tests: the digest of
     // its strength, PKCS #1 v1.5 for RSA
     inline sig default_sig(key_type k) {
-        return k == key_type::p384 ? sig::sha384 : sig::sha256;
+        return k == key_type::p384 ? sig::sha384 : k == key_type::p521 ? sig::sha512 : sig::sha256;
     }
 
     //--------------------------------------------------------------------

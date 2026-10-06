@@ -5,6 +5,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
+#include "ech.h"
 #include "key_share.h"
 #include "messages.h"
 #include "prf.h"
@@ -51,7 +52,7 @@
 // extensions (extended_master_secret, ec_point_formats beside
 // renegotiation_info); a ServerHello without supported_versions goes on
 // in 1.2, refused when its random carries RFC 8446 §4.1.3's downgrade
-// sentinel and 1.3 was offered. ECDHE alone (X25519, P-256, P-384), the
+// sentinel and 1.3 was offered. ECDHE alone (X25519, P-256, P-384, P-521), the
 // AEAD suites alone, the ServerKeyExchange's signature checked under the
 // verified leaf, the extended master secret required (RFC 7627: a server
 // without it is handshake_failure), Finished both ways; a
@@ -186,8 +187,10 @@ namespace sgcl::net::tls::detail {
             id.schemes = {uint16_t(SignatureScheme::ecdsa_secp256r1_sha256)};
         } else if constexpr (std::is_same_v<K, crypto::p384::private_key>) {
             id.schemes = {uint16_t(SignatureScheme::ecdsa_secp384r1_sha384)};
+        } else if constexpr (std::is_same_v<K, crypto::p521::private_key>) {
+            id.schemes = {uint16_t(SignatureScheme::ecdsa_secp521r1_sha512)};
         } else {
-            static_assert(std::is_same_v<K, crypto::rsa::private_key>, "a key of the module: ed25519, p256, p384 or rsa");
+            static_assert(std::is_same_v<K, crypto::rsa::private_key>, "a key of the module: ed25519, p256, p384, p521 or rsa");
             // the schemes whose digest and salt the key's encoding holds
             // (a key of 1024 bits has no room for SHA-512's): one it does
             // not is never chosen, so a client that offers it alone gets
@@ -216,7 +219,7 @@ namespace sgcl::net::tls::detail {
         vector<uint16_t> ciphers = {0x1301, 0x1302, 0x1303};
         vector<uint16_t> groups = {0x11EC, 0x001D, 0x0017, 0x0018};
         vector<uint16_t> key_shares = {0x11EC, 0x001D};       // the groups of the first ClientHello's shares
-        vector<uint16_t> schemes = {0x0403, 0x0804, 0x0401, 0x0503, 0x0805, 0x0501, 0x0806, 0x0601, 0x0807};
+        vector<uint16_t> schemes = {0x0403, 0x0804, 0x0401, 0x0503, 0x0805, 0x0501, 0x0603, 0x0806, 0x0601, 0x0807};
         vector<string> alpn;
         bool insecure_skip_verify = false;
         bool compatibility_mode = true;                       // §D.4: a session id and a change_cipher_spec
@@ -230,6 +233,7 @@ namespace sgcl::net::tls::detail {
         bool tls12 = false;                                   // TLS 1.2 offered (the 1.2 suites of `ciphers` with it)
         bool tickets12 = false;                               // TLS 1.2's tickets asked for (RFC 5077), with resumption
         bool status_request = false;                          // RFC 6066 status_request: an OCSP staple asked for
+        optional<EchChoice> ech;                              // the ECHConfig offered and its HPKE suite (RFC 9849); nullopt: no ECH
     };
 
     // One action of a step
@@ -306,6 +310,9 @@ namespace sgcl::net::tls::detail {
         uint16_t version = Tls13;                   // the version negotiated
         crypto::x509::chain verified_chain;         // the chain verification built, the leaf to a root (empty: not verified)
         std::vector<byte> ocsp_staple;              // the leaf's OCSP response the server stapled (RFC 6066, RFC 8446 §4.4.2.1); empty: none
+        bool ech_accepted = false;                  // the server took the ClientHelloInner (RFC 9849)
+        bool ech_rejected = false;                  // ECH offered and the outer hello answered: the handshake ends with ech_required
+        std::vector<byte> ech_retry_configs;        // a rejecting server's retry_configs (an ECHConfigList); empty: none
     };
 
     // The alert of a chain that did not verify, as Go sends it: an unknown
@@ -475,9 +482,16 @@ namespace sgcl::net::tls::detail {
             uint8_t server_session_id[32] = {};   // a full 1.2 handshake's: the session's name for resumption
             size_t server_session_id_size = 0;
             Step step;
+            // ECH (RFC 9849): the HPKE context the inner hellos are sealed
+            // under, the inner hello's random, the outer hellos' transcripts
+            optional<crypto::hpke::sender> ech;
+            uint8_t inner_random[32] = {};
+            Transcript o256{Hash::sha256};
+            Transcript o384{Hash::sha384};
 
             SGCL_INLINE_HOT ~Secrets() {
                 crypto::detail::secure_zero(random, sizeof random);
+                crypto::detail::secure_zero(inner_random, sizeof inner_random);
                 crypto::detail::secure_zero(cookie.data(), cookie.size());
             }
         };
@@ -507,6 +521,7 @@ namespace sgcl::net::tls::detail {
         std::vector<uint16_t> _peer_schemes;                // a CertificateRequest's signature_algorithms
         std::vector<std::vector<byte>> _authorities;        // its certificate_authorities
         uint16_t _retry_group = 0;
+        uint8_t _ech = 0;                   // ECH: 0 not offered, 1 offered, 2 accepted, 3 rejected
         ClientResult _result;
         optional<Alert> _peer_alert;
         crypto::x509::reason _verify_reason = crypto::x509::reason::none;
@@ -523,6 +538,25 @@ namespace sgcl::net::tls::detail {
             if (!_settings.tls13 && !_settings.tls12) {
                 return unexpected(Alert{AlertDescription::internal_error, 0, "no version offered"});
             }
+            if (_settings.ech) {
+                // ECH: TLS 1.3 alone, no session offered (tls::config sees to both)
+                if (_settings.tls12 || !_settings.tls13) {
+                    return unexpected(Alert{AlertDescription::internal_error, 0, "ECH offered with TLS 1.2"});
+                }
+                const auto& e = *_settings.ech;
+                auto pk = crypto::hpke::public_key::from_bytes(crypto::hpke::kem(e.config.kem), bytes_of(e.config.public_key.data(), e.config.public_key.size()));
+                if (!pk) {
+                    return unexpected(Alert{AlertDescription::internal_error, 0, "an ECHConfig whose key does not read"});
+                }
+                const auto info = ech_info(e.config.raw);
+                auto snd = crypto::hpke::sender::setup(*pk, e.suite, bytes_of(info.data(), info.size()));
+                if (!snd) {
+                    return unexpected(Alert{AlertDescription::internal_error, 0, "an ECHConfig whose key is of small order"});
+                }
+                _s->ech.emplace(std::move(*snd));
+                _entropy(_s->inner_random, 32);
+                _ech = 1;
+            }
             _keep_messages = _settings.tls12;
             _entropy(_s->random, 32);
             if (_settings.compatibility_mode) {
@@ -535,7 +569,9 @@ namespace sgcl::net::tls::detail {
                 }
                 _s->shares.add(Group(g), _entropy);
             }
-            _take_session();
+            if (_ech == 0) {
+                _take_session();
+            }
             _send_hello();
             _state = State::wait_server_hello;
             return {};
@@ -554,25 +590,34 @@ namespace sgcl::net::tls::detail {
             return !v.empty();
         }
 
-        void _send_hello() noexcept {
-            auto& out = _s->step.out;
+        // The shape of one ClientHello written: its random and session id,
+        // its server name, and what ECH adds (RFC 9849): nothing, the inner
+        // hello's mark, or the outer hello's extension with a payload of
+        // zeros of its size
+        struct HelloShape {
+            const uint8_t* random = nullptr;
+            Bytes session_id;
+            std::string_view sni;
+            int ech = 0;                  // 0: none, 1: ClientHelloInner, 2: ClientHelloOuter
+            Bytes ech_enc;                // 2: enc (empty in a second hello)
+            size_t ech_payload = 0;       // 2: the payload's size
+            bool psk = false;             // the pre_shared_key offered (last)
+        };
+
+        // One ClientHello written at the end of out (the settings' lists,
+        // the shares, the cookie); `offered` the extensions it has
+        void _write_hello(std::vector<byte>& out, const HelloShape& h, uint64_t& offered) noexcept {
             size_t start = out.size();
-            // the session offered when its PSK's hash may still be the
-            // suite's: before the ServerHello one offered has it, after a
-            // HelloRetryRequest the suite chosen must (§4.1.4, §4.2.11)
-            _psk_offered = !_s->psk.empty() && (!_hash_known || _hash == _psk_hash);
             const size_t binder_size = hash_size(_psk_hash);
-            const size_t psk_extension = _psk_offered ? 4 + 2 + 2 + _settings.session->ticket.size() + 4 + 2 + 1 + binder_size : 0;
+            const size_t psk_extension = h.psk ? 4 + 2 + 2 + _settings.session->ticket.size() + 4 + 2 + 1 + binder_size : 0;
             Builder w(out);
-            uint64_t offered = 0;
             auto mark = [&](ExtensionType t) noexcept {
                 offered |= bit_of(t);
             };
-            write_client_hello(w, bytes_of(_s->random, 32), bytes_of(_s->session_id, _s->session_id_size), _settings.ciphers, [&](Builder& w) noexcept {
-                if (!_settings.server_name.empty() && !is_ip_literal(_settings.server_name)) {
+            write_client_hello(w, bytes_of(h.random, 32), h.session_id, _settings.ciphers, [&](Builder& w) noexcept {
+                if (!h.sni.empty() && !is_ip_literal(string(h.sni))) {
                     auto e = w.extension(ExtensionType::server_name);
-                    auto v = _settings.server_name.view();
-                    write_server_name(w, bytes_of(v.data(), v.size()));
+                    write_server_name(w, bytes_of(h.sni.data(), h.sni.size()));
                     mark(ExtensionType::server_name);
                 }
                 {
@@ -657,7 +702,31 @@ namespace sgcl::net::tls::detail {
                     }
                     mark(ExtensionType::application_layer_protocol_negotiation);
                 }
-                if (_settings.pad_client_hello) {
+                if (h.ech == 1) {
+                    // the inner hello's mark (RFC 9849 §5): type inner, nothing else
+                    auto e = w.extension(EchExtension);
+                    w.u8(1);
+                }
+                if (h.ech == 2) {
+                    // the outer hello's (§5): the suite, the config, enc,
+                    // the payload zeroed; last, the payload sealed into it
+                    // once the hello is whole
+                    const auto& ech = *_settings.ech;
+                    auto e = w.extension(EchExtension);
+                    w.u8(0);
+                    w.u16(uint16_t(ech.suite.kdf));
+                    w.u16(uint16_t(ech.suite.aead));
+                    w.u8(ech.config.id);
+                    {
+                        auto enc = w.block16();
+                        w.bytes(h.ech_enc);
+                    }
+                    auto payload = w.block16();
+                    for (size_t i = 0; i < h.ech_payload; ++i) {
+                        w.u8(0);
+                    }
+                }
+                if (_settings.pad_client_hello && h.ech == 0) {
                     // RFC 7685 as BoringSSL: a hello of 256 to 511 bytes
                     // made 512, the padding extension's header counted
                     // (and the pre_shared_key after it)
@@ -671,7 +740,7 @@ namespace sgcl::net::tls::detail {
                         }
                     }
                 }
-                if (_psk_offered) {
+                if (h.psk) {
                     // last (§4.2.11): the ticket, its obfuscated age, a
                     // binder filled in once the message is whole
                     const Session& session = *_settings.session;
@@ -693,18 +762,93 @@ namespace sgcl::net::tls::detail {
                     mark(ExtensionType::pre_shared_key);
                 }
             });
+        }
+
+        void _send_hello() noexcept {
+            if (_ech != 0) {
+                _send_hello_ech();
+                return;
+            }
+            auto& out = _s->step.out;
+            size_t start = out.size();
+            // the session offered when its PSK's hash may still be the
+            // suite's: before the ServerHello one offered has it, after a
+            // HelloRetryRequest the suite chosen must (§4.1.4, §4.2.11)
+            _psk_offered = !_s->psk.empty() && (!_hash_known || _hash == _psk_hash);
+            const size_t binder_size = hash_size(_psk_hash);
+            uint64_t offered = 0;
+            HelloShape h;
+            h.random = _s->random;
+            h.session_id = bytes_of(_s->session_id, _s->session_id_size);
+            h.sni = _settings.server_name.view();
+            h.psk = _psk_offered;
+            _write_hello(out, h, offered);
             if (_psk_offered) {
                 // the binder over the transcript so far and the hello up
                 // to the binders' list (§4.2.11.2)
                 const size_t truncated = out.size() - start - (2 + 1 + binder_size);
                 Transcript t = _hash_known ? _transcript() : _psk_hash == Hash::sha384 ? _s->t384 : _s->t256;
                 t.update(bytes_of(out.data() + start, truncated));
-                uint8_t h[MaxHashSize];
-                t.value_to(h);
-                KeySchedule(_psk_hash, _s->psk).binder(reinterpret_cast<uint8_t*>(out.data() + out.size() - binder_size), bytes_of(h, binder_size));
+                uint8_t hh[MaxHashSize];
+                t.value_to(hh);
+                KeySchedule(_psk_hash, _s->psk).binder(reinterpret_cast<uint8_t*>(out.data() + out.size() - binder_size), bytes_of(hh, binder_size));
             }
             _offered = offered;
             _hash_update(bytes_of(out.data() + start, out.size() - start));
+            _push_send(Epoch::initial, start, out.size() - start);
+        }
+
+        // ECH's hellos (RFC 9849 §6.1): the ClientHelloInner, which the
+        // transcript takes and the server sees only when it decrypts it, and
+        // the ClientHelloOuter, which is sent: the public name for the server
+        // name, the inner hello encoded (its session id left out, padded,
+        // §5.1, §6.1.3) and sealed by HPKE into its extension, the outer
+        // hello with the payload zeroed for the additional data. The outer
+        // hello goes into transcripts of its own, which the handshake takes
+        // when the server rejects ECH
+        void _send_hello_ech() noexcept {
+            auto& out = _s->step.out;
+            const auto& ech = *_settings.ech;
+            const Bytes session_id = bytes_of(_s->session_id, _s->session_id_size);
+            _psk_offered = false;
+            HelloShape inner;
+            inner.random = _s->inner_random;
+            inner.session_id = session_id;
+            inner.sni = _settings.server_name.view();
+            inner.ech = 1;
+            std::vector<byte> inner_message;
+            uint64_t inner_offered = 0;
+            _write_hello(inner_message, inner, inner_offered);
+            std::vector<byte> encoded;
+            inner.session_id = Bytes();
+            uint64_t ignored = 0;
+            _write_hello(encoded, inner, ignored);
+            encoded.erase(encoded.begin(), encoded.begin() + 4);   // the handshake header: the structure alone
+            const size_t sni = is_ip_literal(_settings.server_name) ? 0 : _settings.server_name.size();
+            encoded.resize(encoded.size() + ech_padding(encoded.size(), sni, ech.config.max_name_length), byte(0));
+            const size_t payload = encoded.size() + 16;
+            HelloShape outer;
+            outer.random = _s->random;
+            outer.session_id = session_id;
+            outer.sni = ech.config.public_name;
+            outer.ech = 2;
+            outer.ech_enc = _retried ? Bytes() : _s->ech->enc();
+            outer.ech_payload = payload;
+            uint64_t outer_offered = 0;
+            const size_t start = out.size();
+            _write_hello(out, outer, outer_offered);
+            const Bytes aad = bytes_of(out.data() + start + 4, out.size() - start - 4);
+            vector<byte> sealed = _s->ech->seal(bytes_of(encoded.data(), encoded.size()), aad);
+            sgcl::detail::copy_bytes(out.data() + out.size() - payload, sealed.data(), payload);
+            crypto::detail::secure_zero(encoded.data(), encoded.size());
+            _offered = inner_offered | outer_offered;
+            if (_ech == 3) {
+                // rejected in the HelloRetryRequest: the outer hello is the handshake's
+                _hash_update(bytes_of(out.data() + start, out.size() - start));
+            } else {
+                _hash_update(bytes_of(inner_message.data(), inner_message.size()));
+                _outer_update(bytes_of(out.data() + start, out.size() - start));
+            }
             _push_send(Epoch::initial, start, out.size() - start);
         }
 
@@ -877,7 +1021,7 @@ namespace sgcl::net::tls::detail {
             if (!_offers(_settings.ciphers, sh->cipher_suite) || !known(Cipher(sh->cipher_suite))) {
                 return unexpected(Alert{AlertDescription::illegal_parameter, 0, "a cipher suite not offered"});
             }
-            if (auto v = validate_extensions(HandshakeType::server_hello, retry, sh->extensions, _offered); !v) {
+            if (auto v = validate_extensions(HandshakeType::server_hello, retry, sh->extensions, _offered, _ech != 0); !v) {
                 return unexpected(v.error());
             }
             const Cipher cipher = Cipher(sh->cipher_suite);
@@ -919,6 +1063,25 @@ namespace sgcl::net::tls::detail {
             auto shared = _s->shares.shared(Group(share->group), share->key);
             if (!shared) {
                 return unexpected(shared.error());
+            }
+            if (_ech == 1 || _ech == 2) {
+                // RFC 9849 §6.1.4: the last 8 bytes of ServerHello.random are
+                // the confirmation over the inner transcript and the
+                // ServerHello with them zeroed; anything else is a rejection
+                const Hash h = hash_of(cipher);
+                std::vector<byte> zeroed(message.data(), message.data() + message.size());
+                crypto::detail::secure_zero(zeroed.data() + 4 + 2 + 24, 8);
+                uint8_t confirmation[8];
+                ech_confirmation(h, confirmation, _s->inner_random, h == Hash::sha384 ? _s->t384 : _s->t256, bytes_of(zeroed.data(), zeroed.size()), EchAccept);
+                const bool accepted = crypto::constant_time::equal(bytes_of(confirmation, 8), sh->random.subslice(24, 8));
+                if (accepted) {
+                    _ech = 2;
+                    _result.ech_accepted = true;
+                } else if (_ech == 2) {
+                    return unexpected(Alert{AlertDescription::illegal_parameter, 0, "a ServerHello that does not confirm the ECH the HelloRetryRequest accepted"});
+                } else {
+                    _ech_reject();
+                }
             }
             _s->shares.clear();
             _choose_hash(hash_of(cipher));
@@ -976,15 +1139,50 @@ namespace sgcl::net::tls::detail {
             }
             // §4.4.1: the first ClientHello becomes message_hash of it
             _choose_hash(hash_of(cipher));
-            uint8_t ch1[MaxHashSize];
-            _transcript().value_to(ch1);
-            Transcript fresh(_hash);
-            std::vector<byte> m;
-            Builder w(m);
-            write_message_hash(w, bytes_of(ch1, hash_size(_hash)));
-            fresh.update(bytes_of(m.data(), m.size()));
-            fresh.update(message);
-            _transcript() = std::move(fresh);
+            auto restart = [&](Transcript& t) noexcept {
+                uint8_t ch1[MaxHashSize];
+                t.value_to(ch1);
+                Transcript fresh(_hash);
+                std::vector<byte> m;
+                Builder w(m);
+                write_message_hash(w, bytes_of(ch1, hash_size(_hash)));
+                fresh.update(bytes_of(m.data(), m.size()));
+                return fresh;
+            };
+            if (_ech == 1) {
+                // RFC 9849 §6.1.5: the HelloRetryRequest's encrypted_client_hello
+                // holds the confirmation over message_hash(inner hello) and
+                // itself with the confirmation zeroed; without it, or another,
+                // ECH is rejected and the outer transcript goes on
+                Transcript inner = restart(_transcript());
+                bool accepted = false;
+                if (auto e = hrr.extensions.find(EchExtension)) {
+                    if (e->size() != 8) {
+                        return unexpected(Alert{AlertDescription::decode_error, 0, "an encrypted_client_hello in a HelloRetryRequest of other than 8 bytes"});
+                    }
+                    std::vector<byte> zeroed(message.data(), message.data() + message.size());
+                    const size_t at = size_t(e->data() - message.data());
+                    crypto::detail::secure_zero(zeroed.data() + at, 8);
+                    uint8_t confirmation[8];
+                    ech_confirmation(_hash, confirmation, _s->inner_random, inner, bytes_of(zeroed.data(), zeroed.size()), EchHrrAccept);
+                    accepted = crypto::constant_time::equal(bytes_of(confirmation, 8), *e);
+                }
+                Transcript outer = restart(_hash == Hash::sha384 ? _s->o384 : _s->o256);
+                outer.update(message);
+                (_hash == Hash::sha384 ? _s->o384 : _s->o256) = std::move(outer);
+                inner.update(message);
+                _transcript() = std::move(inner);
+                if (accepted) {
+                    _ech = 2;
+                    _result.ech_accepted = true;
+                } else {
+                    _ech_reject();
+                }
+            } else {
+                Transcript fresh = restart(_transcript());
+                fresh.update(message);
+                _transcript() = std::move(fresh);
+            }
             // the second ClientHello: the share asked for (or the same
             // shares when only a cookie is asked for), the cookie
             if (ks) {
@@ -1006,8 +1204,19 @@ namespace sgcl::net::tls::detail {
             if (!x) {
                 return unexpected(x.error());
             }
-            if (auto v = validate_extensions(HandshakeType::encrypted_extensions, false, *x, _offered); !v) {
+            if (auto v = validate_extensions(HandshakeType::encrypted_extensions, false, *x, _offered, _ech != 0); !v) {
                 return unexpected(v.error());
+            }
+            if (auto e = x->find(EchExtension)) {
+                // retry_configs (RFC 9849 §7.1): taken when ECH was rejected,
+                // an ECHConfigList that reads; after an acceptance none is sent
+                if (_ech != 3) {
+                    return unexpected(Alert{AlertDescription::unsupported_extension, 0, "retry_configs after ECH was accepted"});
+                }
+                if (!read_ech_configs(*e)) {
+                    return unexpected(Alert{AlertDescription::decode_error, 0, "retry_configs that are no ECHConfigList"});
+                }
+                _result.ech_retry_configs.assign(e->data(), e->data() + e->size());
             }
             if (auto sn = x->find(ExtensionType::server_name)) {
                 if (auto e = read_empty(*sn); !e) {
@@ -1156,6 +1365,11 @@ namespace sgcl::net::tls::detail {
             }
             _push_install(Action::Kind::install_write, Epoch::handshake, k.client_handshake_traffic);
             auto& out = _s->step.out;
+            if (_ech == 3) {
+                // a rejected ECH: the server is verified, the handshake ends
+                // with ech_required (RFC 9849 §6.1.6), nothing of the client sent
+                return unexpected(Alert{AlertDescription(AlertEchRequired), 0, "the server rejected Encrypted Client Hello"});
+            }
             if (_certificate_requested) {
                 // the first identity the request takes, else none (§4.4.2)
                 uint16_t scheme = 0;
@@ -1281,7 +1495,10 @@ namespace sgcl::net::tls::detail {
         // The server's chain verified against the roots for the server's name
         // or address, unless insecure_skip_verify
         expected<void, Alert> _verify_chain(const crypto::x509::chain& chain) {
-            if (!_settings.insecure_skip_verify) {
+            // a rejected ECH's server is verified for the public name whatever
+            // insecure_skip_verify says (RFC 9849 §6.1.6)
+            const string name = _verify_name();
+            if (!_settings.insecure_skip_verify || _ech == 3) {
                 crypto::x509::verify_options o;
                 if (_settings.roots) {
                     o.roots = *_settings.roots;
@@ -1292,8 +1509,8 @@ namespace sgcl::net::tls::detail {
                 // an address is verified by its bytes (the certificate's
                 // IP addresses), a name by the DNS names
                 array<uint8_t, 16> address{};
-                if (is_ip_literal(_settings.server_name)) {
-                    auto ip = ip_address::parse(_settings.server_name);
+                if (is_ip_literal(name)) {
+                    auto ip = ip_address::parse(name);
                     if (!ip) {
                         return unexpected(Alert{AlertDescription::internal_error, 0, "a server name that is no address nor host name"});
                     }
@@ -1301,7 +1518,7 @@ namespace sgcl::net::tls::detail {
                     const bool v4 = ip->is_v4();
                     o.ip = slice<const byte>(reinterpret_cast<const byte*>(address.data()) + (v4 ? 12 : 0), v4 ? 4 : 16);
                 } else {
-                    o.dns_name = _settings.server_name;
+                    o.dns_name = name;
                 }
                 o.time = _clock();
                 auto v = chain[0].verify(o);
@@ -1480,7 +1697,7 @@ namespace sgcl::net::tls::detail {
             }
             using crypto::x509::key_kind;
             const key_kind k = chain[0].public_key().kind();
-            const bool fits = rsa_suite(_result.cipher) ? k == key_kind::rsa : k == key_kind::p256 || k == key_kind::p384 || k == key_kind::ed25519;
+            const bool fits = rsa_suite(_result.cipher) ? k == key_kind::rsa : k == key_kind::p256 || k == key_kind::p384 || k == key_kind::p521 || k == key_kind::ed25519;
             if (!fits) {
                 return unexpected(Alert{AlertDescription::unsupported_certificate, 0, "a certificate of another kind of key than the suite's"});
             }
@@ -1513,7 +1730,7 @@ namespace sgcl::net::tls::detail {
                 return unexpected(ske.error());
             }
             const Group g = Group(ske->group);
-            if (!_offers(_settings.groups, ske->group) || (g != Group::x25519 && g != Group::secp256r1 && g != Group::secp384r1)) {
+            if (!_offers(_settings.groups, ske->group) || (g != Group::x25519 && g != Group::secp256r1 && g != Group::secp384r1 && g != Group::secp521r1)) {
                 return unexpected(Alert{AlertDescription::illegal_parameter, 0, "a ServerKeyExchange of a curve not offered for TLS 1.2"});
             }
             if (ske->point.size() != share_size(ske->group, true) || (g != Group::x25519 && uint8_t(ske->point[0]) != 4)) {
@@ -1846,6 +2063,32 @@ namespace sgcl::net::tls::detail {
                 _s->t256.update(m);
                 _s->t384.update(m);
             }
+        }
+
+        // The outer hellos into their own transcripts (ECH offered)
+        SGCL_INLINE_HOT void _outer_update(const Bytes& m) noexcept {
+            if (_hash_known) {
+                (_hash == Hash::sha384 ? _s->o384 : _s->o256).update(m);
+            } else {
+                _s->o256.update(m);
+                _s->o384.update(m);
+            }
+        }
+
+        // ECH rejected (RFC 9849 §6.1.6): the handshake goes on as the outer
+        // hello's — its transcripts, its random — and the server is checked
+        // for the public name
+        SGCL_INLINE_HOT void _ech_reject() noexcept {
+            std::swap(_s->t256, _s->o256);
+            std::swap(_s->t384, _s->o384);
+            _ech = 3;
+            _result.ech_rejected = true;
+        }
+
+        // The name the server's certificate must hold: the public name of a
+        // rejected ECH, else the settings'
+        SGCL_INLINE_HOT string _verify_name() const noexcept {
+            return _ech == 3 ? string(std::string_view(_settings.ech->config.public_name)) : _settings.server_name;
         }
 
         SGCL_INLINE_HOT void _choose_hash(Hash h) noexcept {

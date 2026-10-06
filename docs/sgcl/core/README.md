@@ -183,6 +183,12 @@ The concepts a parameter of a function asks for ([req](req/README.md), `namespac
 | [random_access](req/random_access.md) | a range whose elements are reached by position |
 | [sequence](req/sequence.md) | a range whose elements may be written in place |
 
+## Enumerations
+
+| Enumeration | Header | Description |
+|---|---|---|
+| [rounding](rounding.md) | `rounding.h` | how a number is rounded to fewer digits: half-even, half-up, half-down, up, down, ceiling, floor, or not at all; one enumeration for math's decimal and big_float and txt's locale formatting |
+
 ## See also
 
 - [Benchmarks](benchmarks.md): the containers, `string` and `weak_ptr` against `std`, Go and Java

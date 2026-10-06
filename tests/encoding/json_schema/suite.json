@@ -1,0 +1,216 @@
+[
+  {"description": "type: one", "schema": {"type": "integer"}, "tests": [
+    {"data": 1, "valid": true}, {"data": 1.0, "valid": true}, {"data": 1.5, "valid": false}, {"data": "1", "valid": false},
+    {"data": null, "valid": false}, {"data": 1e3, "valid": true}, {"data": 12345678901234567890, "valid": true}]},
+  {"description": "type: number", "schema": {"type": "number"}, "tests": [
+    {"data": 1, "valid": true}, {"data": -0.5, "valid": true}, {"data": true, "valid": false}, {"data": [], "valid": false}]},
+  {"description": "type: several", "schema": {"type": ["string", "null"]}, "tests": [
+    {"data": "x", "valid": true}, {"data": null, "valid": true}, {"data": 0, "valid": false}, {"data": {}, "valid": false}]},
+  {"description": "type: boolean, object, array", "schema": {"type": ["boolean", "object", "array"]}, "tests": [
+    {"data": false, "valid": true}, {"data": {}, "valid": true}, {"data": [1], "valid": true}, {"data": "a", "valid": false}]},
+  {"description": "enum", "schema": {"enum": [1, "two", {"three": 3}, [4], null, false]}, "tests": [
+    {"data": 1, "valid": true}, {"data": 1.0, "valid": true}, {"data": "two", "valid": true}, {"data": {"three": 3}, "valid": true},
+    {"data": {"three": 3.0}, "valid": true}, {"data": [4], "valid": true}, {"data": null, "valid": true}, {"data": false, "valid": true},
+    {"data": 0, "valid": false}, {"data": true, "valid": false}, {"data": {"three": 3, "x": 1}, "valid": false}, {"data": [4, 4], "valid": false}]},
+  {"description": "const", "schema": {"const": {"a": [1, 2]}}, "tests": [
+    {"data": {"a": [1, 2]}, "valid": true}, {"data": {"a": [1.0, 2]}, "valid": true}, {"data": {"a": [2, 1]}, "valid": false}, {"data": {}, "valid": false}]},
+  {"description": "const false is not 0", "schema": {"const": false}, "tests": [
+    {"data": false, "valid": true}, {"data": 0, "valid": false}, {"data": null, "valid": false}]},
+  {"description": "multipleOf", "schema": {"multipleOf": 0.01}, "tests": [
+    {"data": 19.99, "valid": true}, {"data": 0.075, "valid": false}, {"data": 3, "valid": true}, {"data": "x", "valid": true}]},
+  {"description": "multipleOf small", "schema": {"multipleOf": 0.0001}, "tests": [
+    {"data": 0.0075, "valid": true}, {"data": 0.00751, "valid": false}]},
+  {"description": "multipleOf integer", "schema": {"multipleOf": 2}, "tests": [
+    {"data": 10, "valid": true}, {"data": 7, "valid": false}, {"data": 4.0, "valid": true}, {"data": 4.5, "valid": false}, {"data": 0, "valid": true}]},
+  {"description": "multipleOf of a huge number", "schema": {"type": "integer", "multipleOf": 0.123456789}, "tests": [
+    {"data": 1e308, "valid": false}]},
+  {"description": "maximum and minimum", "schema": {"maximum": 3, "minimum": -1.5}, "tests": [
+    {"data": 3, "valid": true}, {"data": 3.0001, "valid": false}, {"data": -1.5, "valid": true}, {"data": -2, "valid": false}, {"data": "9", "valid": true}]},
+  {"description": "exclusive bounds", "schema": {"exclusiveMaximum": 3, "exclusiveMinimum": 1}, "tests": [
+    {"data": 2, "valid": true}, {"data": 3, "valid": false}, {"data": 1, "valid": false}, {"data": 1.0000001, "valid": true}]},
+  {"description": "bounds of big integers", "schema": {"maximum": 18446744073709551615}, "tests": [
+    {"data": 18446744073709551615, "valid": true}, {"data": 18446744073709551616, "valid": false}]},
+  {"description": "string lengths in code points", "schema": {"minLength": 2, "maxLength": 3}, "tests": [
+    {"data": "ab", "valid": true}, {"data": "a", "valid": false}, {"data": "abcd", "valid": false}, {"data": "💩💩", "valid": true},
+    {"data": "żół", "valid": true}, {"data": 1, "valid": true}]},
+  {"description": "pattern, not anchored", "schema": {"pattern": "a+b"}, "tests": [
+    {"data": "xxaab", "valid": true}, {"data": "ba", "valid": false}, {"data": 5, "valid": true}]},
+  {"description": "pattern of Unicode", "schema": {"pattern": "^\\p{L}+$"}, "tests": [
+    {"data": "żółw", "valid": true}, {"data": "a1", "valid": false}]},
+  {"description": "items and prefixItems", "schema": {"prefixItems": [{"type": "integer"}, {"type": "string"}], "items": {"type": "boolean"}}, "tests": [
+    {"data": [1, "a", true, false], "valid": true}, {"data": [1], "valid": true}, {"data": [], "valid": true}, {"data": ["a"], "valid": false},
+    {"data": [1, "a", 3], "valid": false}, {"data": {"0": 1}, "valid": true}]},
+  {"description": "items false after prefixItems", "schema": {"prefixItems": [{}], "items": false}, "tests": [
+    {"data": [1], "valid": true}, {"data": [1, 2], "valid": false}]},
+  {"description": "min and max items", "schema": {"minItems": 1, "maxItems": 2}, "tests": [
+    {"data": [1], "valid": true}, {"data": [], "valid": false}, {"data": [1, 2, 3], "valid": false}]},
+  {"description": "uniqueItems", "schema": {"uniqueItems": true}, "tests": [
+    {"data": [1, 2], "valid": true}, {"data": [1, 1.0], "valid": false}, {"data": [{"a": 1, "b": 2}, {"b": 2, "a": 1}], "valid": false},
+    {"data": [[1], [true]], "valid": true}, {"data": [0, false], "valid": true}, {"data": [null, null], "valid": false}, {"data": [], "valid": true}]},
+  {"description": "uniqueItems false", "schema": {"uniqueItems": false}, "tests": [{"data": [1, 1], "valid": true}]},
+  {"description": "contains", "schema": {"contains": {"minimum": 5}}, "tests": [
+    {"data": [3, 4, 5], "valid": true}, {"data": [1, 2], "valid": false}, {"data": [], "valid": false}, {"data": "x", "valid": true}]},
+  {"description": "minContains and maxContains", "schema": {"contains": {"const": 1}, "minContains": 2, "maxContains": 3}, "tests": [
+    {"data": [1, 1], "valid": true}, {"data": [1, 2], "valid": false}, {"data": [1, 1, 1, 1], "valid": false}, {"data": [1, 1, 1, 2], "valid": true}]},
+  {"description": "minContains 0", "schema": {"contains": {"const": 1}, "minContains": 0}, "tests": [
+    {"data": [], "valid": true}, {"data": [2], "valid": true}]},
+  {"description": "properties, patternProperties, additionalProperties", "schema": {
+      "properties": {"a": {"type": "integer"}}, "patternProperties": {"^x-": {"type": "string"}}, "additionalProperties": {"type": "boolean"}}, "tests": [
+    {"data": {"a": 1, "x-b": "s", "c": true}, "valid": true}, {"data": {"a": "1"}, "valid": false}, {"data": {"x-b": 1}, "valid": false},
+    {"data": {"c": 1}, "valid": false}, {"data": {}, "valid": true}, {"data": [], "valid": true}]},
+  {"description": "a property both named and patterned", "schema": {"properties": {"aa": {"maxLength": 1}}, "patternProperties": {"a": {"minLength": 1}}}, "tests": [
+    {"data": {"aa": "x"}, "valid": true}, {"data": {"aa": ""}, "valid": false}, {"data": {"aa": "xx"}, "valid": false}]},
+  {"description": "required", "schema": {"required": ["a", "b"]}, "tests": [
+    {"data": {"a": 1, "b": 2}, "valid": true}, {"data": {"a": 1}, "valid": false}, {"data": [], "valid": true}, {"data": "ab", "valid": true}]},
+  {"description": "required with escapes", "schema": {"required": ["a\"b", "c\\d"]}, "tests": [
+    {"data": {"a\"b": 1, "c\\d": 2}, "valid": true}, {"data": {"a\"b": 1}, "valid": false}]},
+  {"description": "min and max properties", "schema": {"minProperties": 1, "maxProperties": 2}, "tests": [
+    {"data": {"a": 1}, "valid": true}, {"data": {}, "valid": false}, {"data": {"a": 1, "b": 2, "c": 3}, "valid": false}, {"data": [], "valid": true}]},
+  {"description": "dependentRequired", "schema": {"dependentRequired": {"card": ["address"]}}, "tests": [
+    {"data": {"card": 1, "address": 2}, "valid": true}, {"data": {"card": 1}, "valid": false}, {"data": {"address": 2}, "valid": true}]},
+  {"description": "dependentSchemas", "schema": {"dependentSchemas": {"card": {"required": ["address"]}}}, "tests": [
+    {"data": {"card": 1, "address": 2}, "valid": true}, {"data": {"card": 1}, "valid": false}, {"data": {}, "valid": true}]},
+  {"description": "propertyNames", "schema": {"propertyNames": {"maxLength": 3, "pattern": "^[a-z]+$"}}, "tests": [
+    {"data": {"abc": 1}, "valid": true}, {"data": {"abcd": 1}, "valid": false}, {"data": {"A": 1}, "valid": false}, {"data": {}, "valid": true}]},
+  {"description": "propertyNames false", "schema": {"propertyNames": false}, "tests": [
+    {"data": {}, "valid": true}, {"data": {"a": 1}, "valid": false}]},
+  {"description": "allOf", "schema": {"allOf": [{"type": "integer"}, {"minimum": 2}]}, "tests": [
+    {"data": 3, "valid": true}, {"data": 1, "valid": false}, {"data": 2.5, "valid": false}]},
+  {"description": "anyOf", "schema": {"anyOf": [{"type": "string"}, {"minimum": 2}]}, "tests": [
+    {"data": "a", "valid": true}, {"data": 3, "valid": true}, {"data": 1, "valid": false}]},
+  {"description": "oneOf", "schema": {"oneOf": [{"type": "integer"}, {"minimum": 2}]}, "tests": [
+    {"data": 1, "valid": true}, {"data": 2.5, "valid": true}, {"data": 3, "valid": false}, {"data": 1.5, "valid": false}]},
+  {"description": "not", "schema": {"not": {"type": "integer"}}, "tests": [
+    {"data": "a", "valid": true}, {"data": 1, "valid": false}]},
+  {"description": "if then else", "schema": {"if": {"properties": {"country": {"const": "US"}}}, "then": {"required": ["zip"]}, "else": {"required": ["postcode"]}}, "tests": [
+    {"data": {"country": "US", "zip": 1}, "valid": true}, {"data": {"country": "US"}, "valid": false}, {"data": {"country": "PL", "postcode": 1}, "valid": true},
+    {"data": {"country": "PL", "zip": 1}, "valid": false}]},
+  {"description": "then without if is nothing", "schema": {"then": false, "else": false}, "tests": [{"data": 1, "valid": true}]},
+  {"description": "boolean schemas", "schema": {"properties": {"yes": true, "no": false}}, "tests": [
+    {"data": {"yes": 1}, "valid": true}, {"data": {"no": 1}, "valid": false}]},
+  {"description": "the schema true", "schema": true, "tests": [{"data": {"anything": [1]}, "valid": true}]},
+  {"description": "the schema false", "schema": false, "tests": [{"data": null, "valid": false}]},
+  {"description": "$ref to $defs", "schema": {"$defs": {"positive": {"exclusiveMinimum": 0}}, "items": {"$ref": "#/$defs/positive"}}, "tests": [
+    {"data": [1, 2], "valid": true}, {"data": [1, 0], "valid": false}]},
+  {"description": "$ref beside other keywords", "schema": {"$defs": {"a": {"minimum": 2}}, "$ref": "#/$defs/a", "maximum": 5}, "tests": [
+    {"data": 3, "valid": true}, {"data": 1, "valid": false}, {"data": 6, "valid": false}]},
+  {"description": "$ref to the root, recursively", "schema": {"properties": {"child": {"$ref": "#"}, "n": {"type": "integer"}}}, "tests": [
+    {"data": {"n": 1, "child": {"n": 2, "child": {"n": 3}}}, "valid": true}, {"data": {"child": {"child": {"n": "x"}}}, "valid": false}]},
+  {"description": "$ref with an escaped pointer", "schema": {"$defs": {"a/b": {"type": "integer"}, "c~d": {"type": "string"}, "e%f": {"type": "null"}},
+      "properties": {"x": {"$ref": "#/$defs/a~1b"}, "y": {"$ref": "#/$defs/c~0d"}, "z": {"$ref": "#/$defs/e%25f"}}}, "tests": [
+    {"data": {"x": 1, "y": "s", "z": null}, "valid": true}, {"data": {"x": "1"}, "valid": false}, {"data": {"y": 1}, "valid": false}, {"data": {"z": 1}, "valid": false}]},
+  {"description": "$anchor", "schema": {"$defs": {"x": {"$anchor": "things", "type": "array"}}, "$ref": "#things"}, "tests": [
+    {"data": [], "valid": true}, {"data": {}, "valid": false}]},
+  {"description": "$id changes the base of a $ref", "schema": {"$id": "https://example.com/root.json",
+      "$defs": {"A": {"$id": "nested/a.json", "$defs": {"B": {"$id": "b.json", "type": "integer"}}, "$ref": "b.json"}},
+      "properties": {"p": {"$ref": "nested/a.json"}, "q": {"$ref": "https://example.com/nested/b.json"}}}, "tests": [
+    {"data": {"p": 1, "q": 2}, "valid": true}, {"data": {"p": "x"}, "valid": false}, {"data": {"q": "x"}, "valid": false}]},
+  {"description": "an embedded resource's pointer is from its own root", "schema": {"$id": "https://example.com/r.json",
+      "$defs": {"inner": {"$id": "inner.json", "$defs": {"t": {"type": "boolean"}}}}, "$ref": "inner.json#/$defs/t"}, "tests": [
+    {"data": true, "valid": true}, {"data": 1, "valid": false}]},
+  {"description": "a $ref cycle that reads nothing ends", "schema": {"$defs": {"a": {"$ref": "#/$defs/b"}, "b": {"$ref": "#/$defs/a"}}, "$ref": "#/$defs/a"}, "tests": [
+    {"data": 1, "valid": false}]},
+  {"description": "$dynamicRef to the outermost $dynamicAnchor", "schema": {
+      "$id": "https://example.com/strict-tree.json", "$dynamicAnchor": "node", "$ref": "tree.json", "unevaluatedProperties": false,
+      "$defs": {"tree": {"$id": "tree.json", "$dynamicAnchor": "node", "type": "object",
+                         "properties": {"data": true, "children": {"type": "array", "items": {"$dynamicRef": "#node"}}}}}}, "tests": [
+    {"data": {"children": [{"daat": 1}]}, "valid": false}, {"data": {"children": [{"data": 1}]}, "valid": true}]},
+  {"description": "$dynamicRef without a dynamic scope match is a $ref", "schema": {
+      "$id": "https://example.com/list.json", "$defs": {"item": {"$dynamicAnchor": "item", "type": "string"}},
+      "items": {"$dynamicRef": "#item"}}, "tests": [
+    {"data": ["a"], "valid": true}, {"data": [1], "valid": false}]},
+  {"description": "unevaluatedProperties with properties", "schema": {"properties": {"a": true}, "unevaluatedProperties": false}, "tests": [
+    {"data": {"a": 1}, "valid": true}, {"data": {"a": 1, "b": 2}, "valid": false}]},
+  {"description": "unevaluatedProperties through allOf", "schema": {"allOf": [{"properties": {"a": true}}], "properties": {"b": true}, "unevaluatedProperties": false}, "tests": [
+    {"data": {"a": 1, "b": 2}, "valid": true}, {"data": {"a": 1, "c": 3}, "valid": false}]},
+  {"description": "unevaluatedProperties sees only successful branches of anyOf", "schema": {
+      "anyOf": [{"properties": {"a": {"const": 1}}, "required": ["a"]}, {"properties": {"b": {"const": 2}}, "required": ["b"]}],
+      "unevaluatedProperties": false}, "tests": [
+    {"data": {"a": 1}, "valid": true}, {"data": {"a": 1, "b": 2}, "valid": true}, {"data": {"a": 1, "b": 3}, "valid": false}]},
+  {"description": "unevaluatedProperties through if then else", "schema": {
+      "if": {"properties": {"foo": {"const": "then"}}, "required": ["foo"]}, "then": {"properties": {"bar": true}}, "else": {"properties": {"baz": true}},
+      "unevaluatedProperties": false}, "tests": [
+    {"data": {"foo": "then", "bar": 1}, "valid": true}, {"data": {"foo": "then", "baz": 1}, "valid": false}, {"data": {"baz": 1}, "valid": true},
+    {"data": {"foo": "else", "baz": 1}, "valid": false}]},
+  {"description": "unevaluatedProperties through $ref", "schema": {"$defs": {"b": {"properties": {"b": true}}}, "$ref": "#/$defs/b", "properties": {"a": true},
+      "unevaluatedProperties": false}, "tests": [
+    {"data": {"a": 1, "b": 2}, "valid": true}, {"data": {"c": 1}, "valid": false}]},
+  {"description": "unevaluatedProperties not through not", "schema": {"not": {"not": {"properties": {"a": true}}}, "unevaluatedProperties": false}, "tests": [
+    {"data": {"a": 1}, "valid": false}, {"data": {}, "valid": true}]},
+  {"description": "unevaluatedProperties as a schema", "schema": {"properties": {"a": true}, "unevaluatedProperties": {"type": "string"}}, "tests": [
+    {"data": {"a": 1, "b": "s"}, "valid": true}, {"data": {"b": 1}, "valid": false}]},
+  {"description": "nested unevaluatedProperties evaluate everything", "schema": {"allOf": [{"unevaluatedProperties": true}], "unevaluatedProperties": false}, "tests": [
+    {"data": {"a": 1}, "valid": true}]},
+  {"description": "unevaluatedItems with prefixItems", "schema": {"prefixItems": [true], "unevaluatedItems": false}, "tests": [
+    {"data": [1], "valid": true}, {"data": [1, 2], "valid": false}]},
+  {"description": "unevaluatedItems with contains", "schema": {"contains": {"const": 1}, "unevaluatedItems": {"const": 2}}, "tests": [
+    {"data": [1, 2, 1], "valid": true}, {"data": [1, 3], "valid": false}]},
+  {"description": "unevaluatedItems through anyOf", "schema": {"anyOf": [{"prefixItems": [true, true]}, {"prefixItems": [true]}], "unevaluatedItems": false}, "tests": [
+    {"data": [1, 2], "valid": true}, {"data": [1, 2, 3], "valid": false}]},
+  {"description": "unevaluatedItems after items", "schema": {"items": {"type": "integer"}, "unevaluatedItems": false}, "tests": [
+    {"data": [1, 2], "valid": true}]},
+  {"description": "format is an annotation by default", "schema": {"format": "email"}, "tests": [
+    {"data": "not an email", "valid": true}]},
+  {"description": "unknown keywords are annotations", "schema": {"x-anything": {"type": "nothing"}, "title": "t", "description": "d", "default": 1, "examples": [1]}, "tests": [
+    {"data": 1, "valid": true}]},
+  {"description": "a $schema of 2020-12", "schema": {"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "string"}, "tests": [
+    {"data": "x", "valid": true}, {"data": 1, "valid": false}]},
+  {"description": "maxContains and minContains without contains are nothing", "schema": {"maxContains": 0, "minContains": 5}, "tests": [
+    {"data": [1, 2], "valid": true}, {"data": [], "valid": true}]},
+  {"description": "contains false", "schema": {"contains": false}, "tests": [
+    {"data": [1], "valid": false}, {"data": [], "valid": false}, {"data": {}, "valid": true}]},
+  {"description": "numbers assert on numbers only", "schema": {"exclusiveMinimum": 0, "multipleOf": 2, "maximum": 1}, "tests": [
+    {"data": "x", "valid": true}, {"data": [], "valid": true}, {"data": null, "valid": true}, {"data": 2, "valid": false}]},
+  {"description": "additionalProperties alone", "schema": {"additionalProperties": {"type": "integer"}}, "tests": [
+    {"data": {"a": 1, "b": 2}, "valid": true}, {"data": {"a": "1"}, "valid": false}, {"data": {}, "valid": true}]},
+  {"description": "property names of the object's prototype", "schema": {"properties": {"__proto__": {"type": "number"}, "toString": {"type": "string"}, "constructor": {"type": "number"}}}, "tests": [
+    {"data": {"__proto__": 1, "toString": "s", "constructor": 2}, "valid": true}, {"data": {"__proto__": "x"}, "valid": false}, {"data": {}, "valid": true}]},
+  {"description": "integers written with exponents and fractions", "schema": {"type": "integer"}, "tests": [
+    {"data": 1.0e2, "valid": true}, {"data": 1.5e1, "valid": true}, {"data": 1.25e1, "valid": false}, {"data": -0.0, "valid": true}, {"data": 1e-1, "valid": false}]},
+  {"description": "enum of nested values", "schema": {"enum": [[[1]], {"a": {"b": [null]}}]}, "tests": [
+    {"data": [[1]], "valid": true}, {"data": [[1.0]], "valid": true}, {"data": {"a": {"b": [null]}}, "valid": true}, {"data": [[2]], "valid": false},
+    {"data": {"a": {"b": []}}, "valid": false}]},
+  {"description": "const null", "schema": {"const": null}, "tests": [
+    {"data": null, "valid": true}, {"data": 0, "valid": false}, {"data": "", "valid": false}, {"data": false, "valid": false}]},
+  {"description": "maxLength 0", "schema": {"maxLength": 0}, "tests": [
+    {"data": "", "valid": true}, {"data": " ", "valid": false}]},
+  {"description": "uniqueItems of nested values", "schema": {"uniqueItems": true}, "tests": [
+    {"data": [{"a": [1, 2]}, {"a": [2, 1]}], "valid": true}, {"data": [{"a": [1, 2]}, {"a": [1.0, 2.0]}], "valid": false},
+    {"data": [["a"], "a"], "valid": true}, {"data": [1, true], "valid": true}, {"data": [{}, []], "valid": true}]},
+  {"description": "required empty", "schema": {"required": []}, "tests": [{"data": {}, "valid": true}]},
+  {"description": "prefixItems longer than the array", "schema": {"prefixItems": [{"type": "integer"}, {"type": "integer"}, {"type": "integer"}]}, "tests": [
+    {"data": [1], "valid": true}, {"data": [1, 2, 3, "x"], "valid": true}, {"data": [1, "x"], "valid": false}]},
+  {"description": "unevaluatedItems through if then", "schema": {"if": {"prefixItems": [{"const": "a"}]}, "then": {"prefixItems": [true, {"const": "b"}]}, "unevaluatedItems": false}, "tests": [
+    {"data": ["a", "b"], "valid": true}, {"data": ["a", "b", "c"], "valid": false}, {"data": ["x"], "valid": false}, {"data": [], "valid": true}]},
+  {"description": "unevaluatedProperties through dependentSchemas", "schema": {"dependentSchemas": {"a": {"properties": {"b": true}}}, "properties": {"a": true}, "unevaluatedProperties": false}, "tests": [
+    {"data": {"a": 1, "b": 2}, "valid": true}, {"data": {"b": 2}, "valid": false}]},
+  {"description": "unevaluatedProperties with patternProperties", "schema": {"patternProperties": {"^x": true}, "unevaluatedProperties": false}, "tests": [
+    {"data": {"xa": 1}, "valid": true}, {"data": {"ya": 1}, "valid": false}]},
+  {"description": "unevaluatedProperties after additionalProperties", "schema": {"additionalProperties": true, "unevaluatedProperties": false}, "tests": [
+    {"data": {"a": 1}, "valid": true}]},
+  {"description": "unevaluatedProperties through oneOf", "schema": {"oneOf": [{"properties": {"a": true}, "required": ["a"]}, {"properties": {"b": true}, "required": ["b"]}],
+      "unevaluatedProperties": false}, "tests": [
+    {"data": {"a": 1}, "valid": true}, {"data": {"b": 1}, "valid": true}, {"data": {"a": 1, "c": 1}, "valid": false}, {"data": {"a": 1, "b": 1}, "valid": false}]},
+  {"description": "unevaluatedProperties from a failed allOf branch are not evaluated", "schema": {"allOf": [{"properties": {"a": {"type": "string"}}}], "unevaluatedProperties": false}, "tests": [
+    {"data": {"a": "s"}, "valid": true}, {"data": {"a": 1}, "valid": false}]},
+  {"description": "unevaluatedItems sees nested items", "schema": {"allOf": [{"items": true}], "unevaluatedItems": false}, "tests": [
+    {"data": [1, 2, 3], "valid": true}]},
+  {"description": "$anchor in a nested resource", "schema": {"$id": "https://example.com/a.json",
+      "$defs": {"b": {"$id": "b.json", "$defs": {"c": {"$anchor": "here", "type": "null"}}}}, "$ref": "b.json#here"}, "tests": [
+    {"data": null, "valid": true}, {"data": 0, "valid": false}]},
+  {"description": "$ref to an anchor is not to the same name elsewhere", "schema": {"$id": "https://example.com/a.json",
+      "$defs": {"x": {"$anchor": "t", "type": "string"}, "other": {"$id": "other.json", "$defs": {"y": {"$anchor": "t", "type": "integer"}}}},
+      "properties": {"p": {"$ref": "#t"}, "q": {"$ref": "other.json#t"}}}, "tests": [
+    {"data": {"p": "s", "q": 1}, "valid": true}, {"data": {"p": 1}, "valid": false}, {"data": {"q": "s"}, "valid": false}]},
+  {"description": "$ref to a property's subschema by pointer", "schema": {"properties": {"a": {"type": "integer"}, "b": {"$ref": "#/properties/a"}}}, "tests": [
+    {"data": {"a": 1, "b": 2}, "valid": true}, {"data": {"b": "x"}, "valid": false}]},
+  {"description": "$ref into prefixItems by index", "schema": {"prefixItems": [{"type": "integer"}, {"$ref": "#/prefixItems/0"}]}, "tests": [
+    {"data": [1, 2], "valid": true}, {"data": [1, "2"], "valid": false}]},
+  {"description": "$dynamicRef in the same resource", "schema": {"$id": "https://example.com/d.json", "$dynamicAnchor": "x", "type": ["integer", "array"],
+      "items": {"$dynamicRef": "#x"}}, "tests": [
+    {"data": [1, [2, [3]]], "valid": true}, {"data": [1, ["a"]], "valid": false}]},
+  {"description": "type with fractions of big numbers", "schema": {"type": "integer"}, "tests": [
+    {"data": 123456789012345678901234567890.0, "valid": true}, {"data": 12345678.5, "valid": false}]},
+  {"description": "multipleOf of decimals exactly", "schema": {"multipleOf": 0.1}, "tests": [
+    {"data": 0.3, "valid": true}, {"data": 1.1, "valid": true}, {"data": 0.35, "valid": false}, {"data": 12345.6, "valid": true}]}
+]

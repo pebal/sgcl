@@ -66,7 +66,9 @@
 // length of a value, the fast paths and the corrections of the division
 // all depend on it. Secrets belong to crypto's own types.
 namespace sgcl::math {
+    class big_float;
     class big_integer;
+    class decimal;
     class rational;
 
     // Why text did not read as a number: where the reading stopped (the
@@ -124,7 +126,9 @@ namespace sgcl::math {
         int _base;
         Reason _reason;
 
+        friend class big_float;
         friend class big_integer;
+        friend class decimal;
         friend class rational;
     };
 

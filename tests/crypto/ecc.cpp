@@ -3,8 +3,8 @@
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
-// P-256 and P-384: the group law at its corners (the identity, a point and
-// its negative, n*G), RFC 6979's vectors (A.2.5, A.2.6) through the
+// P-256, P-384 and P-521: the group law at its corners (the identity, a point and
+// its negative, n*G), RFC 6979's vectors (A.2.5, A.2.6, A.2.7) through the
 // deterministic signer, OpenSSL as the oracle in loops on random keys and
 // digests of every length (our signatures verified by OpenSSL and its by us,
 // RFC 6979 signatures equal to OpenSSL's for SHA-256/384/512, ECDH secrets
@@ -48,8 +48,8 @@ namespace {
             affine a = E::to_affine(p);
             bytes_t out(1 + 2 * T::size);
             out[0] = 4;
-            crypto::detail::limbs_to_be(out.data() + 1, F::from_mont(a.x));
-            crypto::detail::limbs_to_be(out.data() + 1 + T::size, F::from_mont(a.y));
+            crypto::detail::ec_to_be<typename T::curve>(out.data() + 1, F::from_mont(a.x));
+            crypto::detail::ec_to_be<typename T::curve>(out.data() + 1 + T::size, F::from_mont(a.y));
             return out;
         }
 
@@ -195,7 +195,7 @@ TYPED_TEST(Crypto_Ec, VariableTimeDoubleMult) {
     }
     for (int i = 0; i < 20; ++i) {
         bytes_t u1 = r.bytes(TypeParam::size);
-        u1.front() &= 0x7f;   // below n
+        u1.front() &= TypeParam::bits % 8 ? 0x00 : 0x7f;   // below n (P-521's top byte 0: below 2^520)
         BIGNUM *b1 = BN_bin2bn(u1.data(), int(u1.size()), nullptr), *bn = BN_bin2bn(n.data(), int(n.size()), nullptr), *b2 = BN_new();
         BN_sub(b2, bn, b1);
         bytes_t u2(TypeParam::size);
@@ -256,8 +256,8 @@ TYPED_TEST(Crypto_Ec, ModularArithmetic) {
         BIGNUM* bm = BN_bin2bn(m.data(), int(m.size()), nullptr);
         BN_CTX* ctx = BN_CTX_new();
         auto check = [&](const bytes_t& a, const bytes_t& b) {
-            auto la = crypto::detail::limbs_from_be<TypeParam::curve::words>(a.data());
-            auto lb = crypto::detail::limbs_from_be<TypeParam::curve::words>(b.data());
+            auto la = crypto::detail::ec_from_be<typename TypeParam::curve>(a.data());
+            auto lb = crypto::detail::ec_from_be<typename TypeParam::curve>(b.data());
             typename E::fe x, y, s, d, p, inv;
             auto run = [&](auto mont) {
                 using M = decltype(mont);
@@ -281,7 +281,7 @@ TYPED_TEST(Crypto_Ec, ModularArithmetic) {
             auto expect = [&](const typename E::fe& got, const char* what) {
                 bytes_t want(TypeParam::size), have(TypeParam::size);
                 BN_bn2binpad(t, want.data(), int(want.size()));
-                crypto::detail::limbs_to_be(have.data(), got);
+                crypto::detail::ec_to_be<typename TypeParam::curve>(have.data(), got);
                 EXPECT_EQ(hex(have), hex(want)) << what << " a=" << hex(a) << " b=" << hex(b);
             };
             BN_mod_add(t, ba, bb, bm, ctx);
@@ -328,7 +328,7 @@ namespace {
     bytes_t deterministic(const bytes_t& d, const bytes_t& digest) {
         using Ecdsa = crypto::detail::Ecdsa<C>;
         bytes_t sig(2 * C::size);
-        Ecdsa::template sign<H>(sig.data(), crypto::detail::limbs_from_be<C::words>(d.data()), digest.data(), digest.size(), nullptr, 0);
+        Ecdsa::template sign<H>(sig.data(), crypto::detail::ec_from_be<C>(d.data()), digest.data(), digest.size(), nullptr, 0);
         return sig;
     }
 
@@ -338,7 +338,7 @@ namespace {
     }
 }
 
-// RFC 6979 A.2.5 (P-256) and A.2.6 (P-384), messages "sample" and "test",
+// RFC 6979 A.2.5 (P-256), A.2.6 (P-384) and A.2.7 (P-521), messages "sample" and "test",
 // SHA-256, SHA-384 and SHA-512 (the HMAC of the nonce generator is the
 // message's digest); the public keys U of the appendix from the private
 // ones. Also Go's vector that makes the generator loop (a candidate k
@@ -399,6 +399,33 @@ TEST(Crypto_Ec, Rfc6979) {
         want += c.s;
         EXPECT_EQ(hex(sig), hex(unhex(want))) << "P-384 " << c.msg << " SHA-" << c.sha;
     }
+
+    // A.2.7 (P-521): its scalars of 66 bytes, the candidate k of 528 bits
+    // cut to 521 by bits2int
+    using crypto::detail::P521;
+    bytes_t x521 = unhex("00FAD06DAA62BA3B25D2FB40133DA757205DE67F5BB0018FEE8C86E1B68C7E75CAA896EB32F1F47C70855836A6D16FCC1466F6D8FBEC67DB89EC0C08B0E996B83538");
+    auto k521 = crypto::p521::private_key::from_bytes(view(x521));
+    ASSERT_TRUE(k521.has_value());
+    EXPECT_EQ(hex(to_bytes(k521->public_key().bytes())),
+              "0401894550d0785932e00eaa23b694f213f8c3121f86dc97a04e5a7167db4e5bcd371123d46e45db6b5d5370a7f20fb633155d38ffa16d2bd761dcac474b9a2f5023a400493101c962cd4d2fddf782285e64584139c2f91b47f87ff82354d6630f746a28a0db25741b5b34a828008b22acc23f924faafbd4d33f81ea66956dfeaa2bfdfcf5");
+    const Case p521[] = {
+        {"sample", 256, "01511BB4D675114FE266FC4372B87682BAECC01D3CC62CF2303C92B3526012659D16876E25C7C1E57648F23B73564D67F61C6F14D527D54972810421E7D87589E1A7", "004A171143A83163D6DF460AAF61522695F207A58B95C0644D87E52AA1A347916E4F7A72930B1BC06DBE22CE3F58264AFD23704CBB63B29B931F7DE6C9D949A7ECFC"},
+        {"sample", 384, "01EA842A0E17D2DE4F92C15315C63DDF72685C18195C2BB95E572B9C5136CA4B4B576AD712A52BE9730627D16054BA40CC0B8D3FF035B12AE75168397F5D50C67451", "01F21A3CEE066E1961025FB048BD5FE2B7924D0CD797BABE0A83B66F1E35EEAF5FDE143FA85DC394A7DEE766523393784484BDF3E00114A1C857CDE1AA203DB65D61"},
+        {"sample", 512, "00C328FAFCBD79DD77850370C46325D987CB525569FB63C5D3BC53950E6D4C5F174E25A1EE9017B5D450606ADD152B534931D7D4E8455CC91F9B15BF05EC36E377FA", "00617CCE7CF5064806C467F678D3B4080D6F1CC50AF26CA209417308281B68AF282623EAA63E5B5C0723D8B8C37FF0777B1A20F8CCB1DCCC43997F1EE0E44DA4A67A"},
+        {"test", 256, "000E871C4A14F993C6C7369501900C4BC1E9C7B0B4BA44E04868B30B41D8071042EB28C4C250411D0CE08CD197E4188EA4876F279F90B3D8D74A3C76E6F1E4656AA8", "00CD52DBAA33B063C3A6CD8058A1FB0A46A4754B034FCC644766CA14DA8CA5CA9FDE00E88C1AD60CCBA759025299079D7A427EC3CC5B619BFBC828E7769BCD694E86"},
+        {"test", 384, "014BEE21A18B6D8B3C93FAB08D43E739707953244FDBE924FA926D76669E7AC8C89DF62ED8975C2D8397A65A49DCC09F6B0AC62272741924D479354D74FF6075578C", "0133330865C067A0EAF72362A65E2D7BC4E461E8C8995C3B6226A21BD1AA78F0ED94FE536A0DCA35534F0CD1510C41525D163FE9D74D134881E35141ED5E8E95B979"},
+        {"test", 512, "013E99020ABF5CEE7525D16B69B229652AB6BDF2AFFCAEF38773B4B7D08725F10CDB93482FDCC54EDCEE91ECA4166B2A7C6265EF0CE2BD7051B7CEF945BABD47EE6D", "01FBD0013C674AA79CB39849527916CE301C66EA7CE8B80682786AD60F98F7E78A19CA69EFF5C57400E3B3A0AD66CE0978214D13BAF4E9AC60752F7B155E2DE4DCE3"},
+    };
+    for (const Case& c : p521) {
+        bytes_t sig = c.sha == 256 ? deterministic<P521, crypto::sha256>(x521, hash_of<crypto::sha256>(c.msg))
+                    : c.sha == 384 ? deterministic<P521, crypto::sha384>(x521, hash_of<crypto::sha384>(c.msg))
+                                   : deterministic<P521, crypto::sha512>(x521, hash_of<crypto::sha512>(c.msg));
+        std::string want = c.r;
+        want += c.s;
+        EXPECT_EQ(hex(sig), hex(unhex(want))) << "P-521 " << c.msg << " SHA-" << c.sha;
+        bytes_t digest = c.sha == 256 ? hash_of<crypto::sha256>(c.msg) : c.sha == 384 ? hash_of<crypto::sha384>(c.msg) : hash_of<crypto::sha512>(c.msg);
+        EXPECT_TRUE(k521->public_key().verify_digest_raw(view(digest), view(sig)));
+    }
 }
 
 // RFC 6979 against OpenSSL's deterministic nonces (3.2 and later) on random
@@ -447,10 +474,15 @@ TYPED_TEST(Crypto_Ec, DeterministicAgainstOpenSsl) {
         }
         // digests that are not below n as numbers (all ones, n, n + 1):
         // RFC 6979's bits2octets reduces them before the HMAC takes them
+        // (P-521: digests of SHA-512's 64 bytes, OpenSSL's only length; all ones)
         bytes_t n = unhex(TypeParam::order), n1 = n;
         n1.back() += 1;
-        for (const bytes_t& digest : {bytes_t(TypeParam::size, 0xff), n, n1}) {
-            const char* md = TypeParam::size == 32 ? "SHA256" : "SHA384";
+        std::vector<bytes_t> edges = {bytes_t(TypeParam::size, 0xff), n, n1};
+        if (TypeParam::size == 66) {
+            edges = {bytes_t(64, 0xff)};
+        }
+        for (const bytes_t& digest : edges) {
+            const char* md = TypeParam::size == 32 ? "SHA256" : TypeParam::size == 48 ? "SHA384" : "SHA512";
             bytes_t mine = deterministic<C, typename TypeParam::hash>(d, digest);
             unsigned char der[crypto::detail::Ecdsa<C>::max_der_size];
             size_t len = crypto::detail::Ecdsa<C>::encode_signature(der, mine.data());
@@ -502,7 +534,7 @@ TYPED_TEST(Crypto_Ec, EcdsaAgainstOpenSsl) {
         EXPECT_FALSE(pub.verify_digest_raw(view(digest), view(bad)));
         if (!digest.empty()) {
             bytes_t other = digest;
-            other[r.below(std::min<size_t>(other.size(), TypeParam::size))] ^= 1;
+            other[r.below(std::min<size_t>(other.size(), TypeParam::bits / 8))] ^= 1;   // a byte bits2int keeps whole
             EXPECT_FALSE(pub.verify_digest(view(other), view(mine)));
         }
         EXPECT_FALSE(pub.verify_digest(view(digest), view(bytes_t(mine.begin(), mine.end() - 1))));
@@ -559,10 +591,11 @@ TYPED_TEST(Crypto_Ec, DigestTruncation) {
     EXPECT_TRUE(pub.verify_digest(view(cut), view(sig)));
     bytes_t shorter(digest.begin(), digest.begin() + TypeParam::size - 1);
     EXPECT_FALSE(pub.verify_digest(view(shorter), view(sig)));
-    // a short digest is left-padded: 00 || h is the same number as h
+    // a short digest is left-padded: 00 || h is the same number as h, as
+    // long as it is not longer than the order's bits (P-521: 65 bytes)
     bytes_t h = r.bytes(20);
     bytes_t sig2 = to_bytes(key.sign_digest(view(h)));
-    bytes_t padded(TypeParam::size - 20, 0);
+    bytes_t padded(TypeParam::bits / 8 - 20, 0);
     padded.insert(padded.end(), h.begin(), h.end());
     EXPECT_TRUE(pub.verify_digest(view(padded), view(sig2)));
 }
@@ -590,7 +623,7 @@ TYPED_TEST(Crypto_Ec, SignatureEncoding) {
     };
     auto sequence = [](const bytes_t& a, const bytes_t& b, bool long_form) {
         bytes_t out = {0x30};
-        if (long_form) {
+        if (long_form || a.size() + b.size() >= 0x80) {   // P-521's signatures need the long form
             out.push_back(0x81);
         }
         out.push_back((unsigned char)(a.size() + b.size()));
@@ -600,8 +633,14 @@ TYPED_TEST(Crypto_Ec, SignatureEncoding) {
     };
     bytes_t good = sequence(integer(rb, false), integer(sb, false), false);
     EXPECT_TRUE(pub.verify_digest(view(digest), view(good)));
-    // an extra zero byte in front of an integer that did not need it
-    if (!(rb[0] & 0x80)) {
+    // an extra zero byte in front of an integer that did not need it (its
+    // first significant byte below 0x80: P-521's 66 bytes start with 0 or 1,
+    // so the byte to look at is the first non-zero one)
+    size_t lead = 0;
+    while (lead + 1 < rb.size() && rb[lead] == 0) {
+        ++lead;
+    }
+    if (!(rb[lead] & 0x80)) {
         EXPECT_FALSE(pub.verify_digest(view(digest), view(sequence(integer(rb, true), integer(sb, false), false))));
     }
     // a long-form length where the short one fits
@@ -666,6 +705,9 @@ TYPED_TEST(Crypto_Ec, SignatureOutOfRange) {
         BIGNUM *bd = BN_bin2bn(d.data(), int(d.size()), nullptr), *bk = BN_bin2bn(k.data(), int(k.size()), nullptr), *be = BN_new();
         BN_mod_mul(be, br, bd, bn, ctx);
         BN_mod_sub(be, bk, be, bn, ctx);   // e = k - r d, so s = k^-1 (e + r d) = 1
+        // the digest whose leftmost bits are e: e itself, P-521's shifted up
+        // by the 7 bits bits2int drops from its 66 bytes
+        BN_lshift(be, be, int(8 * TypeParam::size - TypeParam::bits));
         bytes_t digest(TypeParam::size), rb(TypeParam::size);
         BN_bn2binpad(be, digest.data(), int(digest.size()));
         BN_bn2binpad(br, rb.data(), int(rb.size()));
@@ -906,7 +948,7 @@ TYPED_TEST(Crypto_Ec, PrivateKeyFromBytes) {
     }
     // the error names the curve
     std::string msg = text_of(error_of(SK::from_bytes(view(zero))));
-    EXPECT_NE(msg.find(TypeParam::size == 32 ? "p256" : "p384"), std::string::npos) << msg;
+    EXPECT_NE(msg.find(TypeParam::module), std::string::npos) << msg;
 }
 
 // --- DER --------------------------------------------------------------------------
@@ -1096,7 +1138,7 @@ TYPED_TEST(Crypto_Ec, SecretsAreZeroed) {
     EXPECT_FALSE(noexcept(z.clone()));
     // the message names the curve and the type, as every other error of
     // the curve names the curve
-    const std::string curve = TypeParam::size == 32 ? "p256" : "p384";
+    const std::string curve = TypeParam::module;
     auto message = [](auto&& call) {
         try {
             call();
@@ -1220,9 +1262,15 @@ TEST(Crypto_Wycheproof, EcdsaP384) {
     wycheproof_ecdsa<P384>("ecdsa_secp384r1_sha384_p1363_test.json", true);
 }
 
+TEST(Crypto_Wycheproof, EcdsaP521) {
+    wycheproof_ecdsa<P521>("ecdsa_secp521r1_sha512_test.json", false);
+    wycheproof_ecdsa<P521>("ecdsa_secp521r1_sha512_p1363_test.json", true);
+}
+
 TEST(Crypto_Wycheproof, Ecdh) {
     wycheproof_ecdh<P256>("ecdh_secp256r1_test.json");
     wycheproof_ecdh<P384>("ecdh_secp384r1_test.json");
+    wycheproof_ecdh<P521>("ecdh_secp521r1_test.json");
 }
 
 // --- Go -------------------------------------------------------------------------------
@@ -1251,7 +1299,7 @@ namespace {
         EXPECT_TRUE(T::private_key::from_sec1_der(view(unhex(s1))).has_value());
         if (out) {
             // our signature of the same digest, for Go to verify
-            *out << (T::size == 32 ? "P-256 " : "P-384 ") << pub << ' ' << digest << ' ' << hex(to_bytes(key->sign_digest(view(unhex(digest))))) << '\n';
+            *out << T::group << ' ' << pub << ' ' << digest << ' ' << hex(to_bytes(key->sign_digest(view(unhex(digest))))) << '\n';
         }
     }
 }
@@ -1278,6 +1326,8 @@ TEST(Crypto_Ec, GoVectors) {
             go_case<P256>(fields, out_path ? &out : nullptr);
         } else if (curve == "P-384") {
             go_case<P384>(fields, out_path ? &out : nullptr);
+        } else if (curve == "P-521") {
+            go_case<P521>(fields, out_path ? &out : nullptr);
         } else {
             continue;
         }

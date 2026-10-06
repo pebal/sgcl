@@ -479,11 +479,13 @@ TEST(SshKeys, FilesOfSshKeygenAndOpenSslLoad) {
         {"ed25519_gcm", "correct horse", net::ssh::key_type::ed25519},
         {"p256", "", net::ssh::key_type::ecdsa_p256},
         {"p384_enc", "correct horse", net::ssh::key_type::ecdsa_p384},
+        {"p521", "", net::ssh::key_type::ecdsa_p521},
         {"rsa", "", net::ssh::key_type::rsa},
         {"rsa_enc", "correct horse", net::ssh::key_type::rsa},
         {"rsa_pkcs1", "", net::ssh::key_type::rsa},
         {"p256_sec1.pem", "", net::ssh::key_type::ecdsa_p256},
         {"p384_pkcs8.pem", "", net::ssh::key_type::ecdsa_p384},
+        {"p521_pkcs8.pem", "", net::ssh::key_type::ecdsa_p521},
         {"rsa_pkcs8.pem", "", net::ssh::key_type::rsa},
         {"ed25519_pkcs8.pem", "", net::ssh::key_type::ed25519},
     };
@@ -533,7 +535,7 @@ TEST(SshKeys, PassphrasesAndBrokenFiles) {
 
 TEST(SshKeys, WrittenKeysReadBackHereAndBySshKeygen) {
     auto dir = temp_dir("keys");
-    for (auto t : {net::ssh::key_type::ed25519, net::ssh::key_type::ecdsa_p256, net::ssh::key_type::ecdsa_p384, net::ssh::key_type::rsa}) {
+    for (auto t : {net::ssh::key_type::ed25519, net::ssh::key_type::ecdsa_p256, net::ssh::key_type::ecdsa_p384, net::ssh::key_type::ecdsa_p521, net::ssh::key_type::rsa}) {
         auto k = net::ssh::private_key::generate(t, 2048).with_comment(string("made-here"));
         EXPECT_EQ(k.comment(), "made-here");
         for (const char* pass : {"", "s3cret"}) {

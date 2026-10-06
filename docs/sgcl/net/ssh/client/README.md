@@ -57,6 +57,7 @@ files and agent are used when no key is given (as `ssh` does), and a command's e
 | [open_session, async_open_session](open_session.md) | a new session |
 | [dial, async_dial](dial.md) | a connection made by the server (direct-tcpip) |
 | [listen, async_listen](listen.md) | a listener on the server's side (tcpip-forward) |
+| [serve_socks5, async_serve_socks5](serve_socks5.md) | a SOCKS5 proxy whose connections the server makes: `ssh -D` |
 | [keepalive, async_keepalive](keepalive.md) | whether the server still answers |
 | [wait, async_wait](wait.md) | until the connection ends |
 | [close](close.md) | ends the connection |

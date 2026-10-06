@@ -18,6 +18,7 @@
 // Built with libFuzzer (tests/fuzz/run.sh tests/net/http/fuzz/h2_hpack_fuzz.cpp)
 // or replayed by the library's own driver (tests/fuzz/driver.cpp).
 #include "sgcl/net/http/detail/h2/hpack.h"
+#include "tests/fuzz/input.h"
 
 #include <cstdint>
 #include <cstring>
@@ -75,8 +76,11 @@ namespace {
             if (in.byte() % 16 == 0) {
                 d.set_max_table_size(uint32_t(in.byte()) * 32);
             }
-            std::string block = in.take(in.byte());
-            auto r = d.decode(view(block), limit);
+            // the block in a buffer of its own size: a std::string's
+            // capacity and terminator let a read past it through unseen
+            // (tests/fuzz/input.h)
+            const sgcl_fuzz::exact block(in.take(in.byte()));
+            auto r = d.decode(block.bytes(), limit);
             if (!r) {
                 check(r.error().code == h2::ErrorCode::compression_error && r.error().connection() && r.error().what);
                 return;   // the connection ends

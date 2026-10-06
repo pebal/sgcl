@@ -1,0 +1,1 @@
+{{ range .l }}<li style="color: {{ . }}">{{ . }}</li>{{ end }}<!-- c --><style>p { background: url({{ .x }}) }</style>

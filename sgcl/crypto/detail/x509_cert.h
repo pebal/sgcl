@@ -14,6 +14,7 @@
 #include "../hash_id.h"
 #include "../p256.h"
 #include "../p384.h"
+#include "../p521.h"
 #include "../rsa.h"
 #include "../../core/aliases.h"
 #include "../../core/array.h"
@@ -141,14 +142,15 @@ namespace sgcl::crypto::x509 {
     };
 
     // What a certificate's public key is: none for an algorithm the module
-    // has no type for (DSA, X25519, P-521, ML-DSA) or a key its type
-    // refuses
+    // has no type for (DSA, X25519, ML-DSA) or a key its type refuses
+    // (p521 appended: the earlier values unchanged)
     enum class key_kind : uint8_t {
         none = 0,
         rsa,
         p256,
         p384,
-        ed25519
+        ed25519,
+        p521
     };
 
     namespace detail {
@@ -156,12 +158,13 @@ namespace sgcl::crypto::x509 {
     }
 
     // The public key of a certificate, one of the module's key types or
-    // none: kind() says which, and rsa(), p256(), p384(), ed25519() give it
+    // none: kind() says which, and rsa(), p256(), p384(), ed25519(), p521() give it
     // (std::logic_error for another kind); algorithm() is the OID of the
     // SubjectPublicKeyInfo whatever the kind
     class public_key {
     public:
-        using value_type = variant<monostate, crypto::rsa::public_key, crypto::p256::public_key, crypto::p384::public_key, crypto::ed25519::public_key>;
+        using value_type = variant<monostate, crypto::rsa::public_key, crypto::p256::public_key, crypto::p384::public_key, crypto::ed25519::public_key,
+                                   crypto::p521::public_key>;
 
         public_key() = default;
 
@@ -187,6 +190,10 @@ namespace sgcl::crypto::x509 {
 
         SGCL_INLINE_HOT const crypto::ed25519::public_key& ed25519() const {
             return _get<crypto::ed25519::public_key, 4>("an Ed25519 key");
+        }
+
+        SGCL_INLINE_HOT const crypto::p521::public_key& p521() const {
+            return _get<crypto::p521::public_key, 5>("a P-521 key");
         }
 
         // The key as the variant, for visit
@@ -257,6 +264,7 @@ namespace sgcl::crypto::x509::detail {
         inline constexpr unsigned char ec_public_key[] = {0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01};
         inline constexpr unsigned char prime256v1[] = {0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07};
         inline constexpr unsigned char secp384r1[] = {0x2b, 0x81, 0x04, 0x00, 0x22};
+        inline constexpr unsigned char secp521r1[] = {0x2b, 0x81, 0x04, 0x00, 0x23};
         inline constexpr unsigned char authority_info_access[] = {0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x01, 0x01};
         inline constexpr unsigned char tls_feature[] = {0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x01, 0x18};   // RFC 7633
         inline constexpr unsigned char ad_ocsp[] = {0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x30, 0x01};
@@ -327,9 +335,12 @@ namespace sgcl::crypto::x509::detail {
         }
     };
 
-    // The parser of one certificate into a CertData, its raw already set
+    // The parser of one certificate into a CertData from the caller's
+    // bytes, read in place (c.raw is copied after the parse, so that a
+    // fuzzer's buffer of exactly the input shows an overread)
     struct CertParser {
         CertData& c;
+        slice<const byte> input;
 
         static error fail(size_t at, const char* what) noexcept {
             return error(errc::malformed, uint64_t(at), string(std::string("sgcl::crypto::x509: ") + what));
@@ -345,14 +356,14 @@ namespace sgcl::crypto::x509::detail {
         }
 
         SGCL_INLINE_HOT size_t at_of(const DerReader& r) const noexcept {
-            return size_t(r.data() - c.bytes_at(0));
+            return size_t(r.data() - reinterpret_cast<const unsigned char*>(input.data()));
         }
 
         expected<void, error> run() noexcept {
-            if (c.raw.size() > max_certificate_size) {
+            if (input.size() > max_certificate_size) {
                 return unexpected<error>(fail(0, "a certificate larger than 128 KiB"));
             }
-            DerReader in(c.bytes_at(0), c.raw.size());
+            DerReader in(reinterpret_cast<const unsigned char*>(input.data()), input.size());
             DerReader cert, tbs_el, tbs, alg_in, alg_out;
             if (!in.read(der::sequence, cert)) {
                 return unexpected<error>(fail(in.offset(), "not a Certificate SEQUENCE"));
@@ -602,7 +613,7 @@ namespace sgcl::crypto::x509::detail {
                 }
             }
             c.key._algorithm = string(oid_text(o.data(), o.size()));
-            slice<const byte> der = c.range(at, c.spki_size);
+            slice<const byte> der = input.subslice(at, c.spki_size);
             auto take = [&](auto&& r, auto index) -> expected<void, error> {
                 if (r) {
                     c.key._key.template emplace<decltype(index)::value>(std::move(*r));
@@ -624,6 +635,9 @@ namespace sgcl::crypto::x509::detail {
                 }
                 if (oid::is(curve, oid::secp384r1)) {
                     return take(crypto::p384::public_key::from_pkix_der(der), std::integral_constant<size_t, 3>());
+                }
+                if (oid::is(curve, oid::secp521r1)) {
+                    return take(crypto::p521::public_key::from_pkix_der(der), std::integral_constant<size_t, 5>());
                 }
                 c.key_error = string("an elliptic curve the module does not have");
                 return {};

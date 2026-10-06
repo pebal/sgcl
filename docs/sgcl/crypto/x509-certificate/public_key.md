@@ -7,7 +7,8 @@ const x509::public_key& public_key() const noexcept;
 ```
 
 Returns the subject's key as one of the module's key types: [rsa::public_key](../rsa-public_key/README.md),
-[p256::public_key](../p256-public_key/README.md), [p384::public_key](../p256-public_key/README.md) or
+[p256::public_key](../p256-public_key/README.md), [p384::public_key](../p256-public_key/README.md),
+[p521::public_key](../p256-public_key/README.md) or
 [ed25519::public_key](../ed25519-public_key/README.md), by its `kind()`; `key_kind::none` for an algorithm the module has no
 type for, or a key its type refuses. Its `algorithm()` names the SubjectPublicKeyInfo's algorithm whatever the kind.
 

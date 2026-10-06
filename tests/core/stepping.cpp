@@ -634,6 +634,259 @@ TEST_P(Stepping, AStateSetAfterTheFlipIsRetiredBeforeItsParityComesRound) {
     EXPECT_EQ(Quiet::alive, 0);
 }
 
+// The stack scanned from a recorded stack pointer (config.h: SGCL_STACK_SP),
+// and the window between the flip and the registration. After the flip a
+// new thread takes its first page (a record of this cycle), then calls
+// deeper, below the record, and copies there the only pointer to a young
+// object (the barrier: Reachable of the new parity, the page's flag
+// raised); the registration lowers the flag; the scan reads the thread's
+// stack only from the record. The object is reachable by the state alone:
+// the states pass over every page that may hold unmarked registered slots
+// (_mark_updated<true>, the first round of the marking) reads it whatever
+// the flag says. It must survive the cycle and two more, young and full.
+// The control drops the pointer in the deep frame: the object then dies at
+// the next full cycles, which query the thread's whole stack, so no other
+// word on either stack holds it and the survival above is the state's.
+namespace {
+    struct InWindow {
+        static inline sgcl::atomic<int> alive = 0;
+        InWindow() { ++alive; }
+        ~InWindow() { --alive; }
+        long value = 5;
+    };
+
+    struct InWindowHolder {
+        tracked_ptr<InWindow> ptr;
+    };
+
+    struct FirstPage {
+        long bytes[4];
+    };
+
+    struct Window {
+        std::atomic<int> phase = {0};   // 1: the deep frame built, 2: let go
+        std::atomic<uintptr_t> recorded_sp = {0};
+        std::atomic<uint64_t> recorded_epoch = {0};
+        std::atomic<uintptr_t> deep_word = {0};
+    };
+
+    SGCL_NOINLINE int deep_in_window(int depth, const tracked_ptr<InWindowHolder>& holder, Window& w, bool keep) {
+        volatile char pad[256];
+        detail::os::escape((const void*)pad);
+        pad[0] = (char)depth;
+        if (depth == 0 && keep) {
+            tracked_ptr<InWindow> local = holder->ptr;   // the barrier after the flip, before the registration
+            holder->ptr = nullptr;                       // this frame the only reference
+            w.deep_word = (uintptr_t)&local;
+            w.phase = 1;
+            while (w.phase.load() != 2) {
+                std::this_thread::yield();
+            }
+            return (int)local->value;
+        }
+        if (depth == 0) {
+            // the control: the same copy and drop, in a frame of its own,
+            // and the frames below this one zeroed (a debug build leaves the
+            // copy's temporaries there, which the full query would read)
+            off_frame([&] {
+                tracked_ptr<InWindow> local = holder->ptr;
+                holder->ptr = nullptr;
+            });
+            collector::clear_stack();
+            w.deep_word = (uintptr_t)pad;
+            w.phase = 1;
+            while (w.phase.load() != 2) {
+                std::this_thread::yield();
+            }
+            return 0;
+        }
+        return deep_in_window(depth - 1, holder, w, keep) + (pad[0] == (char)depth ? 0 : 1000);
+    }
+
+    // returns the object's count after the window's cycle and two more
+    void run_window(collector::stepper& s, bool young, bool keep) {
+        settle(s, young);
+        InWindow::alive = 0;
+        tracked_ptr<InWindowHolder> holder = make_tracked<InWindowHolder>();
+        off_frame([&] { holder->ptr = make_tracked<InWindow>(); });   // young: made since the last cycle, before the flip
+        collector::clear_stack(SIZE_MAX);
+        ASSERT_EQ(s.advance_to(phase::flipped), phase::flipped);
+        auto& c = detail::collector_instance();
+        const auto hits = c.stack_sp_hits();
+        Window w;
+        int seen = -1;
+        std::thread worker([&] {
+            off_frame([&] {
+                tracked_ptr<FirstPage> f = make_tracked<FirstPage>();   // a new thread's first page: its record of this cycle
+                auto& r = detail::current_thread().stack_record();
+                w.recorded_sp = r.sp.load();
+                w.recorded_epoch = r.epoch.load();
+            });
+            seen = deep_in_window(64, holder, w, keep);
+        });
+        while (w.phase.load() != 1) {
+            std::this_thread::yield();
+        }
+        if constexpr(config::stack_sp != 0) {
+            EXPECT_EQ(w.recorded_epoch.load(), detail::Heap::globals.stack_epoch.load()) << "the record is not of this cycle";
+            EXPECT_LT(w.deep_word.load(), w.recorded_sp.load()) << "the deep frame is not below the record";
+        }
+        EXPECT_EQ(s.step(), phase::registered);              // the flag lowered
+        EXPECT_EQ(s.step(), phase::roots);                   // the stacks scanned, the worker's from its record
+        if constexpr(config::stack_sp != 0) {
+            EXPECT_GT(c.stack_sp_hits(), hits) << "no stack was scanned from its record";
+        }
+        s.finish_cycle();
+        EXPECT_EQ(InWindow::alive, 1) << "the window's cycle: reachable by the barrier's state either way";
+        s.finish_cycle();
+        s.finish_cycle();
+        if (keep) {
+            EXPECT_EQ(InWindow::alive, 1) << (young ? "young" : "full") << ": the object under the record was swept";
+        }
+        settle(s, young);                                    // two full cycles, the worker waiting: its whole stack queried
+        EXPECT_EQ(InWindow::alive, keep ? 1 : 0) << (keep ? "held by the deep frame" : "the control: a word other than the deep frame's holds it");
+        w.phase = 2;
+        worker.join();
+        EXPECT_EQ(seen, keep ? 5 : 0);
+        holder = nullptr;
+        collector::clear_stack(SIZE_MAX);
+        settle(s, young);
+        EXPECT_EQ(InWindow::alive, 0);
+    }
+}
+
+// The same window with the source on the stack, inside the scanned range:
+// a pointer A in a shallow frame of the thread (above its record), the only
+// reference to a young object; after the flip the thread records, calls
+// deeper, copies A into a local below the record (the tracked_ptr copy
+// constructor, or operator= into a local made before: both store with the
+// barrier, page.h: set_state<Reachable>), and zeroes A. The registration
+// lowers the flag, the scan reads from the record, and the states pass
+// (_mark_updated<true>, the first round of the marking) reads the barrier's
+// state whatever the flag says. The control drops the deep copy and zeroes
+// the frames below: the object dies at the next full cycles.
+namespace {
+    enum class DeepCopy { construct, assign, control };
+
+    SGCL_NOINLINE int deep_copy_in_window(int depth, tracked_ptr<InWindow>& a, Window& w, DeepCopy how) {
+        volatile char pad[256];
+        detail::os::escape((const void*)pad);
+        pad[0] = (char)depth;
+        if (depth > 0) {
+            return deep_copy_in_window(depth - 1, a, w, how) + (pad[0] == (char)depth ? 0 : 1000);
+        }
+        auto park = [&w](const void* word) {
+            w.deep_word = (uintptr_t)word;
+            w.phase = 1;
+            while (w.phase.load() != 2) {
+                std::this_thread::yield();
+            }
+        };
+        if (how == DeepCopy::construct) {
+            tracked_ptr<InWindow> local = a;             // the copy constructor: the barrier
+            a = nullptr;                                 // the source zeroed: the deep word the only reference
+            park(&local);
+            return (int)local->value;
+        }
+        if (how == DeepCopy::assign) {
+            tracked_ptr<InWindow> local;                 // made before the copy
+            local = a;                                   // operator=: the barrier
+            a = nullptr;
+            park(&local);
+            return (int)local->value;
+        }
+        off_frame([&] {
+            tracked_ptr<InWindow> t = a;
+            a = nullptr;
+        });
+        collector::clear_stack();
+        park((const void*)pad);
+        return 0;
+    }
+
+    void run_window_on_stack(collector::stepper& s, bool young, DeepCopy how) {
+        const bool keep = how != DeepCopy::control;
+        const char* name = how == DeepCopy::construct ? "construct" : how == DeepCopy::assign ? "assign" : "control";
+        settle(s, young);
+        InWindow::alive = 0;
+        auto& c = detail::collector_instance();
+        Window w;
+        std::atomic<uintptr_t> source = {0};
+        int seen = -1;
+        std::thread worker([&] {
+            tracked_ptr<InWindow> a;                     // A: this shallow frame
+            off_frame([&] { a = make_tracked<InWindow>(); });   // young: made since the last cycle, before the flip
+            collector::clear_stack();
+            source = (uintptr_t)&a;
+            w.phase = 10;
+            while (w.phase.load() != 11) {               // the flip
+                std::this_thread::yield();
+            }
+            off_frame([&] {
+                tracked_ptr<FirstPage> f = make_tracked<FirstPage>();   // the first page of the type on this thread: the record of this cycle
+                auto& r = detail::current_thread().stack_record();
+                w.recorded_sp = r.sp.load();
+                w.recorded_epoch = r.epoch.load();
+            });
+            seen = deep_copy_in_window(64, a, w, how);
+        });
+        while (w.phase.load() != 10) {
+            std::this_thread::yield();
+        }
+        EXPECT_EQ(InWindow::alive, 1);
+        ASSERT_EQ(s.advance_to(phase::flipped), phase::flipped);
+        const auto hits = c.stack_sp_hits();
+        w.phase = 11;
+        while (w.phase.load() != 1) {
+            std::this_thread::yield();
+        }
+        if constexpr(config::stack_sp != 0) {
+            EXPECT_EQ(w.recorded_epoch.load(), detail::Heap::globals.stack_epoch.load()) << name << ": the record is not of this cycle";
+            EXPECT_GE(source.load(), w.recorded_sp.load()) << name << ": A is not inside the scanned range";
+            EXPECT_LT(w.deep_word.load(), w.recorded_sp.load()) << name << ": the deep frame is not below the record";
+        }
+        EXPECT_EQ(s.step(), phase::registered);
+        EXPECT_EQ(s.step(), phase::roots);
+        if constexpr(config::stack_sp != 0) {
+            EXPECT_GT(c.stack_sp_hits(), hits) << name << ": no stack was scanned from its record";
+        }
+        s.finish_cycle();
+        EXPECT_EQ(InWindow::alive, 1) << name << (young ? " young" : " full") << ": swept in the window's cycle";
+        s.finish_cycle();
+        s.finish_cycle();
+        if (keep) {
+            EXPECT_EQ(InWindow::alive, 1) << name << (young ? " young" : " full") << ": swept in the two cycles after";
+        }
+        settle(s, young);
+        EXPECT_EQ(InWindow::alive, keep ? 1 : 0) << name << (keep ? ": held by the deep frame" : ": a word other than the deep copy holds it");
+        w.phase = 2;
+        worker.join();
+        EXPECT_EQ(seen, keep ? 5 : 0) << name;
+        collector::clear_stack(SIZE_MAX);
+        settle(s, young);
+        EXPECT_EQ(InWindow::alive, 0) << name;
+    }
+}
+
+TEST_P(Stepping, BelowTheRecordedStackPointerCopiedFromAboveIt) {
+    collector::stepper s;
+    arm(s);
+    for (bool young : {true, false}) {
+        for (auto how : {DeepCopy::construct, DeepCopy::assign, DeepCopy::control}) {
+            run_window_on_stack(s, young, how);
+        }
+    }
+}
+
+TEST_P(Stepping, BelowTheRecordedStackPointerInTheWindowBeforeTheRegistration) {
+    collector::stepper s;
+    arm(s);
+    for (bool young : {true, false}) {
+        run_window(s, young, true);
+        run_window(s, young, false);
+    }
+}
+
 INSTANTIATE_TEST_SUITE_P(Helpers, Stepping, testing::Values(0u, 2u), [](const testing::TestParamInfo<unsigned>& info) {
     return info.param ? "TwoHelpers" : "Alone";
 });

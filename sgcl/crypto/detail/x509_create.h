@@ -33,10 +33,10 @@ namespace sgcl::crypto::x509 {
     }
 
     // A private key a certificate or a request is signed with: a view of
-    // one of the module's four kinds, made from the key itself, which must
+    // one of the module's five kinds, made from the key itself, which must
     // outlive it (as a string_view its string). ECDSA signs over SHA-256 for
-    // P-256 and SHA-384 for P-384, RSA with PKCS #1 v1.5 over SHA-256, as Go
-    // and OpenSSL sign by default
+    // P-256, SHA-384 for P-384 and SHA-512 for P-521, RSA with PKCS #1 v1.5
+    // over SHA-256, as Go and OpenSSL sign by default
     class signing_key {
     public:
         SGCL_INLINE_HOT signing_key(const p256::private_key& k) noexcept
@@ -45,6 +45,10 @@ namespace sgcl::crypto::x509 {
 
         SGCL_INLINE_HOT signing_key(const p384::private_key& k) noexcept
         : _kind(key_kind::p384), _key(&k) {
+        }
+
+        SGCL_INLINE_HOT signing_key(const p521::private_key& k) noexcept
+        : _kind(key_kind::p521), _key(&k) {
         }
 
         SGCL_INLINE_HOT signing_key(const ed25519::private_key& k) noexcept
@@ -64,6 +68,7 @@ namespace sgcl::crypto::x509 {
             switch (_kind) {
                 case key_kind::p256: return static_cast<const p256::private_key*>(_key)->public_key().to_pkix_der();
                 case key_kind::p384: return static_cast<const p384::private_key*>(_key)->public_key().to_pkix_der();
+                case key_kind::p521: return static_cast<const p521::private_key*>(_key)->public_key().to_pkix_der();
                 case key_kind::ed25519: return static_cast<const ed25519::private_key*>(_key)->public_key().to_pkix_der();
                 case key_kind::rsa: return static_cast<const rsa::private_key*>(_key)->public_key().to_pkix_der();
                 case key_kind::none: break;
@@ -78,6 +83,7 @@ namespace sgcl::crypto::x509 {
         // of the bytes
         std::vector<unsigned char> _algorithm_der() const;
         vector<byte> _sign(const slice<const byte>& data) const;
+        secret_bytes _pkcs8_der() const;
 
         key_kind _kind;
         const void* _key;
@@ -91,6 +97,15 @@ namespace sgcl::crypto::x509 {
 
             SGCL_INLINE_HOT static vector<byte> sign(const signing_key& k, const slice<const byte>& data) {
                 return k._sign(data);
+            }
+
+            // The key's PKCS #8 PrivateKeyInfo (pkcs12, cms), in plain memory
+            SGCL_INLINE_HOT static secret_bytes pkcs8(const signing_key& k) {
+                return k._pkcs8_der();
+            }
+
+            SGCL_INLINE_HOT static const void* key(const signing_key& k) noexcept {
+                return k._key;
             }
         };
     }
@@ -478,6 +493,7 @@ namespace sgcl::crypto::x509 {
         switch (_kind) {
             case key_kind::p256: return der_tlv(der::sequence, der_oid(oid::ecdsa_sha256));
             case key_kind::p384: return der_tlv(der::sequence, der_oid(oid::ecdsa_sha384));
+            case key_kind::p521: return der_tlv(der::sequence, der_oid(oid::ecdsa_sha512));
             case key_kind::ed25519: return der_tlv(der::sequence, der_oid(oid::ed25519));
             case key_kind::rsa: {
                 DerBytes a = der_oid(oid::sha256_rsa);
@@ -485,6 +501,18 @@ namespace sgcl::crypto::x509 {
                 der_append(a, null, 2);
                 return der_tlv(der::sequence, a);
             }
+            case key_kind::none: break;
+        }
+        return {};
+    }
+
+    inline secret_bytes signing_key::_pkcs8_der() const {
+        switch (_kind) {
+            case key_kind::p256: return static_cast<const p256::private_key*>(_key)->to_pkcs8_der();
+            case key_kind::p384: return static_cast<const p384::private_key*>(_key)->to_pkcs8_der();
+            case key_kind::p521: return static_cast<const p521::private_key*>(_key)->to_pkcs8_der();
+            case key_kind::ed25519: return static_cast<const ed25519::private_key*>(_key)->to_pkcs8_der();
+            case key_kind::rsa: return static_cast<const rsa::private_key*>(_key)->to_pkcs8_der();
             case key_kind::none: break;
         }
         return {};
@@ -499,6 +527,10 @@ namespace sgcl::crypto::x509 {
             case key_kind::p384: {
                 auto d = sha384::of(data);
                 return static_cast<const p384::private_key*>(_key)->sign_digest(slice<const byte>(d.data(), d.size()));
+            }
+            case key_kind::p521: {
+                auto d = sha512::of(data);
+                return static_cast<const p521::private_key*>(_key)->sign_digest(slice<const byte>(d.data(), d.size()));
             }
             case key_kind::ed25519: {
                 auto s = static_cast<const ed25519::private_key*>(_key)->sign(data);

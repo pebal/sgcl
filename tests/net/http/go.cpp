@@ -122,6 +122,14 @@ TEST(HttpGo_Tests, OurClientAgainstGosServer) {
     ASSERT_FALSE(too_many);
     EXPECT_EQ(too_many.error().code(), net::errc::too_many_redirects);
     c.max_redirects = 10;
+    c.follow_redirects = false;   // Go's own 302 handed back: its Location, its body of a link
+    auto kept = c.get(at("/redirect/4"));
+    ASSERT_TRUE(kept);
+    EXPECT_EQ(kept->status(), 302);
+    EXPECT_EQ(kept->header("Location"), "/redirect/3");
+    EXPECT_EQ(kept->url().path(), "/redirect/4");
+    EXPECT_EQ(*kept->text(), "<a href=\"/redirect/3\">Found</a>.\n\n");
+    c.follow_redirects = true;
 
     auto head = c.head(at("/head"));
     ASSERT_TRUE(head);

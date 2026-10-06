@@ -10,15 +10,20 @@ namespace sgcl::compress {
 }
 ```
 
-`sgcl::compress::bzip2` is bzip2 1.0, for reading: `.bz2` and `.tar.bz2` files, and the BZip2 folders of 7z. The
-data is in blocks of up to 900 KB, each sorted by the Burrows-Wheeler transform and coded with Huffman codes. As in
-Go, there is no compressor — bzip2 is read far more often than written today, and a new archive is better made with
-gzip, xz or zip. It is a class of static functions and the types of the format: the whole of the data in memory
-([decompress](decompress.md)), or a stream, a [reader](../bzip2-reader/README.md) of what the data read from another
-reader decompresses to.
+`sgcl::compress::bzip2` is bzip2 1.0, both ways: `.bz2` and `.tar.bz2` files, and the BZip2 folders of 7z. The data is
+in blocks of up to 900 KB, each sorted by the Burrows-Wheeler transform (the block's rotations in order, its last
+column kept), moved to front and coded with Huffman codes chosen for every 50 symbols. It is a class of static
+functions and the types of the format: the whole of the data in memory either way ([compress](compress.md),
+[decompress](decompress.md)), and a stream each way, a [writer](../bzip2-writer/README.md) and a
+[reader](../bzip2-reader/README.md). Go's standard library reads bzip2 and has no compressor.
+
+**Levels** are bzip2's ([level](../bzip2-level/README.md)): 1 to 9, the block size in 100 KB, 9 the default. The work
+for a byte hardly changes with the level; a larger block finds more of the data's repeats.
 
 ## Rules
 
+- [compress](compress.md) writes one stream of the level's blocks, as `bzip2 -N` does; a [writer](../bzip2-writer/README.md)
+  ends a stream at each flush and begins another, which the readers read on as one.
 - Several streams one after another (what `pbzip2` makes, and `cat a.bz2 b.bz2`) are one stream, as `bunzip2`
   reads them.
 - Every block's CRC and the stream's CRC are checked (`errc::checksum`); a block larger than its header allows,
@@ -34,6 +39,9 @@ reader decompresses to.
 | Type | Definition |
 |---|---|
 | `error` | [compress::error](../error/README.md) |
+| [level](../bzip2-level/README.md) | the block size in 100 KB, 1 to 9 |
+| [options](../bzip2-options.md) | the level |
+| [writer](../bzip2-writer/README.md) | an io writer: what is written, compressed into another writer |
 | [reader](../bzip2-reader/README.md) | an io reader: what the data read from another reader decompresses to |
 
 ## Member functions
@@ -42,6 +50,7 @@ reader decompresses to.
 
 | Function | Description |
 |---|---|
+| [compress](compress.md) | the whole of the data compressed into one stream (static) |
 | [decompress](decompress.md) | the whole of the data decompressed, every stream, checked against the limits (static) |
 
 ## Example
@@ -74,6 +83,7 @@ hello, hello, hello
 
 ## See also
 
+- [bzip2::writer](../bzip2-writer/README.md), [bzip2::reader](../bzip2-reader/README.md): the streams
 - [tar](../tar.md): `.tar.bz2`, read
 - [sevenzip](../sevenzip.md): BZip2 folders, read
 - [benchmarks](../benchmarks.md): against libbz2

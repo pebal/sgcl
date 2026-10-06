@@ -94,6 +94,7 @@ pool for a regular file and by the reactor for a pipe or a socket.
 | [truncate, async_truncate](truncate.md) | changes the size of the file (`ftruncate`) |
 | [stat](stat.md) | what is known of the file (`fstat`) |
 | [chmod, async_chmod](chmod.md) | changes the permissions of the file (`fchmod`) |
+| [chown, async_chown](chown.md) | changes the owner and the group of the file (`fchown`) |
 
 #### Observers
 

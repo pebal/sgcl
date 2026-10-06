@@ -22,6 +22,9 @@
 //   async timeoutpar sgcl [n]   the timeout case in eight tasks at once on the workers, per race (the timers' shards)
 //   async stopafter sgcl [n]    stop_source, stop_after(1h), request_stop, on the main thread: a deadline armed and stopped by hand, per source
 //   async sleep sgcl [n]        co_await sleep(1us) one after another: a timer that is the earliest, per sleep
+//   async sleeplat sgcl [n] [us] [tasks]  co_await sleep_until(now + us) n times in each of `tasks` tasks (1000 us, 1):
+//                               how late the wake is, the time read after the resume less the deadline; ns/op is the
+//                               median, p90 and p99 beside it
 //   async select sgcl [n]       select of a channel with an element and a timeout case of an hour
 //   async cv sgcl [n]           two tasks handing a turn to each other through a condition variable, per hand-off
 //   async pingpong sgcl [n]     two tasks over two rendezvous channels, per hop
@@ -174,6 +177,43 @@ namespace {
             co_await sgcl::async::sleep(std::chrono::microseconds(1));
         }
         co_return n;
+    }
+
+    // Sleeps to a deadline, each wake's lateness (the time read once the
+    // task runs again, less the deadline) into `out`
+    sgcl::async::task<> sleeplat_loop(long n, sgcl::duration d, std::vector<long long>* out) {
+        for (long i = 0; i < n; ++i) {
+            auto deadline = sgcl::clock::now() + d;
+            co_await sgcl::async::sleep_until(deadline);
+            (*out)[size_t(i)] = std::chrono::duration_cast<std::chrono::nanoseconds>(sgcl::clock::now() - deadline).count();
+        }
+    }
+
+    void run_sleeplat(long n, long us, int tasks) {
+        sgcl::duration d = std::chrono::microseconds(us);
+        if (!n) {
+            n = std::clamp(1'000'000L / std::max(us, 1L), 100L, 20'000L);   // about a second
+            n = tasks > 1 ? std::max(n / 4, 50L) : n;
+        }
+        std::vector<std::vector<long long>> lat(size_t(tasks), std::vector<long long>(static_cast<size_t>(n)));
+        auto t0 = bench::Clock::now();
+        {
+            std::vector<sgcl::async::task<>> ts;
+            for (int t = 0; t < tasks; ++t) {
+                ts.push_back(sgcl::async::spawn(sleeplat_loop(n, d, &lat[size_t(t)])));
+            }
+            for (auto& t : ts) {
+                t.wait();
+            }
+        }
+        double wall = bench::seconds_since(t0);
+        std::vector<long long> all;
+        for (auto& v : lat) {
+            all.insert(all.end(), v.begin(), v.end());
+        }
+        std::sort(all.begin(), all.end());
+        auto at = [&](int p) { return double(all[all.size() * size_t(p) / 100]); };
+        std::printf("async sleeplat d=%ldus tasks=%d ns/op=%.0f p50=%.1fus p90=%.1fus p99=%.1fus wall=%.2fs cpu=%.2fs\n", us, tasks, at(50), at(50) / 1e3, at(90) / 1e3, at(99) / 1e3, wall, bench::cpu_seconds());
     }
 
     sgcl::async::task<long> select_loop(sgcl::async::channel<int>& ch, long n) {
@@ -435,7 +475,7 @@ int main(int argc, char** argv) {
     std::string what = argc > 1 ? argv[1] : "";
     std::string v = argc > 2 ? argv[2] : "";
     if (!bench::has_variant(v.c_str(), {"sgcl"})) {
-        std::fprintf(stderr, "usage: async <yield|exyield|strand|exhop|expost|exmany|exmanyhop|strandmany|await|spawn|whenall|timeout|timeoutpar|stopafter|sleep|select|cv|pingpong|generator|mutex|bcast|bcastth|notifyall|wgclose|wgcloseth> sgcl [n] [k]\n");
+        std::fprintf(stderr, "usage: async <yield|exyield|strand|exhop|expost|exmany|exmanyhop|strandmany|await|spawn|whenall|timeout|timeoutpar|stopafter|sleep|sleeplat|select|cv|pingpong|generator|mutex|bcast|bcastth|notifyall|wgclose|wgcloseth> sgcl [n] [k]\n");
         return 2;
     }
     long n = argc > 3 ? std::atol(argv[3]) : 0;
@@ -527,6 +567,8 @@ int main(int argc, char** argv) {
         auto t0 = bench::Clock::now();
         sum = sgcl::async::spawn(sleep_loop(n)).wait();
         report("sleep", bench::seconds_since(t0), n);
+    } else if (what == "sleeplat") {
+        run_sleeplat(n, argc > 4 ? std::atol(argv[4]) : 1000, argc > 5 ? std::atoi(argv[5]) : 1);
     } else if (what == "select") {
         n = n ? n : 500'000;
         sgcl::async::channel<int> ch(1);

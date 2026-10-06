@@ -6,9 +6,10 @@
 #include "sgcl/net/http/download.h"   // or "sgcl/net/http.h"
 
 namespace sgcl::net::http {
-    expected<response, io::error> download(const string& url, const string& path);      // (1)
-    async::task<expected<response, io::error>> async_download(string url,               // (2)
-                                                              string path) noexcept;
+    expected<response, io::error> download(const string& url, const string& path,                   // (1)
+                                           const download_options& o = {});
+    async::task<expected<response, io::error>> async_download(string url, string path,              // (2)
+                                                              download_options o = {}) noexcept;
 }
 ```
 
@@ -19,6 +20,12 @@ a download cut in the middle leaves no file and the one there before untouched; 
 and writes nothing. A program that needs timeouts, roots of its own or a `dial` makes a [client](client/README.md) and calls
 its `download`.
 
+A body broken off is continued from where it stopped: a request for the bytes after those the part has, with
+`If-Range` and the validator of the response (a strong `ETag`, or `Last-Modified`), `o.retries` times (2 by default);
+a 206 from that byte is appended, a 200 (the file changed) starts the part over. A response with no validator is never
+continued. With `o.resume`, a part left by an earlier call is continued too, and a transfer that fails keeps its part
+for the next one ([download_options](download_options.md)).
+
 1. Blocks the calling thread: the exchange runs on the scheduler and the thread waits for it. For a thread of the
    program, never a worker.
 2. Returns a task that does the same, for a task to `co_await`.
@@ -28,18 +35,20 @@ its `download`.
 | Parameter | Description |
 |---|---|
 | `url` | the URL, `http://` or `https://` |
-| `path` | the file to write; `path + ".part"` is written first |
+| `path` | the file to write; `path + ".part"` is written first (and `path + ".part.meta"` with `o.resume`) |
+| `o` | how the download goes on after its transfer stopped ([download_options](download_options.md)) |
 
 ## Return value
 
-The response, its body read and saved. Or the error: that of [client::send](client/send.md);
+The response, its body read and saved: the last of the exchanges, a 206 when the file was continued (a 416 whose
+`Content-Range` is the part's size, when the part was the whole file already). Or the error: that of [client::send](client/send.md);
 `net::errc::http_status` for a status other than 2xx, the status and its phrase named
 (`GET http://127.0.0.1:8080/a.zip (404 Not Found): the response's status is not 2xx`); the error of the file or of the
 body's reading, the part removed.
 
 ## Complexity
 
-One exchange, and linear in the size of the body.
+One exchange, one more for each continuation, and linear in the size of the body.
 
 ## Exceptions
 
@@ -88,5 +97,6 @@ the response's status is not 2xx
 ## See also
 
 - [client::download](client/download.md): the same through a client of the program's
+- [download_options](download_options.md): the continuations
 - [response::save](response/save.md): the body of any response into a file
 - [sgcl::net::http](README.md)

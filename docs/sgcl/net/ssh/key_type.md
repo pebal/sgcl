@@ -11,12 +11,13 @@ namespace sgcl::net::ssh {
         ecdsa_p256,
         ecdsa_p384,
         rsa,
+        ecdsa_p521,
     };
 }
 ```
 
 The kinds of key SSH signs with here, for host keys and users' keys alike, and the kinds a certificate certifies.
-DSA, ECDSA on P-521 and the security keys (sk-*) are not read.
+DSA and the security keys (sk-*) are not read.
 
 | Value | Description |
 |---|---|
@@ -24,6 +25,7 @@ DSA, ECDSA on P-521 and the security keys (sk-*) are not read.
 | `ecdsa_p256` | ecdsa-sha2-nistp256 (RFC 5656): ECDSA on P-256 with SHA-256 |
 | `ecdsa_p384` | ecdsa-sha2-nistp384: ECDSA on P-384 with SHA-384 |
 | `rsa` | ssh-rsa keys, signing rsa-sha2-512 and rsa-sha2-256 (RFC 8332), never SHA-1 |
+| `ecdsa_p521` | ecdsa-sha2-nistp521: ECDSA on P-521 with SHA-512 |
 
 ## Example
 

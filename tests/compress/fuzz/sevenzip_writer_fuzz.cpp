@@ -13,6 +13,7 @@
 //
 //   tests/fuzz/run.sh tests/compress/fuzz/sevenzip_writer_fuzz.cpp 300
 #include "sgcl/compress/sevenzip.h"
+#include "tests/fuzz/input.h"
 
 #include <string>
 #include <vector>
@@ -67,22 +68,27 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             while (name.size() > 1 && name.back() == '/') {
                 name.pop_back();
             }
+            // the data from a buffer of its own size outside the managed
+            // heap (tests/fuzz/input.h), so that ASan sees an overread of
+            // the encoder; the name is a string (the writer takes no other)
+            const sgcl_fuzz::exact data(body);
             if (kind == 1) {
                 w.add_directory(string(name));
                 written.push_back({name, "", 1});
             } else if (kind == 2) {
                 compress::sevenzip::entry_info info;
                 info.symlink = true;
-                w.add(string(name), string(body), info);
+                w.add(string(name), data.bytes(), info);
                 written.push_back({name, body, 2});
             } else if (kind == 3) {
                 io::writer e = w.create(string(name));
                 for (size_t i = 0; i < body.size(); i += 7) {
-                    (void)e.write(string(body.substr(i, 7)));
+                    const sgcl_fuzz::exact piece(std::string_view(body).substr(i, 7));
+                    (void)e.write(piece.bytes());
                 }
                 written.push_back({name, body, 0});
             } else {
-                w.add(string(name), string(body));
+                w.add(string(name), data.bytes());
                 written.push_back({name, body, 0});
             }
         }

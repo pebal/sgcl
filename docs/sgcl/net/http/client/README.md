@@ -20,7 +20,8 @@ and its body still on the connection; reading the body to its end gives the conn
 where Go asks for both the end and `Close`. A 4xx or a 5xx is a response, not an error, as in Go. The settings are
 public fields, as in [io::command](../../../io/command/README.md), read by each request when it starts: `timeout`,
 `response_header_timeout`, `idle_timeout` and `max_idle_per_host` are the `Client.Timeout` and the `Transport` fields
-of Go of the same meaning, `dial` its `DialContext`, `max_redirects` what Go's `CheckRedirect` decides.
+of Go of the same meaning, `dial` its `DialContext`, `max_redirects` and `follow_redirects` what Go's `CheckRedirect`
+decides.
 
 A copy of a client shares its pool and carries its own settings, copied with it. Over TLS it speaks HTTP/2 when the
 server chooses it (RFC 9113, as Go's `Transport` does by default): one connection per origin shared by the requests, a
@@ -57,7 +58,9 @@ not compress.
   without a body (HEAD stays HEAD, and 301 and 302 keep a GET), 307 and 308 keep the method and the body, unless the
   body is a stream (the 307 is then the response). `Authorization`, `Cookie`, `Proxy-Authorization` and
   `WWW-Authenticate` do not follow to a host that is neither the same nor under it. A redirect may go from `http` to
-  `https` and back, as in Go. The response's [url](../response/url.md) is the last URL.
+  `https` and back, as in Go. The response's [url](../response/url.md) is the last URL. With `follow_redirects` off
+  none is followed: the 3xx is the response, its `Location` and its body as they came (Go's `CheckRedirect` returning
+  `ErrUseLastResponse`).
 - **Cookies**: with a `jar`, the `Set-Cookie` of every response, each redirect's among them, goes into the jar
   ([set_cookies](../cookie_jar/set_cookies.md)), and every request, each redirect's among them, carries the jar's
   cookies for its URL ([header](../cookie_jar/header.md)) in one `Cookie` field after the request's own pairs, as
@@ -91,6 +94,15 @@ not compress.
   authority`, [certificate_reason](../../tls/certificate_reason.md)). A `dial` function given makes the transport and
   TLS goes over it, as over Go's `DialContext`. The pool keeps https and http connections apart (the origin includes
   the scheme).
+- **Authentication**: with `credentials` (or a request's own, [set_credentials](../request/set_credentials.md)), a 401
+  of the origin of the request's own URL is answered once: Digest (RFC 7616) when a challenge offers it, the strongest
+  algorithm of SHA-512/256, SHA-256 and MD5 with qop `auth` (`auth-int` when only that is offered and the body is in
+  memory; `username*` for a name past ASCII, `userhash` when asked), else Basic (RFC 7617). The protection space — the
+  origin, the realm and the paths under the directory of the URL that was asked — is kept in the client's pool, so the
+  next requests under it send `Authorization` at once (Digest: the same nonce, its count grown, a new client nonce); a
+  401 with `stale=true` is answered with the new nonce, without the password failing. Credentials refused give the 401,
+  after the one retry. They never go to another origin: a redirect to one carries none, and a URL's
+  `user:password@` is sent at once as Basic, as Go sends it, to its own origin alone.
 - **Proxies**: `proxy` is the environment's when the client is made ([from_environment](../proxy/from_environment.md));
   `web.proxy = net::http::proxy(url)` sends every request through one, `net::http::proxy()` none. An `http://` request
   goes to an HTTP proxy in absolute-form, an `https://` one through a `CONNECT` tunnel with TLS and HTTP/2 to the origin
@@ -130,6 +142,7 @@ not compress.
 | `duration idle_timeout` | how long a connection stays idle in the pool before it is closed (Go's `IdleConnTimeout`); 90 s by default |
 | `size_t max_idle_per_host` | the most idle connections kept for one origin (Go's `MaxIdleConnsPerHost`); 16 by default, where Go keeps 2 |
 | `int max_redirects` | the most redirects followed before `net::errc::too_many_redirects`; 10 by default |
+| `bool follow_redirects` | whether a redirect is followed; `true` by default. `false` hands back the 3xx itself, its `Location` for the program to read (Go's `CheckRedirect` returning `ErrUseLastResponse`), its `Set-Cookie` still kept in the `jar` |
 | `size_t max_response_header_bytes` | the most bytes of a response's head, past which it is `net::errc::header_too_large`; 1 MB by default, zero taken as 1 |
 | `dial_function dial` | how a connection is made, given the URL and a stop token stopped at the connect's timeout (Go's `DialContext`): a unix socket, a connection in memory; for https the transport under TLS. Empty, the default, is [tcp::connect](../../tcp/connect.md) |
 | `net::tls::config tls` | the [TLS settings](../../tls/config.md) of https: roots, groups, cipher suites, `insecure_skip_verify`, `handshake_timeout`, a client certificate in `identities`; the server name is the URL's host when none is set. By default the default config with ALPN `http/1.1` and a [session_cache](../../tls/session_cache/README.md) of the client's own, so that its connections to a server resume each other's sessions, over 1.3 or 1.2; `tls.session_cache = nullopt` turns resumption off, and one cache given to several clients shares their sessions |
@@ -137,6 +150,9 @@ not compress.
 | `bool h2c` | `http://` sent as HTTP/2 by prior knowledge; `false` by default. Read when a connection is dialed: an idle HTTP/1.1 connection of the pool is still taken as it is |
 | `http::proxy proxy` | the [proxy](../proxy/README.md) of each request: `http`, `https` and `no_proxy`; by default the environment's as the client is made ([from_environment](../proxy/from_environment.md)) |
 | `optional<cookie_jar> jar` | the [cookie_jar](../cookie_jar/README.md) that keeps the responses' cookies and gives the requests theirs (Go's `Client.Jar`); `nullopt`, the default, keeps none |
+| `bool decompress` | `Accept-Encoding: gzip, deflate, br, zstd` sent on a request without one of its own and without `Range`, and the body decoded as it is read: the response's `Content-Encoding` and `Content-Length` removed, [uncompressed](../response/uncompressed.md) `true` (Go's transparent gzip). `true` by default; `false` sends and decodes nothing (Go's `DisableCompression`) |
+| `optional<http::cache> cache` | the private [cache](../cache/README.md) of the client's GET and HEAD (RFC 9111): a fresh stored response served with no request sent, a stale one asked again with its validators, `stale-while-revalidate` and `stale-if-error`; how each response came is its [from_cache](../response/from_cache.md). `nullopt` by default: no cache |
+| `optional<http::credentials> credentials` | the [credentials](../credentials.md) a 401 of the origin of a request's own URL is answered with, once: Digest when offered, else Basic; the protection space then remembered, its next requests sent with `Authorization` at once. `nullopt`, the default: a 401 is the response |
 
 ## Member functions
 

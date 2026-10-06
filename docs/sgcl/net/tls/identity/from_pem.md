@@ -10,7 +10,7 @@ static expected<identity, io::error> from_pem(const string& certificate_chain_pe
 Makes an identity of a certificate chain and its private key, each in PEM, and returns what it refuses as an error:
 Go's `tls.X509KeyPair`. The chain is every `CERTIFICATE` block of the first text, the leaf first; blocks of other
 labels are passed over. The key is the first private key block of the second: `PRIVATE KEY` (PKCS #8: Ed25519,
-ECDSA P-256 or P-384, RSA), `EC PRIVATE KEY` (SEC 1: P-256 or P-384) or `RSA PRIVATE KEY` (PKCS #1). Text around
+ECDSA P-256, P-384 or P-521, RSA), `EC PRIVATE KEY` (SEC 1: P-256, P-384 or P-521) or `RSA PRIVATE KEY` (PKCS #1). Text around
 it and blocks of other labels are passed over, and it has to be a key TLS 1.3 signs with. An encrypted key
 (`ENCRYPTED PRIVATE KEY`, or the old headers `Proc-Type` and `DEK-Info`) is refused: decrypt it first. A key that
 is not the leaf's, checked by a signature verified under the leaf's public key, is refused.

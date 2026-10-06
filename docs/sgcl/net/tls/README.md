@@ -25,10 +25,10 @@ of 1.2. A server staples the OCSP response of its leaf to its
 chain (RFC 6066, RFC 8446 §4.4.2.1), given by the program or fetched and refreshed by itself.
 
 TLS 1.3 both ways, and the client's TLS 1.2 ([version](version.md)): the groups X25519MLKEM768 (the post-quantum
-hybrid, first by default, 1.3's alone), X25519, P-256 and P-384 ([group](group.md)); the cipher suites
-AES-128-GCM, ChaCha20-Poly1305 and AES-256-GCM, over 1.2 with ECDHE signed by an ECDSA or an RSA certificate
-([cipher](cipher.md));
-certificates of Ed25519, ECDSA P-256 and P-384, and RSA (PSS), the server's and the client's; resumption by
+hybrid, first by default, 1.3's alone), X25519, P-256, P-384 and P-521 (when a config lists it)
+([group](group.md)); the cipher suites AES-128-GCM, ChaCha20-Poly1305 and AES-256-GCM, over 1.2 with ECDHE signed by
+an ECDSA or an RSA certificate ([cipher](cipher.md));
+certificates of Ed25519, ECDSA P-256, P-384 and P-521, and RSA (PSS), the server's and the client's; resumption by
 session tickets with a fresh key exchange (`psk_dhe_ke`), no 0-RTT, and the client's resumption of 1.2 by tickets
 (RFC 5077) and session ids. Interoperability was tested against OpenSSL
 (`s_server`, `s_client`) and Go's `crypto/tls`, each as client and as server: every cipher suite × every group ×
@@ -85,7 +85,7 @@ is another, a [state](state.md), read back by [state_of](state_of.md). A failure
    `handshake_failure`.
 7. The defaults are Go's and the browsers'. A client offers 1.3 and 1.2 in one ClientHello (`config::min_version`
    and `max_version`, [version](version.md)); a server without 1.3 answers in 1.2, and `min_version = tls13` refuses
-   it. Groups in the order X25519MLKEM768, X25519, P-256, P-384. The first
+   it. Groups in the order X25519MLKEM768, X25519, P-256, P-384; P-521 only when listed. The first
    ClientHello carries a key share of the hybrid and one of X25519, so a server of either answers in one round
    trip, and a server of P-256 or P-384 alone costs a HelloRetryRequest. Cipher suites in the order AES-128-GCM,
    ChaCha20-Poly1305, AES-256-GCM. A [config](config.md) narrows both lists and reorders them; the first group given
@@ -125,7 +125,7 @@ is another, a [state](state.md), read back by [state_of](state_of.md). A failure
     that made the session. Not here: 0-RTT early data (the server refuses it and skips the client's early records,
     RFC 8446 §4.2.10) and session ids and stateful caches on the server.
 14. The client speaks TLS 1.2 to a server without 1.3; the server speaks 1.3 alone, and a client of 1.2 alone fails
-    with `protocol_version`, as does any peer of 1.1 or older. The client's 1.2 is ECDHE (X25519, P-256, P-384) and
+    with `protocol_version`, as does any peer of 1.1 or older. The client's 1.2 is ECDHE (X25519, P-256, P-384, P-521) and
     the six AEAD suites of [cipher](cipher.md), no RSA key transport, no DHE, no CBC; the ServerKeyExchange's
     signature (PKCS #1 v1.5, PSS, ECDSA, Ed25519) checked under the verified leaf, whose key must be the suite's
     kind; the extended master secret of RFC 7627 required (a server without it is refused with
@@ -176,6 +176,21 @@ is another, a [state](state.md), read back by [state_of](state_of.md). A failure
     [config](config.md) the handshake cannot
     start with is `EINVAL`, before a record is sent. The transport's own failures (`ETIMEDOUT`, `ECONNRESET`) stay
     what they are.
+18. Encrypted Client Hello is RFC 9849, the version Go 1.27 speaks (0xfe0d), between this library and Go both ways.
+    A client with `config::ech_config_list` seals its ClientHelloInner with [crypto::hpke](../../crypto/hpke.md) to
+    the first config it has a KEM (X25519, P-256, P-384, P-521) and a suite of, the inner hello padded to the config's
+    longest name and to a multiple of 32, and sends it inside an outer ClientHello of the config's public name with
+    the same key shares; it speaks 1.3 alone and resumes no session. Its inner hello compresses no extension; a
+    server reads the `ech_outer_extensions` of other clients (§5.1). A server with `config::ech_keys` opens the hello sealed to one of its keys,
+    answers the inner one and marks its ServerHello (and a HelloRetryRequest) with the acceptance confirmation of
+    §7.2; any other hello it answers as it came, with the `retry_configs` of its keys. A client whose hello was not
+    taken verifies the server's chain for the public name, sends `ech_required` and fails with it; the error's
+    connection is never given out, and [connect](connect.md) dials once more with the `retry_configs`
+    ([ech_retry_configs](ech_retry_configs.md) reads them from the error of [client](client.md)). The
+    [state](state.md) says `ech_accepted`. With `config::ech_from_dns` the client takes the list from the server
+    name's DNS HTTPS record ([dns::lookup_https](../dns/lookup_https.md)) when it has none, and goes on without ECH
+    when the record has no list it can use. Not here: GREASE ECH from clients without a config, and the split mode
+    of a client-facing server forwarding to a backend.
 
 ## Functions
 
@@ -186,6 +201,8 @@ is another, a [state](state.md), read back by [state_of](state_of.md). A failure
 | [certificate_reason](certificate_reason.md) | `tls/error.h` | why the server's chain did not verify |
 | [client, async_client](client.md) | `tls.h` | the client's handshake over a connection there is |
 | [connect, async_connect](connect.md) | `tls.h` | a TCP connection to an address and the client's handshake over it |
+| [ech_config_list](ech_config_list.md) | `tls.h` | the ECHConfigList of a server's keys, for its DNS HTTPS record |
+| [ech_retry_configs](ech_retry_configs.md) | `tls.h` | the retry_configs of a server that rejected a client's ECH, from the error |
 | [is_remote](is_remote.md) | `tls/error.h` | checks whether the peer sent the alert of an error |
 | [listen, async_listen](listen.md) | `tls.h` | a TCP listener whose `accept` gives connections after their handshake |
 | [make_error_code](make_error_code.md) | `tls/error.h` | an alert as a `std::error_code` |
@@ -198,6 +215,7 @@ is another, a [state](state.md), read back by [state_of](state_of.md). A failure
 |---|---|---|
 | [client_hello](client_hello.md) | `tls.h` | what a client's hello asks a server for: the name and the protocols, given to `config::identity_for` |
 | [config](config.md) | `tls.h` | the settings of a connection, a value: Go's `tls.Config` |
+| [ech_key](ech_key/README.md) | `tls.h` | a server's key of Encrypted Client Hello: its ECHConfig and HPKE private key |
 | [identity](identity/README.md) | `tls.h` | a certificate chain with its private key, a server's or a client's, a handle of one word; its OCSP staple |
 | [revocation_cache](revocation_cache/README.md) | `tls.h` | what the online checks of revocation fetched, OCSP answers and CRLs, until their `nextUpdate` |
 | [session_cache](session_cache/README.md) | `tls.h` | the sessions a client resumes, by server: Go's `ClientSessionCache` |
@@ -211,7 +229,7 @@ is another, a [state](state.md), read back by [state_of](state_of.md). A failure
 | [alert](alert.md) | `tls/error.h` | the alerts of TLS 1.3, by their numbers on the wire |
 | [cipher](cipher.md) | `tls.h` | the cipher suites: TLS 1.3's, and the client's TLS 1.2 ones |
 | [client_auth](client_auth.md) | `tls.h` | whether a server asks the client for a certificate |
-| [group](group.md) | `tls.h` | the key exchange groups: X25519MLKEM768, X25519, P-256, P-384 |
+| [group](group.md) | `tls.h` | the key exchange groups: X25519MLKEM768, X25519, P-256, P-384, P-521 |
 | [revocation_mode](revocation_mode.md) | `tls.h` | whether and how the peer's chain is checked for revocation: off, staple_only, soft_fail, hard_fail |
 | [revocation_source](revocation_source.md) | `tls.h` | where a connection's revocation status came from: the staple, OCSP, a CRL |
 | [version](version.md) | `tls.h` | the versions: TLS 1.2 (the client's) and 1.3 |

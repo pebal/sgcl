@@ -7,7 +7,7 @@
 //	connect [n]    net.Dial and Accept on the loopback, then both closed: per connection
 //	parse [n]      netip.ParseAddr of a mix of IPv4 and IPv6 text: per address
 //	format [n]     netip.Addr.String of the same mix: per address
-//	dns_parse, dns_lookup: dns.go
+//	dns_parse, dns_https_parse, dns_lookup: dns.go
 //	socks5_connect [n]  a minimal SOCKS5 client by hand (the standard library has no SOCKS
 //	               dialer of its own) to an IPv4 target through a minimal SOCKS5 server on
 //	               the loopback, then closed: per connection
@@ -23,6 +23,8 @@
 //	               per connection (run from the root of the tree: the certificates' paths)
 //	tls_resume [n] the same, every handshake resuming the session of the one before (ClientSessionCache)
 //	tls_mtls [n]   tls_handshake with a client certificate (ECDSA P-256), RequireAndVerifyClientCert
+//	tls_ech [n]    tls_handshake with Encrypted Client Hello (RFC 9849): the server's key DHKEM(X25519) with
+//	               HKDF-SHA256 and AES-128-GCM, the public name public.example, the client given its ECHConfigList
 //	tls_stream [mb]  stream over one TLS 1.3 connection (the configs of tls_handshake, AES-128-GCM): mb
 //	               megabytes (1024 by default) from the client to the server, 32 KB writes and reads: per byte
 //	ws_echo [n]    a WebSocket text message of 64 B there and back over one connection: per round
@@ -51,18 +53,26 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"compress/gzip"
+	"crypto/ecdh"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha1"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"io"
+	"math/big"
 	"mime/multipart"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
+	"net/http/httptest"
 	"net/http/httputil"
 	"net/netip"
 	"net/url"
@@ -70,6 +80,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -392,7 +403,7 @@ func wsDial(addr string) (*wsConn, error) {
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: net <pingpong|stream|connect|parse|format|url|http_parse|http_hello|dns_parse|dns_lookup|socks5_connect|proxy_get|multipart_parse|multipart_write|udp_multicast|tls_handshake|tls_resume|tls_mtls|tls_stream|ws_echo|ws_throughput|sse_events|tls12_server|tls12_handshake|tls12_resume|cookie_jar|reverse_proxy_get|reverse_proxy_stream|dot_lookup|doh_lookup|mdns_parse|mdns_roundtrip> [n]")
+		fmt.Fprintln(os.Stderr, "usage: net <pingpong|stream|connect|parse|format|url|http_parse|http_hello|serve_range|serve_ranges|serve_etag|serve_handler_range|serve_handler_etag|mw_none|mw_chain_filter|mw_chain_around|mw_csrf|auth_basic|oauth2_get|oidc_verify|compress_json|compress_stream|dns_parse|dns_https_parse|dns_lookup|socks5_connect|proxy_get|multipart_parse|multipart_write|udp_multicast|tls_handshake|tls_resume|tls_mtls|tls_ech|tls_stream|ws_echo|ws_throughput|sse_events|tls12_server|tls12_handshake|tls12_resume|cookie_jar|reverse_proxy_get|reverse_proxy_stream|dot_lookup|doh_lookup|mdns_parse|mdns_roundtrip> [n]")
 		os.Exit(2)
 	}
 	what := os.Args[1]
@@ -597,8 +608,286 @@ func main() {
 		report("http_hello", time.Since(t0).Seconds(), float64(n), "")
 		srv.Close()
 		ok = check == int(n)*13
+	case "compress_json", "compress_stream":
+		if n == 0 {
+			n = 3000
+		}
+		var sb strings.Builder
+		sb.WriteString("[")
+		for i := 0; sb.Len() < 65536; i++ {
+			fmt.Fprintf(&sb, "{\"id\":%d,\"name\":\"item %d\",\"ok\":true},", i, i)
+		}
+		body := []byte(sb.String()[:65536])
+		stream := what == "compress_stream"
+		h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+				w.Write(body)
+				return
+			}
+			w.Header().Set("Content-Encoding", "gzip")
+			w.Header().Add("Vary", "Accept-Encoding")
+			z := gzip.NewWriter(w)
+			if stream {
+				for k := 0; k < 16; k++ {
+					z.Write(body[k*4096 : (k+1)*4096])
+					z.Flush()
+					w.(http.Flusher).Flush()
+				}
+			} else {
+				z.Write(body)
+			}
+			z.Close()
+		})
+		check, out := 0, 0
+		t0 := time.Now()
+		for i := int64(0); i < n; i++ {
+			r := httptest.NewRequest("GET", "/data", nil)
+			r.Header.Set("Accept-Encoding", "gzip")
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, r)
+			out += rec.Body.Len()
+			if rec.Header().Get("Content-Encoding") == "gzip" {
+				check++
+			}
+		}
+		report(what, time.Since(t0).Seconds(), float64(n), fmt.Sprintf(" bytes=%d", out/int(n)))
+		ok = check == int(n)
+	case "oauth2_get":
+		if n == 0 {
+			n = 50000
+		}
+		l := listen()
+		mux := http.NewServeMux()
+		mux.HandleFunc("GET /hello", func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("Authorization") != "Bearer at-1" {
+				w.WriteHeader(401)
+				return
+			}
+			io.WriteString(w, "hello, world\n")
+		})
+		srv := &http.Server{Handler: mux}
+		go srv.Serve(l)
+		url := "http://" + l.Addr().String() + "/hello"
+		c := &http.Client{Transport: &bearerTransport{base: http.DefaultTransport, token: "at-1"}}
+		check := 0
+		t0 := time.Now()
+		for i := int64(0); i < n; i++ {
+			res, err := c.Get(url)
+			if err == nil {
+				b, _ := io.ReadAll(res.Body)
+				res.Body.Close()
+				check += len(b)
+			}
+		}
+		report("oauth2_get", time.Since(t0).Seconds(), float64(n), "")
+		srv.Close()
+		ok = check == int(n)*13
+	case "oidc_verify":
+		if n == 0 {
+			n = 20000
+		}
+		key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		now := time.Now().Unix()
+		head := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"ES256","kid":"k1","typ":"JWT"}`))
+		body, _ := json.Marshal(map[string]any{"iss": "http://op", "sub": "ann", "aud": "web", "nonce": "n-1", "exp": now + 3600, "iat": now})
+		signing := head + "." + base64.RawURLEncoding.EncodeToString(body)
+		h := sha256.Sum256([]byte(signing))
+		r, s, _ := ecdsa.Sign(rand.Reader, key, h[:])
+		sig := make([]byte, 64)
+		r.FillBytes(sig[:32])
+		s.FillBytes(sig[32:])
+		token := signing + "." + base64.RawURLEncoding.EncodeToString(sig)
+		check := 0
+		t0 := time.Now()
+		for i := int64(0); i < n; i++ {
+			if verifyIDToken(token, &key.PublicKey, "http://op", "web", "n-1") {
+				check++
+			}
+		}
+		report("oidc_verify", time.Since(t0).Seconds(), float64(n), "")
+		ok = check == int(n)
+	case "auth_basic":
+		if n == 0 {
+			n = 1000000
+		}
+		hello := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, "hello") })
+		h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			u, p, ok := r.BasicAuth()
+			if !ok || u != "ann" || p != "s3cret" {
+				w.Header().Set("WWW-Authenticate", `Basic realm="bench", charset="UTF-8"`)
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+			hello.ServeHTTP(w, r)
+		})
+		check := 0
+		t0 := time.Now()
+		for i := int64(0); i < n; i++ {
+			r := httptest.NewRequest("GET", "/hello", nil)
+			r.Header.Set("Authorization", "Basic YW5uOnMzY3JldA==")
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, r)
+			if rec.Code == 200 {
+				check++
+			}
+		}
+		report(what, time.Since(t0).Seconds(), float64(n), "")
+		ok = check == int(n)
+	case "mw_none", "mw_chain_filter", "mw_chain_around", "mw_csrf":
+		if n == 0 {
+			n = 1000000
+		}
+		var h http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, "hello") })
+		switch what {
+		case "mw_chain_filter", "mw_chain_around":
+			for k := 0; k < 10; k++ {
+				next := h
+				h = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { next.ServeHTTP(w, r) })
+			}
+		case "mw_csrf":
+			h = http.NewCrossOriginProtection().Handler(h)
+		}
+		post := what == "mw_csrf"
+		check := 0
+		t0 := time.Now()
+		for i := int64(0); i < n; i++ {
+			method := "GET"
+			if post {
+				method = "POST"
+			}
+			r := httptest.NewRequest(method, "/hello", nil)
+			if post {
+				r.Header.Set("Sec-Fetch-Site", "same-origin")
+			}
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, r)
+			if rec.Code == 200 {
+				check++
+			}
+		}
+		report(what, time.Since(t0).Seconds(), float64(n), "")
+		ok = check == int(n)
+	case "serve_handler_range", "serve_handler_etag":
+		if n == 0 {
+			n = 200000
+		}
+		dir, _ := os.MkdirTemp("", "sgcl_bench_serveh_")
+		defer os.RemoveAll(dir)
+		data := make([]byte, 1<<20)
+		for i := range data {
+			data[i] = byte('a' + i%26)
+		}
+		os.WriteFile(filepath.Join(dir, "f.bin"), data, 0644)
+		h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			f, err := os.Open(filepath.Join(dir, filepath.Clean("/"+r.URL.Path)))
+			if err != nil {
+				http.NotFound(w, r)
+				return
+			}
+			defer f.Close()
+			st, err := f.Stat()
+			if err != nil || !st.Mode().IsRegular() {
+				http.NotFound(w, r)
+				return
+			}
+			w.Header().Set("ETag", fmt.Sprintf("W/\"%x-%x\"", st.Size(), st.ModTime().UnixNano()))
+			http.ServeContent(w, r, st.Name(), st.ModTime(), f)
+		})
+		first := httptest.NewRecorder()
+		h.ServeHTTP(first, httptest.NewRequest("GET", "/f.bin", nil))
+		tag := first.Header().Get("ETag")
+		etag := what == "serve_handler_etag"
+		check := 0
+		t0 := time.Now()
+		for i := int64(0); i < n; i++ {
+			r := httptest.NewRequest("GET", "/f.bin", nil)
+			if etag {
+				r.Header.Set("If-None-Match", tag)
+			} else {
+				r.Header.Set("Range", "bytes=1000-1999")
+			}
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, r)
+			if (etag && rec.Code == 304) || (!etag && rec.Code == 206) {
+				check++
+			}
+		}
+		report(what, time.Since(t0).Seconds(), float64(n), "")
+		ok = check == int(n)
+	case "serve_range", "serve_ranges", "serve_etag":
+		if n == 0 {
+			n = 50000
+		}
+		dir, _ := os.MkdirTemp("", "sgcl_bench_serve_")
+		defer os.RemoveAll(dir)
+		data := make([]byte, 1<<20)
+		for i := range data {
+			data[i] = byte('a' + i%26)
+		}
+		os.WriteFile(filepath.Join(dir, "f.bin"), data, 0644)
+		l := listen()
+		mux := http.NewServeMux()
+		// http.ServeContent with the ETag the module makes (W/"size-mtime" in hex), set from Stat
+		mux.HandleFunc("GET /{path...}", func(w http.ResponseWriter, r *http.Request) {
+			f, err := os.Open(filepath.Join(dir, filepath.Clean("/"+r.PathValue("path"))))
+			if err != nil {
+				http.NotFound(w, r)
+				return
+			}
+			defer f.Close()
+			st, err := f.Stat()
+			if err != nil || !st.Mode().IsRegular() {
+				http.NotFound(w, r)
+				return
+			}
+			w.Header().Set("ETag", fmt.Sprintf("W/\"%x-%x\"", st.Size(), st.ModTime().UnixNano()))
+			http.ServeContent(w, r, st.Name(), st.ModTime(), f)
+		})
+		srv := &http.Server{Handler: mux}
+		go srv.Serve(l)
+		url := "http://" + l.Addr().String() + "/f.bin"
+		c := &http.Client{}
+		tag := ""
+		if res, err := c.Get(url); err == nil {
+			tag = res.Header.Get("ETag")
+			io.ReadAll(res.Body)
+			res.Body.Close()
+		}
+		expect, min := 206, 1000
+		if what == "serve_ranges" {
+			min = 200
+		} else if what == "serve_etag" {
+			expect, min = 304, 0
+		}
+		check := 0
+		t0 := time.Now()
+		for i := int64(0); i < n; i++ {
+			req, _ := http.NewRequest("GET", url, nil)
+			switch what {
+			case "serve_range":
+				req.Header.Set("Range", "bytes=1000-1999")
+			case "serve_ranges":
+				req.Header.Set("Range", "bytes=0-99,5000-5099")
+			default:
+				req.Header.Set("If-None-Match", tag)
+			}
+			res, err := c.Do(req)
+			if err == nil {
+				b, _ := io.ReadAll(res.Body)
+				res.Body.Close()
+				if res.StatusCode == expect && len(b) >= min {
+					check++
+				}
+			}
+		}
+		report(what, time.Since(t0).Seconds(), float64(n), "")
+		srv.Close()
+		ok = check == int(n)
 	case "dns_parse":
 		ok = benchDNSParse(n)
+	case "dns_https_parse":
+		ok = benchDNSHTTPSParse(n)
 	case "dns_lookup":
 		ok = benchDNSLookup(n)
 	case "proxy_get":
@@ -725,7 +1014,7 @@ func main() {
 		ok = made == n && k == n
 	case "udp_multicast":
 		ok = benchMulticast(n)
-	case "tls_handshake", "tls_resume", "tls_mtls":
+	case "tls_handshake", "tls_resume", "tls_mtls", "tls_ech":
 		if n == 0 {
 			n = 2000
 		}
@@ -745,6 +1034,11 @@ func main() {
 		ccfg := &tls.Config{RootCAs: roots, ServerName: "localhost", MinVersion: tls.VersionTLS13, CurvePreferences: curves}
 		if what == "tls_resume" {
 			ccfg.ClientSessionCache = tls.NewLRUClientSessionCache(64)
+		}
+		if what == "tls_ech" {
+			config, key := echConfig("public.example")
+			scfg.EncryptedClientHelloKeys = []tls.EncryptedClientHelloKey{{Config: config, PrivateKey: key, SendAsRetry: true}}
+			ccfg.EncryptedClientHelloConfigList = append([]byte{byte(len(config) >> 8), byte(len(config))}, config...)
 		}
 		if what == "tls_mtls" {
 			cpair, err := tls.LoadX509KeyPair(dir+"client_ecdsa.pem", dir+"client_ecdsa.key")
@@ -1146,4 +1440,94 @@ func main() {
 	if !ok {
 		os.Exit(1)
 	}
+}
+
+// x/oauth2's Transport with the standard library alone: the token read under
+// the source's mutex (ReuseTokenSource), the request cloned with its header
+type bearerTransport struct {
+	base  http.RoundTripper
+	mu    sync.Mutex
+	token string
+}
+
+func (t *bearerTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	t.mu.Lock()
+	tok := t.token
+	t.mu.Unlock()
+	r2 := r.Clone(r.Context())
+	r2.Header.Set("Authorization", "Bearer "+tok)
+	return t.base.RoundTrip(r2)
+}
+
+// An ECHConfig of RFC 9849 §4 (version 0xfe0d, id 1, DHKEM(X25519), HKDF-SHA256
+// with AES-128-GCM, no longest name, no extensions) of a fresh key, and the key
+func echConfig(publicName string) ([]byte, []byte) {
+	k, err := ecdh.X25519().GenerateKey(rand.Reader)
+	if err != nil {
+		panic(err)
+	}
+	pub := k.PublicKey().Bytes()
+	var c []byte
+	c = append(c, 1, 0x00, 0x20, byte(len(pub)>>8), byte(len(pub)))
+	c = append(c, pub...)
+	c = append(c, 0, 4, 0, 1, 0, 1, 0, byte(len(publicName)))
+	c = append(c, publicName...)
+	c = append(c, 0, 0)
+	out := append([]byte{0xfe, 0x0d, byte(len(c) >> 8), byte(len(c))}, c...)
+	return out, k.Bytes()
+}
+
+// An ID token verified as go-oidc does, with the standard library alone: the
+// compact JWS split, the header's alg and kid, ecdsa.Verify of r||s, the
+// claims decoded and iss, aud, exp, iat and the nonce checked
+func verifyIDToken(token string, pub *ecdsa.PublicKey, issuer, client, nonce string) bool {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return false
+	}
+	hb, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		return false
+	}
+	var head struct {
+		Alg string `json:"alg"`
+		Kid string `json:"kid"`
+	}
+	if json.Unmarshal(hb, &head) != nil || head.Alg != "ES256" || head.Kid != "k1" {
+		return false
+	}
+	sig, err := base64.RawURLEncoding.DecodeString(parts[2])
+	if err != nil || len(sig) != 64 {
+		return false
+	}
+	h := sha256.Sum256([]byte(parts[0] + "." + parts[1]))
+	if !ecdsa.Verify(pub, h[:], new(big.Int).SetBytes(sig[:32]), new(big.Int).SetBytes(sig[32:])) {
+		return false
+	}
+	cb, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return false
+	}
+	var c struct {
+		Iss   string `json:"iss"`
+		Sub   string `json:"sub"`
+		Aud   any    `json:"aud"`
+		Exp   int64  `json:"exp"`
+		Iat   int64  `json:"iat"`
+		Nonce string `json:"nonce"`
+	}
+	if json.Unmarshal(cb, &c) != nil {
+		return false
+	}
+	aud := false
+	switch a := c.Aud.(type) {
+	case string:
+		aud = a == client
+	case []any:
+		for _, x := range a {
+			aud = aud || x == client
+		}
+	}
+	now := time.Now().Unix()
+	return c.Iss == issuer && aud && c.Sub != "" && c.Iat != 0 && c.Exp+60 > now && c.Nonce == nonce
 }

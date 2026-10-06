@@ -3,8 +3,9 @@
 // Copyright (c) 2022-2026 Sebastian Nibisz
 // SPDX-License-Identifier: Apache-2.0
 //------------------------------------------------------------------------------
-// P-256 and P-384 on any bytes. The input's first byte chooses the curve
-// (bit 0) and what the rest is (the byte / 2 mod 5):
+// P-256, P-384 and P-521 on any bytes. The input's first byte chooses the
+// curve (its low two bits: 0 and 3 P-256, 1 P-384, 2 P-521) and what the
+// rest is (the byte / 4 mod 5):
 //
 //   0  a SEC 1 point: public_key::from_bytes must agree with OpenSSL's
 //      EC_POINT_oct2point; a point it takes must give back its own bytes,
@@ -26,8 +27,8 @@
 //   ASAN_OPTIONS=abort_on_error=1 ./ec_fuzz <seconds> <seed files...>
 //
 // sgcl_ec_fuzz_seeds(dir), called from a main of one line linked with this
-// file instead of the driver, writes a valid input of each kind for both
-// curves into dir: the seeds a run starts from.
+// file instead of the driver, writes a valid input of each kind for the
+// three curves into dir: the seeds a run starts from.
 #include "sgcl/crypto/crypto.h"
 
 #include <openssl/ec.h>
@@ -90,6 +91,9 @@ namespace {
                 for (size_t i = 0; i < size; ++i) {
                     d[i] = static_cast<unsigned char>(0x11 * (i + 1));
                 }
+                if (size == 66) {
+                    d[0] = 0x01;   // P-521: 521 bits, one in the top byte
+                }
                 return std::move(*SK::from_bytes(view(d, size)));
             }();
             return k;
@@ -109,7 +113,7 @@ namespace {
                 unsigned char der[Ecdsa::max_der_size];
                 auto secret = key().bytes();
                 std::memcpy(d, secret.bytes().data(), size);
-                Ecdsa::template sign<crypto::sha256>(raw, crypto::detail::limbs_from_be<Curve::curve::words>(d), in.data(), size, nullptr, 0);
+                Ecdsa::template sign<crypto::sha256>(raw, crypto::detail::ec_from_be<typename Curve::curve>(d), in.data(), size, nullptr, 0);
                 size_t n = Ecdsa::encode_signature(der, raw);
                 in.insert(in.end(), der, der + n);
                 return in;
@@ -196,7 +200,7 @@ namespace {
 
         static void seeds(const std::string& dir, unsigned curve_bit) {
             auto write = [&](unsigned what, const bytes_t& body) {
-                bytes_t in = {static_cast<unsigned char>(what * 2 + curve_bit)};
+                bytes_t in = {static_cast<unsigned char>(what * 4 + curve_bit)};
                 in.insert(in.end(), body.begin(), body.end());
                 std::ofstream(dir + "/seed-" + std::to_string(curve_bit) + "-" + std::to_string(what) + ".bin", std::ios::binary)
                     .write(reinterpret_cast<const char*>(in.data()), std::streamsize(in.size()));
@@ -222,17 +226,24 @@ namespace {
         using curve = crypto::detail::P384;
         static constexpr int nid = NID_secp384r1;
     };
+
+    struct P521 {
+        using private_key = crypto::p521::private_key;
+        using public_key = crypto::p521::public_key;
+        using curve = crypto::detail::P521;
+        static constexpr int nid = NID_secp521r1;
+    };
 }
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     if (size == 0) {
         return 0;
     }
-    unsigned what = (data[0] >> 1) % 5;
-    if (data[0] & 1) {
-        Target<P384>::run(what, data + 1, size - 1);
-    } else {
-        Target<P256>::run(what, data + 1, size - 1);
+    unsigned what = (data[0] >> 2) % 5;
+    switch (data[0] & 3) {
+        case 1: Target<P384>::run(what, data + 1, size - 1); break;
+        case 2: Target<P521>::run(what, data + 1, size - 1); break;
+        default: Target<P256>::run(what, data + 1, size - 1); break;
     }
     return 0;
 }
@@ -241,5 +252,6 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
 extern "C" int sgcl_ec_fuzz_seeds(const char* dir) {
     Target<P256>::seeds(dir, 0);
     Target<P384>::seeds(dir, 1);
+    Target<P521>::seeds(dir, 2);
     return 0;
 }

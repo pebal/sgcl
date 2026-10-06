@@ -48,7 +48,10 @@ namespace sgcl::net {
     // extensions do not meet (SMTPUTF8, a size past SIZE, a mechanism of
     // AUTH), and a reply that breaks RFC 5321; then SFTP's: a server's
     // failure that names no errno (SSH_FX_FAILURE, its message in the
-    // error's path), and a packet that breaks the protocol.
+    // error's path), and a packet that breaks the protocol; then mail
+    // authentication's: a message DKIM cannot sign (no head, no From) or
+    // an Authentication-Results field that does not parse, and a DMARC
+    // record or aggregate report that breaks RFC 7489.
     enum class errc {
         invalid_address = 1,
         host_not_found,
@@ -91,7 +94,9 @@ namespace sgcl::net {
         smtp_unsupported,
         malformed_smtp_reply,
         sftp_failure,
-        sftp_protocol
+        sftp_protocol,
+        malformed_message,
+        malformed_dmarc
     };
 
     namespace detail {
@@ -146,6 +151,8 @@ namespace sgcl::net {
                     case errc::malformed_smtp_reply: return "malformed SMTP reply";
                     case errc::sftp_failure: return "SFTP failure";
                     case errc::sftp_protocol: return "SFTP protocol error";
+                    case errc::malformed_message: return "malformed mail message";
+                    case errc::malformed_dmarc: return "malformed DMARC record";
                 }
                 return "unknown net error";
             }

@@ -85,6 +85,9 @@ namespace {
         if (name == "secp384r1") {
             return Group::secp384r1;
         }
+        if (name == "secp521r1") {
+            return Group::secp521r1;
+        }
         return Group::x25519;
     }
 
@@ -134,7 +137,7 @@ TEST(TlsKeyShare, Rfc8448) {
     }
 }
 
-// OpenSSL's X25519, P-256 and P-384 exchanges, from either side
+// OpenSSL's X25519, P-256, P-384 and P-521 exchanges, from either side
 TEST(TlsKeyShare, OpenSslClassic) {
     size_t n = 0;
     for (auto& v : tls_key_share_vectors::classic) {
@@ -156,7 +159,7 @@ TEST(TlsKeyShare, OpenSslClassic) {
         EXPECT_EQ(of(ss->secret), unhex(v.secret));
         ++n;
     }
-    EXPECT_EQ(n, 12u);
+    EXPECT_EQ(n, 16u);
 }
 
 // X25519MLKEM768: the client's share and secret against OpenSSL's hybrid
@@ -183,12 +186,17 @@ TEST(TlsKeyShare, OpenSslHybrid) {
 // Both sides of every group, several shares at once, with crypto::random
 TEST(TlsKeyShare, RoundTrip) {
     tls::Entropy system;
-    for (int round = 0; round < 3; ++round) {
+    // four shares at most (MaxShares): P-521 in a ClientShares of its own
+    for (int round = 0; round < 4; ++round) {
         tls::ClientShares shares;
-        for (Group g : {Group::x25519_mlkem768, Group::x25519, Group::secp256r1, Group::secp384r1}) {
-            shares.add(g, system);
+        if (round == 3) {
+            shares.add(Group::secp521r1, system);
+        } else {
+            for (Group g : {Group::x25519_mlkem768, Group::x25519, Group::secp256r1, Group::secp384r1}) {
+                shares.add(g, system);
+            }
         }
-        ASSERT_EQ(shares.size(), 4u);
+        ASSERT_EQ(shares.size(), round == 3 ? 1u : 4u);
         for (size_t i = 0; i < shares.size(); ++i) {
             Group g = shares.group(i);
             auto ss = tls::server_share(g, shares.public_share(i), system);
@@ -223,8 +231,8 @@ TEST(TlsKeyShare, HybridServerDraws) {
 
 // A scalar out of range is drawn again
 TEST(TlsKeyShare, ScalarDrawnAgain) {
-    for (auto [g, n] : {std::pair{Group::secp256r1, size_t(32)}, std::pair{Group::secp384r1, size_t(48)}}) {
-        bytes_t draws(n, 0xFF);                // at least the order
+    for (auto [g, n] : {std::pair{Group::secp256r1, size_t(32)}, std::pair{Group::secp384r1, size_t(48)}, std::pair{Group::secp521r1, size_t(66)}}) {
+        bytes_t draws(n, 0xFF);                // at least the order (P-521's top byte masked to 01)
         draws.insert(draws.end(), n, 0x00);    // zero
         bytes_t good(n, 0x11);
         draws.insert(draws.end(), good.begin(), good.end());
@@ -247,15 +255,20 @@ TEST(TlsKeyShare, InvalidShares) {
     for (Group g : {Group::x25519, Group::secp256r1, Group::secp384r1, Group::x25519_mlkem768}) {
         shares.add(g, system);
     }
+    tls::ClientShares p521_shares;   // four shares at most in one
+    p521_shares.add(Group::secp521r1, system);
+    auto of_group = [&](Group g) -> tls::ClientShares& {
+        return g == Group::secp521r1 ? p521_shares : shares;
+    };
     // a group not offered
     tls::ClientShares only;
     only.add(Group::x25519, system);
     EXPECT_EQ(alert_of(only.shared(Group::secp256r1, view(bytes_t(65, 4)))), AlertDescription::illegal_parameter);
     // lengths
-    for (Group g : {Group::x25519, Group::secp256r1, Group::secp384r1, Group::x25519_mlkem768}) {
+    for (Group g : {Group::x25519, Group::secp256r1, Group::secp384r1, Group::secp521r1, Group::x25519_mlkem768}) {
         size_t n = tls::server_share_size(g);
-        EXPECT_EQ(alert_of(shares.shared(g, view(bytes_t(n - 1, 4)))), AlertDescription::illegal_parameter);
-        EXPECT_EQ(alert_of(shares.shared(g, view(bytes_t(n + 1, 4)))), AlertDescription::illegal_parameter);
+        EXPECT_EQ(alert_of(of_group(g).shared(g, view(bytes_t(n - 1, 4)))), AlertDescription::illegal_parameter);
+        EXPECT_EQ(alert_of(of_group(g).shared(g, view(bytes_t(n + 1, 4)))), AlertDescription::illegal_parameter);
         EXPECT_EQ(alert_of(tls::server_share(g, view(bytes_t(tls::client_share_size(g) + 1, 4)), system)), AlertDescription::illegal_parameter);
     }
     // X25519 of small order: the secret of all zeros
@@ -276,10 +289,10 @@ TEST(TlsKeyShare, InvalidShares) {
     EXPECT_EQ(alert_of(shares.shared(Group::secp256r1, view(off))), AlertDescription::illegal_parameter);
     EXPECT_EQ(alert_of(tls::server_share(Group::secp256r1, view(off), system)), AlertDescription::illegal_parameter);
     EXPECT_TRUE(shares.shared(Group::secp256r1, view(point)).has_value());
-    // P-256 and P-384 (the auditor's condition): off the curve, a
+    // P-256, P-384 and P-521 (the auditor's condition): off the curve, a
     // coordinate not below p, the point at infinity (the single byte 00 and
     // 04 with zero coordinates), from either side
-    for (auto [g, n] : {std::pair{Group::secp256r1, size_t(65)}, std::pair{Group::secp384r1, size_t(97)}}) {
+    for (auto [g, n] : {std::pair{Group::secp256r1, size_t(65)}, std::pair{Group::secp384r1, size_t(97)}, std::pair{Group::secp521r1, size_t(133)}}) {
         tls::ClientShares mine;
         mine.add(g, system);
         bytes_t good = of(mine.public_share(0));
@@ -290,7 +303,7 @@ TEST(TlsKeyShare, InvalidShares) {
         bytes_t zeros(n, 0);
         zeros[0] = 0x04;
         for (const bytes_t& bad : {off_curve, over_p, zeros, bytes_t{0x00}}) {
-            EXPECT_EQ(alert_of(shares.shared(g, view(bad))), AlertDescription::illegal_parameter) << bad.size();
+            EXPECT_EQ(alert_of(of_group(g).shared(g, view(bad))), AlertDescription::illegal_parameter) << bad.size();
             EXPECT_EQ(alert_of(tls::server_share(g, view(bad), system)), AlertDescription::illegal_parameter) << bad.size();
         }
         EXPECT_TRUE(tls::server_share(g, view(good), system).has_value());
@@ -323,5 +336,5 @@ TEST(TlsKeyShare, InvalidShares) {
     EXPECT_TRUE(tls::server_share(Group::x25519_mlkem768, view(ek), system).has_value());
     // contracts
     EXPECT_THROW(only.add(Group::x25519, system), std::logic_error);
-    EXPECT_THROW(only.add(Group(0x0019), system), std::logic_error);
+    EXPECT_THROW(only.add(Group(0x001E), system), std::logic_error);   // X448: not a group here
 }

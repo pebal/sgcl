@@ -6,7 +6,7 @@
 // Images on files: codec::load, image::save and codec::save, and their
 // tasks. A file saved holds what the format's encode writes (PNG and JPEG
 // byte for byte) and loads back; the extension names the format in either
-// case; .gif, .webp, .avif and any other extension are errc::unsupported
+// case; .avif and any other extension are errc::unsupported
 // with nothing written; a failure (a stream's, an encoder's exception)
 // leaves no .part and the path as it was; a file that does not open is
 // errc::io with io's error inside.
@@ -142,7 +142,7 @@ TEST(CodecFiles_Tests, HeicRoundTrip) {
 TEST(CodecFiles_Tests, ExtensionsNotWritten) {
     Scratch s;
     const codec::image im = picture(pixel_format::rgba8);
-    for (const char* name : {"a.gif", "a.webp", "a.avif", "a.bmp", "a.tiff", "noextension", "dir.png/x"}) {
+    for (const char* name : {"a.avif", "a.xcf", "a.jxl", "noextension", "dir.png/x"}) {
         auto r = im.save(s / name);
         ASSERT_FALSE(r) << name;
         EXPECT_EQ(r.error().code(), codec::errc::unsupported) << name;
@@ -150,7 +150,7 @@ TEST(CodecFiles_Tests, ExtensionsNotWritten) {
         EXPECT_FALSE(exists(string::concat(s / name, ".part"))) << name;
     }
     // a path with no extension: the message lists every extension written
-    EXPECT_EQ(im.save(s / "noextension").error().message(), "offset 0: codec: a path with no extension (.png, .jpg, .jpeg, .heic, .heif)");
+    EXPECT_EQ(im.save(s / "noextension").error().message(), "offset 0: codec: a path with no extension (.png, .jpg, .jpeg, .gif, .webp, .heic, .heif, .bmp, .tiff, .ico, .qoi, .pnm...)");
 }
 
 TEST(CodecFiles_Tests, FailureLeavesNoPart) {
@@ -286,7 +286,7 @@ TEST(CodecFiles_Tests, Tasks) {
         ok = ok && a && pixels_of(*a) == pixels_of(im);
         auto b = co_await codec::async_load(dir + "/b.jpg", {.want = pixel_format::rgba8});
         ok = ok && b && b->format() == pixel_format::rgba8;
-        auto bad = co_await im.async_save(dir + "/d.webp");
+        auto bad = co_await im.async_save(dir + "/d.avif");
         ok = ok && !bad && bad.error().code() == codec::errc::unsupported;
         co_return ok;
     }(string(s.dir));

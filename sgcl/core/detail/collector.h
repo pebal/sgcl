@@ -164,6 +164,27 @@ namespace sgcl::detail {
             return _parallel_stack_scans.load(std::memory_order_relaxed);
         }
 
+        // Prototype (proto-stack-sp): stacks scanned from a recorded stack
+        // pointer (hits) and through the full query (misses) so far, the
+        // records found outside their thread's stack, and the threads whose
+        // recorded pointer lay below every used page of the stack (the
+        // check of _check_stack_sp)
+        SGCL_INLINE_HOT size_t stack_sp_hits() const noexcept {
+            return _stack_sp_hits.load(std::memory_order_relaxed);
+        }
+
+        SGCL_INLINE_HOT size_t stack_sp_misses() const noexcept {
+            return _stack_sp_misses.load(std::memory_order_relaxed);
+        }
+
+        SGCL_INLINE_HOT size_t stack_sp_outside() const noexcept {
+            return _stack_sp_outside.load(std::memory_order_relaxed);
+        }
+
+        SGCL_INLINE_HOT size_t stack_sp_below_used() const noexcept {
+            return _stack_sp_below_used.load(std::memory_order_relaxed);
+        }
+
         // Marking passes that ran on the helpers so far (tests, diagnostics).
         SGCL_INLINE_HOT size_t parallel_mark_runs() const noexcept {
             return _parallel_mark_runs.load(std::memory_order_relaxed);
@@ -219,12 +240,20 @@ namespace sgcl::detail {
                     auto& entry = objects[&metadata->type_info];
                     entry.type = &metadata->type_info;
                     entry.buffers = false;
+#if defined(SGCL_ASAN)
+                    entry.object_size = metadata->user_size;   // the type's size; its slot holds a redzone too (page_info.h: SlotSize)
+#else
                     entry.object_size = metadata->object_size;
+#endif
                     entry.pages += page->page_count;
                     for (unsigned i = 0; i < count; ++i) {
                         entry.live_objects += std::popcount(flags[i].registered & flags[i].marked);
                     }
+#if defined(SGCL_ASAN)
+                    entry.live_bytes = entry.live_objects * entry.object_size;
+#else
                     entry.live_bytes = entry.live_objects * metadata->object_size;
+#endif
                 }
             }
             _type_statistics.clear();
@@ -841,6 +870,33 @@ namespace sgcl::detail {
                     continue;
                 }
                 _scanned_threads.push_back(thread);
+                if constexpr(config::stack_sp != 0) {
+                    // A record of this cycle: the thread sampled its stack
+                    // pointer after it read the flip (heap.h: record_stack),
+                    // so the frames to scan are the ones above the sample;
+                    // the pages between it and the top are the stack's, in
+                    // use or not, and read without asking which. Nothing
+                    // below the sample: it was taken inside an out-of-line
+                    // function the allocator called, so every live frame
+                    // above it is calling and keeps nothing in a red zone
+                    // (and a tracked_ptr's function is never a leaf: its
+                    // barrier calls out of line, os::escape pins the word in
+                    // the frame). A record outside the stack (an alternate
+                    // signal stack, a fiber's) takes the full query.
+                    if (((thread->stack_record.epoch.load(std::memory_order_acquire) ^ Heap::globals.stack_epoch.load(std::memory_order_relaxed)) & config::stack_sp_tag_mask) == 0) {
+                        auto sp = thread->stack_record.sp.load(std::memory_order_relaxed);
+                        if (sp >= thread->stack_begin && sp < thread->stack_end) {
+#if !defined(NDEBUG) || defined(SGCL_CHECK_STACK_SP)
+                            _check_stack_sp(thread, sp);
+#endif
+                            bytes += _stack_segments_from(sp, thread->stack_end);
+                            _stack_sp_hits.fetch_add(1, std::memory_order_relaxed);
+                            continue;
+                        }
+                        _stack_sp_outside.fetch_add(1, std::memory_order_relaxed);
+                    }
+                    _stack_sp_misses.fetch_add(1, std::memory_order_relaxed);
+                }
                 bytes += _stack_segments_of(thread->stack_begin, thread->stack_end);
             }
             auto workers = _pool.workers(bytes, config::stack_scan_threshold, true);
@@ -917,6 +973,51 @@ namespace sgcl::detail {
             }
             return bytes;
         }
+
+        // [begin, end) of a stack whole, in segments, with no query: the part
+        // above a recorded stack pointer (_mark_stack_roots)
+        size_t _stack_segments_from(uintptr_t begin, uintptr_t end) noexcept {
+            begin &= ~(uintptr_t)(sizeof(uintptr_t) - 1);
+            end &= ~(uintptr_t)(sizeof(uintptr_t) - 1);
+            if (begin >= end) {
+                return 0;
+            }
+            for (auto from = begin; from < end; from += config::stack_scan_segment) {
+                _stack_segments.push_back({from, std::min(end, from + config::stack_scan_segment)});
+            }
+            return end - begin;
+        }
+
+#if !defined(NDEBUG) || defined(SGCL_CHECK_STACK_SP)
+        // The structural check of a recorded stack pointer (debug builds, or
+        // -DSGCL_CHECK_STACK_SP): it lies within the stack, which the caller
+        // tested, and at or above the lowest page of the stack the system
+        // says was ever used. Not a proof that no live frame lies below it
+        // (dead frames below it hold stale words legitimately, so the words
+        // there tell nothing); a pointer below every used page is counted
+        // and named once, since a frame whose low end was never written (a
+        // big buffer used at its top) leaves the page of the pointer unused
+        // as long as nothing deeper was ever called.
+        void _check_stack_sp(Thread::Data* thread, uintptr_t sp) noexcept {
+            std::vector<unsigned char> touched;
+            auto page = os::touched_pages((void*)thread->stack_begin, thread->stack_end - thread->stack_begin, touched);
+            if (!page) {
+                return;
+            }
+            auto first = thread->stack_begin & ~(page - 1);
+            size_t i = 0;
+            while (i < touched.size() && !touched[i]) {
+                ++i;
+            }
+            auto lowest = first + i * page;
+            if ((sp & ~(page - 1)) < lowest) {
+                if (_stack_sp_below_used.fetch_add(1, std::memory_order_relaxed) == 0) {
+                    std::fprintf(stderr, "[sgcl] check: a recorded stack pointer %p below the lowest used page %p of the stack %p..%p\n",
+                        (void*)sp, (void*)lowest, (void*)thread->stack_begin, (void*)thread->stack_end);
+                }
+            }
+        }
+#endif
 
         // Helper side of the scan: the words of segments [first, last) that
         // point at a page of the heap, without marking anything.
@@ -1026,13 +1127,19 @@ namespace sgcl::detail {
         // a word pointing into the object itself (an empty std::map or
         // std::list points at its own end node: nothing to follow there); a
         // word naming a root holder (a root_ptr, a task, inside a managed
-        // object); a word inside an object rather than at its start, which a
-        // pointer of either kind names by its start (data that happens to
-        // look like an address, as two small ints packed in a word); and a
-        // raw word whose target a tracked word of the same object holds (an
-        // owner beside a raw pointer into what it owns: slice, io::reader),
-        // or whose address is one past the end of such a target (a slice's
-        // end: the start of the next slot, which nothing reads through).
+        // object); a word inside an array (a buffer) rather than at its
+        // start, which a pointer to an array names by its start (an element
+        // is reached through the array's pointer), while a word inside a
+        // plain object is reported, a pointer to a member being a pointer
+        // to the object; and a raw word whose target a tracked word of the
+        // same object holds (an owner beside a raw pointer into what it
+        // owns: slice, io::reader), or whose address is one past the end of
+        // such a target (a slice's end: the start of the next slot, which
+        // nothing reads through). Data that happens to read as an address
+        // in the heap's range is reported too: nothing tells it from a
+        // pointer (the heap at 1 TB: a word whose upper half is a small
+        // integer, 256 to 319, or whose sixth byte is a true bool; bytes of
+        // a body in an object with an inline buffer, as http's ByteChunk).
         void _check_removed_offsets(ChildPointers& childs, void* ptr) noexcept {
             if (childs.warned.load(std::memory_order_relaxed)) {
                 return;
@@ -1048,7 +1155,7 @@ namespace sgcl::detail {
                         continue;
                     }
                     auto start = page->pointer_of(page->index_of(word));
-                    if (start == ptr || word != start || _held_by(childs, ptr, start) || _ends_held(childs, ptr, word)) {
+                    if (start == ptr || (word != start && page->is_array) || _held_by(childs, ptr, start) || _ends_held(childs, ptr, word)) {
                         continue;
                     }
                     // the word and the owners were read at different moments:
@@ -1062,10 +1169,34 @@ namespace sgcl::detail {
                     }
                     childs.warned.store(true, std::memory_order_relaxed);
                     std::fprintf(stderr, "[sgcl] type %s: the word at byte offset %zu was classified as data but holds a pointer to a managed object; a tracked_ptr sharing storage with data is not supported\n", childs.type.name(), offset * sizeof(RawPointer));
+                    _describe_removed_word(ptr, word, page, start);
                     return;
                 }
             }
         }
+
+        // The rest of a rule 2 report: the word, the holder and its slot,
+        // the target and where in it the word points, and the moment (the
+        // cycle and its phase)
+        void _describe_removed_word(void* ptr, const void* word, Page* page, const void* start) noexcept {
+            auto holder = Heap::page_of_checked(ptr);
+            unsigned state = 0, registered = 0, marked = 0;
+            if (holder) {
+                auto i = holder->index_of(ptr);
+                state = (unsigned)holder->states()[i].load(std::memory_order_relaxed);
+                registered = (holder->flags()[Page::flag_index_of(i)].registered & Page::flag_mask_of(i)) != 0;
+                marked = (holder->flags()[Page::flag_index_of(i)].marked & Page::flag_mask_of(i)) != 0;
+            }
+            auto index = page->index_of(word);
+            std::fprintf(stderr, "[sgcl]   word 0x%zx in the object at %p (state 0x%x, registered %u, marked %u); target %s at %p, slot %u, byte %zu of %zu (state 0x%x); %s cycle, epoch %u, %s; heap [0x%zx, 0x%zx)\n",
+                         (size_t)(uintptr_t)word, ptr, state, registered, marked, page->metadata->type_info.name(), start, index,
+                         (size_t)((const char*)word - (const char*)start), (size_t)page->object_size,
+                         (unsigned)page->states()[index].load(std::memory_order_relaxed),
+                         _full ? "full" : "young", (unsigned)_epoch, _debug_phase.load(std::memory_order_relaxed),
+                         (size_t)Heap::base(), (size_t)(Heap::base() + Heap::size()));
+        }
+
+        std::atomic<const char*> _debug_phase = {"idle"};
 
         // Whether word is one past the end of an object a word of the object
         // still taken for a pointer names (the object holding word - 1 may be
@@ -1874,6 +2005,33 @@ namespace sgcl::detail {
             }
         }
 
+#if defined(SGCL_ASAN)
+        // A swept slot poisoned whole (os.h: SGCL_ASAN): a read of the dead
+        // object through a pointer kept aside is a use after free; the
+        // allocator unpoisons the slot when it hands it out again
+        // (object_pool_allocator_base.h, object_allocator.h). A range of
+        // pages (a buffer past a page) has its shadow given back first
+        // (os.h: asan::release) and its first megabyte poisoned: written
+        // whole, the shadow of a gigabyte's buffer held 128 MB resident, at
+        // every address a range ever had; a read of a dead buffer past its
+        // first megabyte goes unreported. In the fold, once every run of
+        // the sweep is done (_remove_garbage), not in the sweep: a
+        // destructor the sweep runs may still read a buffer that dies in
+        // the same sweep, whose slot is not reissued before the sweep's end
+        // (a vector held by a dying object destroys the elements of its
+        // dying buffer: vector.h, ~vector).
+        static constexpr size_t AsanFreedRangeBytes = size_t(1) << 20;
+
+        SGCL_INLINE_HOT static void _poison_slot(Page* page, unsigned index) noexcept {
+            if (page->metadata->pool_allocated) {
+                SGCL_ASAN_POISON_FREED(page->pointer_of(index), page->object_size);
+            } else {
+                SGCL_ASAN_RELEASE((const void*)page->data, page->data_size());
+                SGCL_ASAN_POISON_FREED((const void*)page->data, std::min(page->data_size(), AsanFreedRangeBytes));
+            }
+        }
+#endif
+
         // Destroys the garbage of one range of the unreachable pages and
         // frees the slots; the page's registered bits are folded by
         // _remove_garbage once every range is done.
@@ -1958,6 +2116,11 @@ namespace sgcl::detail {
                     auto flags = page->flags();
                     auto words = page->flags_count();
                     for (unsigned w = 0; w < words; ++w) {
+#if defined(SGCL_ASAN)
+                        for (auto dead = flags[w].registered & ~flags[w].marked; dead; dead &= dead - 1) {
+                            _poison_slot(page, w * Page::FlagBitCount + std::countr_zero(dead));
+                        }
+#endif
                         flags[w].registered &= flags[w].marked;
                     }
                     page->unreachable = false;
@@ -2494,7 +2657,11 @@ namespace sgcl::detail {
                 auto object = queue[i];
                 auto page = Page::page_of(object);
                 ++r.objects;
+#if defined(SGCL_ASAN)
+                r.bytes += page->metadata->pool_allocated ? page->metadata->user_size : page->data_size();   // an object's own bytes, not its redzone (page_info.h: SlotSize)
+#else
                 r.bytes += page->metadata->pool_allocated ? page->metadata->object_size : page->data_size();
+#endif
                 follow(object);
             }
             return r;
@@ -2758,6 +2925,9 @@ namespace sgcl::detail {
                 phase(1);
                 _gate(Gate::Registered);
                 _register_threads();
+#if !defined(NDEBUG)
+                _debug_phase.store("the stack roots", std::memory_order_relaxed);
+#endif
                 _mark_stack_roots();
                 if (!_full) {
                     // the dirty pages count like the marked objects of the
@@ -2791,8 +2961,14 @@ namespace sgcl::detail {
                 size_t list_pages = 0;
 #endif
                 do {
+#if !defined(NDEBUG)
+                    _debug_phase.store("the marking", std::memory_order_relaxed);
+#endif
                     _mark_reachable();
                     phase(3);
+#if !defined(NDEBUG)
+                    _debug_phase.store("the pass over the updated states", std::memory_order_relaxed);
+#endif
 #ifdef SGCL_MARK_STATS
                     ++rounds;
                     if (_unreachable_pages.empty()) ++all_passes; else list_pages += _unreachable_pages.size();
@@ -2805,6 +2981,9 @@ namespace sgcl::detail {
                         _mark_updated<false>();
                     }
                     phase(4);
+#if !defined(NDEBUG)
+                    _debug_phase.store("after the marking", std::memory_order_relaxed);
+#endif
                     // The marking has converged: the weak phase, and when it
                     // cleared anything, a pass for the states and hazards of
                     // the locks that raced with it (_clear_weak_cells). The
@@ -3070,6 +3249,10 @@ namespace sgcl::detail {
         std::vector<StackSegment> _stack_segments;
         std::vector<Thread::Data*> _scanned_threads;
         std::atomic<size_t> _parallel_stack_scans = {0};
+        std::atomic<size_t> _stack_sp_hits = {0};
+        std::atomic<size_t> _stack_sp_misses = {0};
+        std::atomic<size_t> _stack_sp_outside = {0};
+        std::atomic<size_t> _stack_sp_below_used = {0};
         WorkerPool _pool;
         std::vector<Page*> _candidates;
         std::condition_variable _cv_data_ready;

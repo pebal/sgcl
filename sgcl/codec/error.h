@@ -27,7 +27,8 @@ namespace sgcl::codec {
         unsupported,       // valid data the module does not read: arithmetic-coded JPEG, 12-bit samples, not an image it knows
         too_large,         // more than limits allows: the pixels, the metadata
         invalid_argument,  // what the program asked makes no sense: decode_options.want outside the list, a HEIC quality outside 1..100,
-                           // an image the format cannot hold (a JPEG side past 65535, a PNG side past 2^31 - 1) or the system's encoder
+                           // GIF's colors outside 2..256, an animation of no frame or frames of different sizes,
+                           // an image the format cannot hold (a JPEG or GIF side past 65535, a PNG side past 2^31 - 1) or the system's encoder
                            // does not take (JPEG's quality outside 1..100 and subsampling outside the list are a thrown
                            // std::invalid_argument, a contract)
         io                 // the source or the sink failed: io_error() says how

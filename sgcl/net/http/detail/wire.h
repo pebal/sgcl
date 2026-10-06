@@ -331,6 +331,14 @@ namespace sgcl::net::http::detail {
             return async_read(out).wait();
         }
 
+        // A limit below the one the body was made with (a body_limit
+        // middleware's); zero is none, so a limit of none takes any
+        SGCL_INLINE_HOT void lower_limit(uint64_t max) noexcept {
+            if (max && (!_limit || max < _limit)) {
+                _limit = max;
+            }
+        }
+
         async::task<expected<size_t, io::error>> async_read(slice<byte> out) noexcept {
             if (_failed) {
                 co_return fail(*_failed);

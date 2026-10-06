@@ -37,12 +37,13 @@ target_include_directories(sgcl INTERFACE
 # The system frameworks codec::heif calls on Apple's systems (ImageIO for
 # HEIF and AVIF, CoreGraphics, CoreFoundation, vImage in Accelerate), and
 # Security, whose trust settings crypto::x509 reads the system's roots from
-# (sgcl/crypto/detail/apple_security.h), linked
-# with the library. A program that makes no call still lists them (loaded
+# (sgcl/crypto/detail/apple_security.h), and CoreServices, whose FSEvents
+# io::watch reads the changes of the file system with
+# (sgcl/io/detail/apple_fsevents.h), linked with the library. A program that makes no call still lists them (loaded
 # from the shared cache at start); -Wl,-dead_strip_dylibs drops them.
-# Their headers are never included: sgcl/codec/detail/apple_imageio.h and
-# sgcl/crypto/detail/apple_security.h declare what they call (the rule for
-# platform headers).
+# Their headers are never included: sgcl/codec/detail/apple_imageio.h,
+# sgcl/crypto/detail/apple_security.h and sgcl/io/detail/apple_fsevents.h
+# declare what they call (the rule for platform headers).
 if(APPLE)
     target_link_libraries(sgcl INTERFACE
         "-framework ImageIO"
@@ -50,6 +51,7 @@ if(APPLE)
         "-framework CoreFoundation"
         "-framework Accelerate"
         "-framework Security"
+        "-framework CoreServices"
     )
 endif()
 
@@ -143,6 +145,93 @@ else()
     set(SGCL_HAVE_LIBLZMA FALSE)
     message(STATUS "SGCL: no liblzma at SGCL_XZ_ROOT (${SGCL_XZ_ROOT}): the LZMA tests against it are skipped")
 endif()
+
+# libyaml: the other side of bench_yaml (Go's standard library has no YAML),
+# linked to it alone; where it is not found the benchmark measures the library only
+if(APPLE)
+    set(SGCL_LIBYAML_DEFAULT "/opt/homebrew/opt/libyaml")
+else()
+    set(SGCL_LIBYAML_DEFAULT "/usr")
+endif()
+set(SGCL_LIBYAML_ROOT "${SGCL_LIBYAML_DEFAULT}" CACHE PATH "A libyaml installation, bench_yaml's reference")
+find_library(SGCL_LIBYAML NAMES yaml HINTS "${SGCL_LIBYAML_ROOT}/lib" "${SGCL_LIBYAML_ROOT}/lib64" NO_DEFAULT_PATH)
+if(SGCL_LIBYAML AND EXISTS "${SGCL_LIBYAML_ROOT}/include/yaml.h")
+    set(SGCL_HAVE_LIBYAML TRUE)
+else()
+    set(SGCL_HAVE_LIBYAML FALSE)
+endif()
+
+# BLAKE3's C library, its authors': the reference the BLAKE3 tests and
+# bench_crypto hold the module to (Go has no BLAKE3), linked to them alone.
+# Homebrew's blake3 on macOS, the system's elsewhere; where it is not found
+# the tests run the published vectors alone and the benchmark has no
+# reference side.
+if(APPLE)
+    set(SGCL_BLAKE3_DEFAULT "/opt/homebrew/opt/blake3")
+else()
+    set(SGCL_BLAKE3_DEFAULT "/usr")
+endif()
+set(SGCL_BLAKE3_ROOT "${SGCL_BLAKE3_DEFAULT}" CACHE PATH "A BLAKE3 C library installation, the BLAKE3 tests' and benchmark's reference")
+find_library(SGCL_LIBBLAKE3 NAMES blake3 HINTS "${SGCL_BLAKE3_ROOT}/lib" "${SGCL_BLAKE3_ROOT}/lib64" NO_DEFAULT_PATH)
+if(SGCL_LIBBLAKE3 AND EXISTS "${SGCL_BLAKE3_ROOT}/include/blake3.h")
+    set(SGCL_HAVE_BLAKE3 TRUE)
+else()
+    set(SGCL_HAVE_BLAKE3 FALSE)
+    message(STATUS "SGCL: no BLAKE3 C library at SGCL_BLAKE3_ROOT (${SGCL_BLAKE3_ROOT}): the BLAKE3 tests run the published vectors alone")
+endif()
+
+# xxHash, LZ4, zstd and brotli (Homebrew's on macOS, the system's
+# elsewhere): the oracles of the tests of XXH32/XXH64 and of the compress
+# formats of the same names, and the other side of their benchmarks, linked
+# to those alone. SGCL_HAVE_<NAME> says which were found; a test or a
+# benchmark case that needs a missing one is skipped.
+if(APPLE)
+    set(SGCL_REFERENCE_DEFAULT "/opt/homebrew/opt")
+else()
+    set(SGCL_REFERENCE_DEFAULT "")
+endif()
+set(SGCL_REFERENCE_ROOT "${SGCL_REFERENCE_DEFAULT}" CACHE PATH "Where xxhash, lz4, zstd and brotli are installed, one directory each (empty: the system's)")
+function(sgcl_find_reference NAME HEADER)
+    if(SGCL_REFERENCE_ROOT)
+        set(ROOT "${SGCL_REFERENCE_ROOT}/${NAME}")
+    else()
+        set(ROOT "/usr")
+    endif()
+    set(LIBS "")
+    foreach(L ${ARGN})
+        find_library(SGCL_LIB_${L} NAMES ${L} HINTS "${ROOT}/lib" "${ROOT}/lib64" NO_DEFAULT_PATH)
+        if(NOT SGCL_LIB_${L})
+            set(SGCL_HAVE_${NAME} FALSE PARENT_SCOPE)
+            message(STATUS "SGCL: no ${NAME} at ${ROOT}: the tests and benchmarks against it are skipped")
+            return()
+        endif()
+        list(APPEND LIBS ${SGCL_LIB_${L}})
+    endforeach()
+    if(NOT EXISTS "${ROOT}/include/${HEADER}")
+        set(SGCL_HAVE_${NAME} FALSE PARENT_SCOPE)
+        message(STATUS "SGCL: no ${NAME} at ${ROOT}: the tests and benchmarks against it are skipped")
+        return()
+    endif()
+    set(SGCL_HAVE_${NAME} TRUE PARENT_SCOPE)
+    set(SGCL_${NAME}_INCLUDE "${ROOT}/include" PARENT_SCOPE)
+    set(SGCL_${NAME}_LIBS ${LIBS} PARENT_SCOPE)
+endfunction()
+sgcl_find_reference(xxhash xxhash.h xxhash)
+sgcl_find_reference(lz4 lz4frame.h lz4)
+sgcl_find_reference(zstd zstd.h zstd)
+sgcl_find_reference(brotli brotli/encode.h brotlienc brotlidec brotlicommon)
+# Attaches the references found to a test or a benchmark program:
+# SGCL_TEST_<NAME>=1 (or SGCL_BENCH_<NAME>=1) where one was found
+function(sgcl_link_references TARGET PREFIX)
+    foreach(NAME ${ARGN})
+        if(SGCL_HAVE_${NAME})
+            string(TOUPPER ${NAME} UPPER)
+            target_include_directories(${TARGET} PRIVATE ${SGCL_${NAME}_INCLUDE})
+            target_link_libraries(${TARGET} ${SGCL_${NAME}_LIBS})
+            target_compile_definitions(${TARGET} PRIVATE ${PREFIX}_${UPPER}=1)
+        endif()
+    endforeach()
+endfunction()
 
 if(SGCL_BUILD_BENCHMARKS)
     add_subdirectory(benchmarks)

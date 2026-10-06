@@ -12,6 +12,7 @@
 #include "../../../crypto/mlkem.h"
 #include "../../../crypto/p256.h"
 #include "../../../crypto/p384.h"
+#include "../../../crypto/p521.h"
 #include "../../../crypto/random.h"
 #include "../../../crypto/sha256.h"
 #include "../../../crypto/sha512.h"
@@ -38,7 +39,8 @@
 //                                  secret), hashed and derived as a string
 //   curve25519-sha256 (and its     RFC 8731: K the X25519 secret read as a
 //   @libssh.org name)              big-endian number, an mpint
-//   ecdh-sha2-nistp256, -nistp384  RFC 5656: K the x of the shared point
+//   ecdh-sha2-nistp256, -nistp384, RFC 5656: K the x of the shared point
+//   -nistp521
 //   diffie-hellman-group14-sha256, RFC 8268 over RFC 3526's groups: e = 2^x
 //   diffie-hellman-group16-sha512  mod p with a secret x of 1024 bits, K =
 //                                  f^x mod p, both by crypto's
@@ -60,6 +62,7 @@ namespace sgcl::net::ssh::detail {
         p384,
         dh14,
         dh16,
+        p521,
     };
 
     enum class HashKind : uint8_t {
@@ -81,6 +84,7 @@ namespace sgcl::net::ssh::detail {
         {"curve25519-sha256@libssh.org", KexKind::x25519, HashKind::sha256},
         {"ecdh-sha2-nistp256", KexKind::p256, HashKind::sha256},
         {"ecdh-sha2-nistp384", KexKind::p384, HashKind::sha384},
+        {"ecdh-sha2-nistp521", KexKind::p521, HashKind::sha512},
         {"diffie-hellman-group16-sha512", KexKind::dh16, HashKind::sha512},
         {"diffie-hellman-group14-sha256", KexKind::dh14, HashKind::sha256},
     };
@@ -440,6 +444,12 @@ namespace sgcl::net::ssh::detail {
                     w.string(q.data(), q.size());
                     break;
                 }
+                case KexKind::p521: {
+                    _p521.emplace(crypto::p521::ecdh_key::generate());
+                    auto q = _p521->public_key().bytes();
+                    w.string(q.data(), q.size());
+                    break;
+                }
                 case KexKind::dh14:
                 case KexKind::dh16: {
                     _dh_public(w);
@@ -590,6 +600,18 @@ namespace sgcl::net::ssh::detail {
                     _set_k_mpint(reinterpret_cast<const uint8_t*>(s->bytes().data()), 48);
                     return nullptr;
                 }
+                case KexKind::p521: {
+                    auto peer = crypto::p521::public_key::from_bytes(theirs.bytes());
+                    if (!peer || theirs.n != 133) {
+                        return "an ECDH share not on P-521";
+                    }
+                    auto s = _p521->shared_secret(*peer);
+                    if (!s) {
+                        return "an ECDH share not on P-521";
+                    }
+                    _set_k_mpint(reinterpret_cast<const uint8_t*>(s->bytes().data()), 66);
+                    return nullptr;
+                }
                 case KexKind::dh14:
                 case KexKind::dh16: {
                     if (!_dh->in_range(theirs.p, theirs.n)) {
@@ -677,6 +699,21 @@ namespace sgcl::net::ssh::detail {
                     _set_k_mpint(reinterpret_cast<const uint8_t*>(s->bytes().data()), 48);
                     return nullptr;
                 }
+                case KexKind::p521: {
+                    auto peer = crypto::p521::public_key::from_bytes(theirs.bytes());
+                    if (!peer || theirs.n != 133) {
+                        return "an ECDH share not on P-521";
+                    }
+                    auto mine = crypto::p521::ecdh_key::generate();
+                    auto s = mine.shared_secret(*peer);
+                    if (!s) {
+                        return "an ECDH share not on P-521";
+                    }
+                    auto q = mine.public_key().bytes();
+                    w.string(q.data(), q.size());
+                    _set_k_mpint(reinterpret_cast<const uint8_t*>(s->bytes().data()), 66);
+                    return nullptr;
+                }
                 case KexKind::dh14:
                 case KexKind::dh16: {
                     _dh.emplace(_info.kind);
@@ -730,6 +767,7 @@ namespace sgcl::net::ssh::detail {
         optional<crypto::x25519::private_key> _x25519;
         optional<crypto::p256::ecdh_key> _p256;
         optional<crypto::p384::ecdh_key> _p384;
+        optional<crypto::p521::ecdh_key> _p521;
         optional<DhGroup> _dh;
         SecretBuffer _x;
         Bytes _ours;

@@ -18,6 +18,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <map>
 #include <optional>
 #include <string>
 
@@ -181,6 +182,107 @@ namespace codec_test {
 #endif
         }();
         return path;
+    }
+
+    // The metadata oracle's path (ImageIO, macOS: tools/codec_oracle_metadata.c),
+    // "" elsewhere or when it cannot be built
+    inline const std::string& metadata_oracle() {
+        static std::string path = [] {
+#if defined(__APPLE__)
+            if (std::system("command -v cc > /dev/null 2>&1") != 0) {
+                return std::string();
+            }
+            auto src = repository_root() / "tools" / "codec_oracle_metadata.c";
+            auto out = scratch_path("sgcl_codec_oracles") / "oracle_metadata";
+            const std::string cmd = "cc -O2 -o '" + out.string() + "' '" + src.string() + "' -framework ImageIO -framework CoreFoundation 2>&1";
+            if (std::system(cmd.c_str()) != 0) {
+                return std::string();
+            }
+            return out.string();
+#else
+            return std::string();
+#endif
+        }();
+        return path;
+    }
+
+    // The QR oracle's path (CoreImage, macOS: tools/codec_oracle_qr.m), "" elsewhere
+    // or when it cannot be built
+    inline const std::string& qr_oracle() {
+        static std::string path = [] {
+#if defined(__APPLE__)
+            if (std::system("command -v cc > /dev/null 2>&1") != 0) {
+                return std::string();
+            }
+            auto src = repository_root() / "tools" / "codec_oracle_qr.m";
+            auto out = scratch_path("sgcl_codec_oracles") / "oracle_qr";
+            const std::string cmd = "cc -O2 -fobjc-arc -o '" + out.string() + "' '" + src.string() +
+                                    "' -framework Foundation -framework CoreImage -framework CoreGraphics 2>&1";
+            if (std::system(cmd.c_str()) != 0) {
+                return std::string();
+            }
+            return out.string();
+#else
+            return std::string();
+#endif
+        }();
+        return path;
+    }
+
+    // What a command printed, or nullopt when it failed
+    inline std::optional<std::string> run_text(const std::string& cmd) {
+        FILE* p = popen((cmd + " 2>/dev/null").c_str(), "r");
+        if (!p) {
+            return std::nullopt;
+        }
+        std::string out;
+        char buf[65536];
+        size_t n;
+        while ((n = fread(buf, 1, sizeof(buf), p)) > 0) {
+            out.append(buf, n);
+        }
+        if (pclose(p) != 0) {
+            return std::nullopt;
+        }
+        return out;
+    }
+
+    // What the metadata oracle read of a file, key by key; nullopt when it
+    // refused the file
+    inline std::optional<std::map<std::string, std::string>> run_metadata_oracle(const std::string& file) {
+        const std::string& exe = metadata_oracle();
+        if (exe.empty()) {
+            return std::nullopt;
+        }
+        std::string cmd = "'" + exe + "' '" + file + "' 2>/dev/null";
+        FILE* p = popen(cmd.c_str(), "r");
+        if (!p) {
+            return std::nullopt;
+        }
+        std::string out;
+        char buf[65536];
+        size_t n;
+        while ((n = fread(buf, 1, sizeof(buf), p)) > 0) {
+            out.append(buf, n);
+        }
+        if (pclose(p) != 0) {
+            return std::nullopt;
+        }
+        std::map<std::string, std::string> m;
+        size_t at = 0;
+        while (at < out.size()) {
+            size_t nl = out.find('\n', at);
+            if (nl == std::string::npos) {
+                nl = out.size();
+            }
+            const std::string line = out.substr(at, nl - at);
+            const size_t eq = line.find('=');
+            if (eq != std::string::npos) {
+                m[line.substr(0, eq)] = line.substr(eq + 1);
+            }
+            at = nl + 1;
+        }
+        return m;
     }
 
     // What an oracle made of a file: the header line and the pixels, or

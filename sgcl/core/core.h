@@ -37,6 +37,7 @@
 #include "range.h"
 #include "req.h"
 #include "root_ptr.h"
+#include "rounding.h"
 #include "rooted.h"
 #include "set.h"
 #include "slice.h"

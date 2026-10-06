@@ -30,6 +30,10 @@
 //   load_cold           zone::load of every zone of the database, once each
 //   load_cached         zone::load of one name again (Go: LoadLocation, which
 //                       reads the file every time)
+//   cron_parse          cron::parse("*/5 9-17 * * mon-fri") (Go: none in the standard
+//                       library; the usual schedulers' reading written out in go/time/cron.go)
+//   cron_next_utc       cron::next of that expression after an instant, in UTC
+//   cron_next_local     the same in Europe/Warsaw (Go: stepping a time.Time with time.Date)
 //
 // The instants are 4096 drawn once by splitmix64, walked in order; the
 // loop runs for about two seconds after a quarter of a second thrown away.
@@ -194,6 +198,14 @@ int main(int argc, char** argv) {
         double wall = bench::seconds_since(t0);
         sink = acc;
         std::printf("time %s variant=%s zones=%zu ns/op=%.2f wall=%.2fs\n", what.c_str(), variant.c_str(), names.size(), wall * 1e9 / double(names.size()), wall);
+    } else if (what == "cron_parse") {
+        sgcl::string text("*/5 9-17 * * mon-fri");
+        measure([&](size_t) { return uint64_t(time::cron::parse(text, time::zone::utc()).has_value()); });
+    } else if (what == "cron_next_utc" || what == "cron_next_local") {
+        bool local = what == "cron_next_local";
+        time::cron c("*/5 9-17 * * mon-fri", local ? warsaw : time::zone::utc());
+        auto& ts = local ? local_times : utc_times;
+        measure([&](size_t i) { return uint64_t(c.next(ts[i])->unix()); });
     } else if (what == "load_cached") {
         measure([&](size_t) { return uint64_t(time::zone::load("America/New_York")->name().size()); });
     } else {

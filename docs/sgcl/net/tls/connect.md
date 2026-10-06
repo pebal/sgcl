@@ -44,7 +44,8 @@ The connection, its handshake done and the server's chain verified. Or the [io::
   and an address without a host), an ALPN protocol of 0 or more than 255 bytes;
 - `ETIMEDOUT` when `c.handshake_timeout` passed (`is_timeout()`);
 - an error of the category `"tls"` for an alert of either side or a chain that did not verify ([alert_of](alert_of.md),
-  [certificate_reason](certificate_reason.md)).
+  [certificate_reason](certificate_reason.md)); `alert::ech_required` for a `c.ech_config_list` the server took
+  neither the first time nor, dialed once more, with the `retry_configs` it sent.
 
 ## Complexity
 

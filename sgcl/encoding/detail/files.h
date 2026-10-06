@@ -14,7 +14,7 @@
 
 #include <string>
 
-// What the formats' load and save share (json, xml, csv; DESIGN 285/312):
+// What the formats' load and save share (json, xml, csv, yaml, toml; DESIGN 285/312):
 // the file opened for a reader, the text written with a new line after it.
 // An error of the file rather than of its text (it does not open, read,
 // write or close) has no place: "input/output error: open cfg.json: No
@@ -48,6 +48,15 @@ namespace sgcl::encoding::detail {
         std::string all(text.data(), text.size());
         all += '\n';
         if (auto w = io::write_file(path, string(all)); !w) {
+            return unexpected(file_error(w.error()));
+        }
+        return {};
+    }
+
+    // A document's text into the file as it is (YAML's and TOML's end
+    // every line already)
+    SGCL_INLINE_HOT expected<void, error> save_document(const string& path, const string& text) {
+        if (auto w = io::write_file(path, text); !w) {
             return unexpected(file_error(w.error()));
         }
         return {};

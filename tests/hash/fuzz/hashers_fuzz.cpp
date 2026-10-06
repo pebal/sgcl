@@ -9,7 +9,7 @@
 // way; a copy taken half way must go on as the original does; reset() must
 // give a fresh hasher; digest() must be value() in big-endian bytes. The
 // CRCs' resume() and combine() must give the CRC of the whole. The input:
-// four bytes of piece sizes (each 0..765), eight of a seed (xxh3, maphash),
+// four bytes of piece sizes (each 0..765), eight of a seed (xxh3, xxh32, xxh64, maphash),
 // sixteen of a SipHash key, then the message. No oracle outside the
 // library: the vectors of tests/hash hold the one-shot forms to the
 // references, this holds the streaming to the one-shot.
@@ -151,10 +151,14 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     plain<hash::fnv128a>(p, n, pz);
     plain<hash::xxh3_64>(p, n, pz);
     plain<hash::xxh3_128>(p, n, pz);
+    plain<hash::xxh32>(p, n, pz);
+    plain<hash::xxh64>(p, n, pz);
     plain<hash::maphash>(p, n, pz);   // the process's seed, the same for of() and a new hasher
 
     streamed(hash::xxh3_64(seed), p, n, pz, hash::xxh3_64::of(view(p, n), seed));
     streamed(hash::xxh3_128(seed), p, n, pz, hash::xxh3_128::of(view(p, n), seed));
+    streamed(hash::xxh32(uint32_t(seed)), p, n, pz, hash::xxh32::of(view(p, n), uint32_t(seed)));
+    streamed(hash::xxh64(seed), p, n, pz, hash::xxh64::of(view(p, n), seed));
     streamed(hash::maphash(seed), p, n, pz, hash::maphash::of(view(p, n), seed));
     streamed(hash::siphash(key), p, n, pz, hash::siphash::of(view(p, n), key));
 

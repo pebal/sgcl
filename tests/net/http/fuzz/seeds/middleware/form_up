@@ -1,0 +1,4 @@
+Content-Type: application/x-www-form-urlencoded
+Sec-Fetch-Site: same-origin
+
+csrf_token=x&a=b

@@ -199,17 +199,18 @@ namespace sgcl_ssh_test {
 
         explicit Sshd(const std::string& extra = "") {
             dir = temp_dir("sshd");
-            for (const char* k : {"ed25519", "p256", "rsa", "host", "ca"}) {
+            for (const char* k : {"ed25519", "p256", "p521", "rsa", "host", "ca"}) {
                 copy_key(dir, k);
             }
             std::filesystem::copy_file(data_path("host-cert.pub"), dir / "host-cert.pub");
             std::filesystem::copy_file(data_path("ca.pub"), dir / "ca.pub");
-            std::ofstream(dir / "authorized_keys") << read_data("ed25519.pub") << read_data("p256.pub") << read_data("rsa.pub");
+            std::ofstream(dir / "authorized_keys") << read_data("ed25519.pub") << read_data("p256.pub") << read_data("p521.pub") << read_data("rsa.pub");
             port = free_port();
             std::ofstream cfg(dir / "sshd_config");
             cfg << "Port " << port << "\nListenAddress 127.0.0.1\n"
                 << "HostKey " << (dir / "ed25519").string() << "\n"
                 << "HostKey " << (dir / "p256").string() << "\n"
+                << "HostKey " << (dir / "p521").string() << "\n"
                 << "HostKey " << (dir / "rsa").string() << "\n"
                 << "HostKey " << (dir / "host").string() << "\n"
                 << "HostCertificate " << (dir / "host-cert.pub").string() << "\n"

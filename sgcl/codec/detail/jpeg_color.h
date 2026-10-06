@@ -367,11 +367,11 @@ namespace sgcl::codec::detail {
             const uint8x16x3_t p = vld3q_u8(rgb + 3 * x);
             const uint16x8_t R0 = vmovl_u8(vget_low_u8(p.val[0])), R1 = vmovl_u8(vget_high_u8(p.val[0]));
             const uint16x8_t G0 = vmovl_u8(vget_low_u8(p.val[1])), G1 = vmovl_u8(vget_high_u8(p.val[1]));
-            const uint16x8_t B0 = vmovl_u8(vget_low_u8(p.val[2])), B1 = vmovl_u8(vget_high_u8(p.val[2]));
-            const Quarter q0 = quarter(vget_low_u16(R0), vget_low_u16(G0), vget_low_u16(B0), centre);
-            const Quarter q1 = quarter(vget_high_u16(R0), vget_high_u16(G0), vget_high_u16(B0), centre);
-            const Quarter q2 = quarter(vget_low_u16(R1), vget_low_u16(G1), vget_low_u16(B1), centre);
-            const Quarter q3 = quarter(vget_high_u16(R1), vget_high_u16(G1), vget_high_u16(B1), centre);
+            const uint16x8_t Blo = vmovl_u8(vget_low_u8(p.val[2])), Bhi = vmovl_u8(vget_high_u8(p.val[2]));
+            const Quarter q0 = quarter(vget_low_u16(R0), vget_low_u16(G0), vget_low_u16(Blo), centre);
+            const Quarter q1 = quarter(vget_high_u16(R0), vget_high_u16(G0), vget_high_u16(Blo), centre);
+            const Quarter q2 = quarter(vget_low_u16(R1), vget_low_u16(G1), vget_low_u16(Bhi), centre);
+            const Quarter q3 = quarter(vget_high_u16(R1), vget_high_u16(G1), vget_high_u16(Bhi), centre);
             vst1q_u8(y + x, vcombine_u8(vmovn_u16(vcombine_u16(q0.y, q1.y)), vmovn_u16(vcombine_u16(q2.y, q3.y))));
             vst1q_u8(cb + x, vcombine_u8(vmovn_u16(vcombine_u16(q0.cb, q1.cb)), vmovn_u16(vcombine_u16(q2.cb, q3.cb))));
             vst1q_u8(cr + x, vcombine_u8(vmovn_u16(vcombine_u16(q0.cr, q1.cr)), vmovn_u16(vcombine_u16(q2.cr, q3.cr))));

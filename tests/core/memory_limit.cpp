@@ -14,7 +14,11 @@ namespace {
     // 16 slots per 64 KB page: one Flags word, one free-bitmap word, one
     // summary word (object_pool_allocator_base.h: _refill, _next_cursor)
     struct LimitBig {
+#if defined(SGCL_ASAN)
+        char bytes[4096 - 16];   // its slot holds a redzone of 16 bytes under the address sanitizer (page_info.h: SlotSize)
+#else
         char bytes[4096];
+#endif
     };
     static_assert(detail::TypeInfo<LimitBig>::ObjectCount == 16);
     static_assert(detail::TypeInfo<LimitBig>::FlagsCount == 1);

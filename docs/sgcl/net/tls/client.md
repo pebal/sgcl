@@ -42,7 +42,8 @@ The TLS connection over `transport`, its handshake done. Or the [io::error](../.
   `insecure_skip_verify`, an ALPN protocol of 0 or more than 255 bytes;
 - `ETIMEDOUT` when `c.handshake_timeout` passed (`is_timeout()`);
 - an error of the category `"tls"` for an alert of either side or a chain that did not verify ([alert_of](alert_of.md),
-  [certificate_reason](certificate_reason.md));
+  [certificate_reason](certificate_reason.md)); `alert::ech_required` for a `c.ech_config_list` the server did not
+  take, whose `retry_configs` [ech_retry_configs](ech_retry_configs.md) gives for a second try;
 - the transport's own errors (`io::errc::closed`, `ECONNRESET`).
 
 ## Complexity

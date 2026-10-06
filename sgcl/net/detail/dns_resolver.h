@@ -676,6 +676,19 @@ namespace sgcl::net::detail {
         }
         std::sort(v.begin(), v.end(), [](const Mx& a, const Mx& b) { return a.preference < b.preference; });
     }
+
+    // RFC 9460 §2.4.1: by SvcPriority, the records of one priority
+    // shuffled, as MX's of one preference are
+    template<class Svcb>
+    void dns_order_svcb(vector<Svcb>& v) noexcept {
+        for (size_t i = v.size(); i > 1; --i) {
+            size_t k = dns_random_upto(uint32_t(i - 1));
+            if (k != i - 1) {
+                std::swap(v[k], v[i - 1]);
+            }
+        }
+        std::sort(v.begin(), v.end(), [](const Svcb& a, const Svcb& b) { return a.priority < b.priority; });
+    }
 }
 
 #include "mdns_engine.h"   // multicast DNS: the lookups of names under .local

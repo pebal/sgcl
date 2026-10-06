@@ -8,6 +8,7 @@
 namespace sgcl::net {
     struct socks5 {
         struct options;   // the credentials, the timeout, the stop
+        class server;     // a SOCKS5 proxy
     };
 }
 ```
@@ -48,6 +49,7 @@ IPv6 address in brackets are sent as their bytes.
 | Type | Definition |
 |---|---|
 | [options](../socks5-options.md) | the credentials, the timeout and the stop of a connection |
+| [server](../socks5-server/README.md) | a SOCKS5 proxy: CONNECT, BIND, UDP ASSOCIATE, username and password |
 
 ## Member functions
 
@@ -92,6 +94,7 @@ hello through the proxy
 ## See also
 
 - [connection](../connection/README.md): what it makes
+- [server](../socks5-server/README.md): the proxy's side
 - [tcp](../tcp/README.md): the connections it is made of
 - [http::client](../http/client/README.md): its `socks5://` and `socks5h://` proxies
 - [errc](../errc.md): `proxy_failure`, `proxy_refused`, `proxy_unsupported`, `proxy_auth_required`,

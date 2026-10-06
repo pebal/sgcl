@@ -8,7 +8,8 @@
 
 What Go has in `os`, `io`, `bufio`, `path/filepath` and `os/exec`: files and the file system, streams over them and
 over anything else that reads or writes, buffering, paths as strings, files mapped into memory and memory shared
-between processes, the process and its environment, the command line, and a child process with its streams. The
+between processes, the process and its environment, the command line, a child process with its streams, and the
+terminal (`golang.org/x/term`) with pseudo-terminals for a child that has to see one. The
 module depends on [core](../core/README.md) and [async](../async/README.md), whose blocking pool and reactor carry
 its asynchronous side; `net`, `compress`, `codec` and `encoding` are built on its streams.
 
@@ -103,10 +104,12 @@ the managed heap: only trivial data goes into it, never a `tracked_ptr` or a han
 | [category](category.md) | `error.h` | the error category of `errc` |
 | [chdir](chdir.md) | `os.h` | changes the working directory |
 | [chmod, async_chmod](chmod.md) | `fs.h` | sets the permissions of a file |
+| [chown, async_chown](chown.md) | `fs.h` | sets the owner and the group of a file |
 | [config_dir](config_dir.md) | `os.h` | the directory the platform names for configuration |
 | [copy, async_copy](copy.md) | `functions.h` | a reader to its end into a writer |
 | [copy_file, async_copy_file](copy_file.md) | `fs.h` | the bytes and the permissions of a file copied |
 | [create, async_create](create.md) | `file.h` | a file opened for writing, created or emptied |
+| [disable_echo](disable_echo.md) | `terminal.h` | a terminal's echo off, by lines still: what a password is read under |
 | [env](env.md) | `os.h` | a variable as a value of the fallback's type, the fallback when unset |
 | [environ](environ.md) | `os.h` | every variable of the environment |
 | [eprint](eprint.md) | `print.h` | formatted text on the standard error |
@@ -116,21 +119,31 @@ the managed heap: only trivial data goes into it, never a `tracked_ptr` or a han
 | [exit](exit.md) | `os.h` | ends the process now, no destructor run |
 | [expand_env](expand_env.md) | `os.h` | `$NAME` and `${NAME}` in a text replaced by the variables |
 | [from_fd](from_fd.md) | `file.h` | a file over a descriptor opened elsewhere |
+| [get_terminal_size](get_terminal_size.md) | `terminal.h` | the size of the terminal on a descriptor |
 | [getenv](getenv.md) | `os.h` | a variable, `nullopt` when it is not set |
+| [glob, async_glob](glob.md) | `glob.h` | the paths that match a pattern with `**` and braces, as Python's glob finds them |
 | [home_dir](home_dir.md) | `os.h` | the home directory of the user |
 | [hostname](hostname.md) | `os.h` | the name of the host |
 | [is_directory](is_directory.md) | `fs.h` | checks whether a path names a directory |
 | [is_regular](is_regular.md) | `fs.h` | checks whether a path names a regular file |
 | [is_terminal](is_terminal.md) | `os.h` | checks whether a descriptor is a terminal |
 | [last_error](last_error.md) | `error.h` | the error of `errno` with an operation and a path |
+| [lchown](lchown.md) | `fs.h` | sets the owner and the group of a symbolic link itself |
+| [library_file_name](library_file_name.md) | `library.h` | the platform's file name of a library: `libz.dylib`, `libz.so`, `z.dll` |
+| [link, async_link](link.md) | `fs.h` | a hard link: a second name of a file |
+| [lock_file, async_lock_file](lock_file.md) | `lock.h` | a file, or a range of its bytes, locked between processes |
 | [look_path](look_path.md) | `exec.h` | the executable a name stands for, as `PATH` finds it |
 | [lstat, async_lstat](lstat.md) | `fs.h` | what the file system says of a path, a symbolic link not followed |
 | [make_error_code](make_error_code.md) | `error.h` | an `errc` as a `std::error_code` |
+| [make_raw](make_raw.md) | `terminal.h` | a terminal in raw mode, the keys as they come |
 | [make_temp_dir, async_make_temp_dir](make_temp_dir.md) | `file.h` | a new directory of a random name |
 | [map](map.md) | `mapping.h` | a file mapped into memory |
 | [mkdir, async_mkdir](mkdir.md) | `fs.h` | makes one directory |
 | [mkdir_all, async_mkdir_all](mkdir_all.md) | `fs.h` | makes a directory and its missing parents |
 | [open, async_open](open.md) | `file.h` | opens a file with flags and permissions |
+| [open_library](open_library.md) | `library.h` | a dynamic library loaded at run time |
+| [open_pty](open_pty.md) | `pty.h` | a new pseudo-terminal |
+| [parse_flags](parse_flags.md) | `flags.h` | the program's command line read into the flags given, in one call |
 | [pid](pid.md) | `os.h` | the id of the process |
 | [pipe](pipe.md) | `file.h` | an anonymous pipe, both ends on the reactor |
 | [print](print.md) | `print.h` | formatted text on the standard output or a writer |
@@ -147,13 +160,16 @@ the managed heap: only trivial data goes into it, never a `tracked_ptr` or a han
 | [remove_all, async_remove_all](remove_all.md) | `fs.h` | removes a path and everything under it |
 | [rename, async_rename](rename.md) | `fs.h` | moves a file, replacing what is at the new path |
 | [set_modified](set_modified.md) | `fs.h` | sets the time of the last modification |
+| [set_terminal_size](set_terminal_size.md) | `terminal.h` | sets the size of the terminal on a descriptor |
 | [setenv](setenv.md) | `os.h` | sets a variable |
+| [size_changes](size_changes.md) | `terminal.h` | the size of a terminal after every change of it |
 | [stat, async_stat](stat.md) | `fs.h` | what the file system says of a path |
 | [symlink, async_symlink](symlink.md) | `fs.h` | makes a symbolic link |
 | [temp_dir](temp_dir.md) | `os.h` | the directory of temporary files |
 | [temp_file, async_temp_file](temp_file.md) | `file.h` | a new file of a random name |
 | [unsetenv](unsetenv.md) | `os.h` | removes a variable |
 | [walk_dir, async_walk_dir](walk_dir.md) | `fs.h` | every entry under a directory, in lexical order |
+| [watch](watch.md) | `watch.h` | the changes of a file or a directory's tree, as a channel |
 | [working_dir](working_dir.md) | `os.h` | the working directory |
 | [write, async_write](write.md) | `functions.h` | bytes, text or a byte written to a writer |
 | [write_file, async_write_file](write_file.md) | `file.h` | a whole file written in one call |
@@ -171,8 +187,16 @@ the managed heap: only trivial data goes into it, never a `tracked_ptr` or a han
 | [error](error/README.md) | `error.h` | the error of an operation: a code, the operation, the path |
 | [file](file/README.md) | `file.h` | one class for every descriptor: a stream with a position, a handle of one word |
 | [file_info](file_info/README.md) | `fs.h` | what a stat says: the name, the size, the type, the permissions, the time |
-| [flags](flags/README.md) | `flags.h` | the command line as Go's `flag` package reads it |
+| [file_lock](file_lock/README.md) | `lock.h` | a lock held on a file, and the guard that gives it back |
+| [flag](flag.md) | `flags.h` | one flag as a value: a name, a variable, its help and its options |
+| [flag_options](flag_options.md) | `flags.h` | a flag's second name, its variable of the environment, required |
+| [flags](flags/README.md) | `flags.h` | the command line as Go's `flag` package reads it, with subcommands and lists |
+| [glob_options](glob_options.md) | `glob.h` | how a glob pattern matches: hidden names |
+| [glob_pattern](glob_pattern/README.md) | `glob.h` | a glob pattern compiled, its match apart from a walk |
+| [library](library/README.md) | `library.h` | a dynamic library: its functions typed by name, its variables |
+| [library_options](library_options.md) | `library.h` | how a library is loaded: lazy, global |
 | [limit_reader](limit_reader/README.md) | `stream.h` | the first `n` bytes of a reader |
+| [lock_options](lock_options.md) | `lock.h` | how a file is locked: shared or exclusive, a range, a timeout |
 | [map_options](map_options.md) | `mapping.h` | how a file is mapped: writable, shared, a range |
 | [mapping](mapping/README.md) | `mapping.h` | a file mapped into memory, its bytes a slice that keeps the mapping |
 | [multi_reader](multi_reader/README.md) | `stream.h` | readers one after another |
@@ -180,11 +204,16 @@ the managed heap: only trivial data goes into it, never a `tracked_ptr` or a han
 | [pipe_ends](pipe_ends.md) | `file.h` | the two ends of a pipe |
 | [process](process/README.md) | `exec.h` | a running child: its id, a signal, the wait |
 | [process_state](process_state/README.md) | `exec.h` | how a process ended: the exit code, the signal, the times |
+| [pty](pty/README.md) | `pty.h` | a pseudo-terminal: a child on its terminal end, the program's end a stream |
 | [reader](reader/README.md) | `stream.h` | any reader held as a value: Go's `io.Reader` |
 | [shared_memory](shared_memory/README.md) | `shared_memory.h` | a named region of memory shared between processes |
 | [standard_stream](standard_stream/README.md) | `os.h` | the class of `io::stdin`, `io::stdout`, `io::stderr` |
 | [tee_reader](tee_reader/README.md) | `stream.h` | a reader whose bytes are written to a writer as well |
+| [terminal_mode](terminal_mode/README.md) | `terminal.h` | a terminal's modes changed, and the guard that gives them back |
+| [terminal_size](terminal_size.md) | `terminal.h` | the rows and columns of a terminal, and its pixels |
 | [transform_reader\<F\>](transform_reader/README.md) | `stream.h` | a reader whose bytes a function changes as they are read |
+| [watch_event](watch_event.md) | `watch.h` | one change: the path, what happened, whether a directory |
+| [watch_options](watch_options.md) | `watch.h` | how a path is watched: recursive, the coalescing interval |
 | [writer](writer/README.md) | `stream.h` | any writer held as a value: Go's `io.Writer` |
 
 ## Enumerations
@@ -193,10 +222,12 @@ the managed heap: only trivial data goes into it, never a `tracked_ptr` or a han
 |---|---|---|
 | [errc](errc.md) | `error.h` | the module's own error codes |
 | [file_type](file_type.md) | `fs.h` | the type of a file: regular, directory, symbolic link... |
+| [lock_mode](lock_mode.md) | `lock.h` | how a lock holds a file: shared or exclusive |
 | [open_flags](open_flags.md) | `file.h` | how a file is opened: read, write, create, truncate, append... |
 | [permissions](permissions.md) | `fs.h` | the mode bits of a file |
 | [seek_from](seek_from.md) | `req.h` | where a seek counts from |
 | [walk_action](walk_action.md) | `fs.h` | what the function of a walk returns: next, skip the directory, stop |
+| [watch_op](watch_op.md) | `watch.h` | what happened to a watched path: created, modified, removed, renamed... |
 
 ## Objects and types
 

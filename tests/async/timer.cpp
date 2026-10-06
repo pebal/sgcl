@@ -281,3 +281,55 @@ TEST(Timer_Test, TheThreadAsleepHoldsNothingOfTheLastTimer) {
     }
     EXPECT_TRUE(gone);   // no other timer, no stop(): what the timer kept gone with it
 }
+
+// A sleep is late by the thread's wake and the worker's, not by a share of
+// its span: the kernel of macOS lets a timed wait fire up to a quarter of
+// it late to fire timers together, which the timer thread's critical
+// timer opts out of (timer.h: Timers). Sleeps of 20 ms were 5 ms late on
+// the condition variable, a kevent's timeout (Go's) would be 1 ms; the
+// median is held under 2 ms, and no wake comes before its point
+TEST(Timer_Test, ASleepIsLateByTheWakeNotByAShareOfItsSpan) {
+    static std::vector<long long> late;
+    late.assign(15, 0);
+    sgcl::async::spawn([]() -> sgcl::async::task<> {
+        for (auto& l : late) {
+            auto deadline = sgcl::clock::now() + 20ms;
+            co_await sgcl::async::sleep_until(deadline);
+            l = std::chrono::duration_cast<std::chrono::microseconds>(sgcl::clock::now() - deadline).count();
+        }
+    }()).wait();
+    for (auto l : late) {
+        EXPECT_GE(l, 0);
+    }
+    std::sort(late.begin(), late.end());
+#if defined(__APPLE__)
+    EXPECT_LT(late[late.size() / 2], 2000) << "median lateness in us";
+#endif
+}
+
+// A timer earlier than the one the thread sleeps towards wakes it at its
+// own point (the sleep's timer armed again over the later one), and the
+// later one still fires at its point after it, not before
+TEST(Timer_Test, AnEarlierTimerOverTheOneArmedFiresFirstAndTheLaterAtItsPoint) {
+    static std::atomic<long long> near_at = {0}, far_at = {0};
+    near_at = 0;
+    far_at = 0;
+    auto t0 = sgcl::clock::now();
+    static sgcl::time_point origin;
+    origin = t0;
+    static void (*stamp)(std::atomic<long long>&) = [](std::atomic<long long>& at) {
+        at = std::chrono::duration_cast<std::chrono::microseconds>(sgcl::clock::now() - origin).count();
+    };
+    (void)sgcl::async::detail::add_timer(t0 + 300ms, tracked_ptr<void>(), [](void*) { stamp(far_at); });
+    std::this_thread::sleep_for(5ms);                            // the thread asleep towards 300 ms
+    (void)sgcl::async::detail::add_timer(t0 + 30ms, tracked_ptr<void>(), [](void*) { stamp(near_at); });
+    auto end = Clock::now() + 5s;
+    while (far_at.load() == 0 && Clock::now() < end) {
+        std::this_thread::sleep_for(1ms);
+    }
+    ASSERT_NE(near_at.load(), 0);
+    ASSERT_NE(far_at.load(), 0);
+    EXPECT_GE(near_at.load(), 30'000);
+    EXPECT_LT(near_at.load(), 250'000);                          // not with the far one
+    EXPECT_GE(far_at.load(), 300'000);
+}

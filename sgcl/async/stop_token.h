@@ -97,6 +97,10 @@ namespace sgcl::async {
         }
     }
 
+    namespace detail {
+        struct StopAccess;
+    }
+
     class stop_token {
     public:
         stop_token() noexcept = default;
@@ -174,6 +178,7 @@ namespace sgcl::async {
 
     private:
         friend class stop_source;
+        friend struct detail::StopAccess;
 
         SGCL_INLINE_HOT explicit stop_token(const tracked_ptr<detail::StopState>& s) noexcept
         : _s(s) {
@@ -285,4 +290,26 @@ namespace sgcl::async {
 
         tracked_ptr<detail::StopState> _s;
     };
+
+    namespace detail {
+        // The state behind a token, for the module's own waits that look
+        // at the deadline before they start (rate_limiter.h)
+        struct StopAccess {
+            // The earliest deadline armed on the token's source or on any
+            // source above it, time_point::max() when there is none (or the
+            // token is empty); a deadline that fired or was cancelled has
+            // left its state already
+            static time_point deadline(const stop_token& t) noexcept {
+                time_point when = time_point::max();
+                for (tracked_ptr<StopState> s = t._s; s; s = s->parent) {
+                    if (auto d = s->deadline.load()) {
+                        if (d->when < when) {
+                            when = d->when;
+                        }
+                    }
+                }
+                return when;
+            }
+        };
+    }
 }

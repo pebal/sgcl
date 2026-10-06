@@ -20,10 +20,10 @@ authentication, limits, and a handler that gets each session — a command, a sh
 nothing is run by the server on its own.
 
 The protocol of today, and nothing older: the key exchanges mlkem768x25519-sha256 (the post-quantum hybrid, first by
-default), curve25519-sha256, ecdh-sha2-nistp256 and -nistp384, diffie-hellman-group16-sha512 and -group14-sha256;
+default), curve25519-sha256, ecdh-sha2-nistp256, -nistp384 and -nistp521, diffie-hellman-group16-sha512 and -group14-sha256;
 the ciphers chacha20-poly1305@openssh.com, aes128-gcm@openssh.com and aes256-gcm@openssh.com, aes128-ctr, aes192-ctr
 and aes256-ctr with hmac-sha2-256 and hmac-sha2-512 and their encrypt-then-MAC forms; host and user keys of Ed25519,
-ECDSA P-256 and P-384 and RSA (signing rsa-sha2-512 and rsa-sha2-256, never SHA-1's ssh-rsa), and OpenSSH's
+ECDSA P-256, P-384 and P-521 and RSA (signing rsa-sha2-512 and rsa-sha2-256, never SHA-1's ssh-rsa), and OpenSSH's
 certificates over them; strict key exchange (OpenSSH's answer to Terrapin, CVE-2023-48795), rekeying, zlib@openssh.com
 compression after the authentication, the agent and its forwarding. Keys are read and written in OpenSSH's own file
 format, encrypted with a passphrase or not, and in PEM's ([private_key](private_key/README.md),
@@ -90,7 +90,7 @@ cryptographic audit.**
 | Enumeration | Header | Description |
 |---|---|---|
 | [certificate_type](certificate_type.md) | `keys.h` | what a certificate is for: a user or a host |
-| [key_type](key_type.md) | `keys.h` | the kinds of key: Ed25519, ECDSA P-256 and P-384, RSA |
+| [key_type](key_type.md) | `keys.h` | the kinds of key: Ed25519, ECDSA P-256, P-384 and P-521, RSA |
 | [session_kind](session_kind.md) | `server.h` | what a session runs: a command, a shell, a subsystem |
 
 ## See also

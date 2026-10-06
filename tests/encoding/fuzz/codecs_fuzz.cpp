@@ -27,6 +27,7 @@
 // Built with libFuzzer (tests/fuzz/run.sh tests/encoding/fuzz/codecs_fuzz.cpp)
 // or replayed by the library's own driver (tests/fuzz/driver.cpp).
 #include "sgcl/encoding/encoding.h"
+#include "tests/fuzz/input.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -132,6 +133,14 @@ namespace {
         // the input as a text to decode
         string given(in);
         auto d = c.decode(given);
+        // and where the input lies, a buffer of its own size: decode takes a
+        // string, past whose end ASan sees nothing (tests/fuzz/input.h)
+        {
+            std::vector<byte> room(c.max_decoded_size(in.size()) + 1);
+            auto n = c.decode_to(slice<byte>(room.data(), room.size()), slice<const char>(in.data(), in.size()));
+            check(n.has_value() == d.has_value());
+            check(!n || std::string_view(reinterpret_cast<const char*>(room.data()), *n) == view(*d));
+        }
         auto dec = c.decoder_from(make_tracked<dribble>(std::string(in), piece));
         auto streamed = read_all(dec, 1 + piece % 5);
         check(d.has_value() == streamed.has_value());
@@ -330,7 +339,11 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     }
     uint8_t mode = data[0];
     size_t piece = 1 + data[size - 1] % 17;
-    std::string_view in(reinterpret_cast<const char*>(data + 1), size - 2);
+    // the input less its first and last bytes, copied to a buffer of its
+    // own size: a piece of libFuzzer's that ends before the last byte would
+    // let a read past its end through unseen (tests/fuzz/input.h)
+    const sgcl_fuzz::exact copy(reinterpret_cast<const char*>(data + 1), size - 2);
+    std::string_view in = copy.view();
     uint8_t options = mode >> 4;
     switch (mode % 16) {
         case 0: codec(base64::standard, true, false, in, piece); break;

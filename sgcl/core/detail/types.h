@@ -112,6 +112,18 @@ namespace sgcl::detail {
     };
     inline thread_local ThreadHead* current_thread_ptr = nullptr;
 
+    // Prototype (proto-stack-sp): a thread's stack pointer and the 64-bit
+    // epoch it read before sampling it (heap.h: record_stack), written by the
+    // thread alone, the pointer first (relaxed) and the epoch after it
+    // (release); the collector reads the epoch (acquire) and, when it is the
+    // current cycle's, the pointer (collector.h: _mark_stack_roots). In the
+    // thread's Data (thread.h), zero for a new thread: never current, since
+    // the first flip makes the epoch 1.
+    struct StackRecord {
+        std::atomic<uintptr_t> sp = {0};
+        std::atomic<uint64_t> epoch = {0};
+    };
+
     // A barrier's slow path, from the read of the epoch to the last store
     // derived from it (page.h: set_state<Reachable>, the released path of
     // pointer.h, heap.h: mark_card). While the word is raised the

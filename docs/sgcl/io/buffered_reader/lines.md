@@ -33,8 +33,8 @@ Constant to make; the iteration as [read_line](read_line.md), linear in the leng
 
 ## Exceptions
 
-None. What a read of the stream underneath throws comes out of the iteration: `begin()` and `++` (1), the
-`co_await` of `next()` (2).
+None. What a read of the stream underneath throws comes out of the iteration: the iterator's look at a line, which
+reads it (1), the `co_await` of `next()` (2).
 
 ## Example
 

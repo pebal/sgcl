@@ -53,8 +53,12 @@ sgcl_test_module(hash)
 # sources built for the second road, so that every vector is checked on both
 sgcl_test_program(tests_hash_portable hash)
 target_compile_definitions(tests_hash_portable PRIVATE SGCL_HASH_PORTABLE)
+foreach(T tests_hash tests_hash_portable)
+    sgcl_link_references(${T} SGCL_TEST xxhash)   # libxxhash: XXH32 and XXH64's oracle
+endforeach()
 sgcl_test_module(compress)
 target_link_libraries(tests_compress z bz2)   # zlib and libbz2 of the system: oracles of the tests only
+sgcl_link_references(tests_compress SGCL_TEST lz4 zstd brotli)   # LZ4's, zstd's and brotli's oracles (../CMakeLists.txt)
 if(SGCL_HAVE_LIBLZMA)   # liblzma, the LZMA tests' oracle (../CMakeLists.txt)
     target_include_directories(tests_compress PRIVATE ${SGCL_XZ_ROOT}/include)
     target_link_libraries(tests_compress ${SGCL_LIBLZMA})
@@ -69,6 +73,12 @@ if(SGCL_HAVE_OPENSSL)   # the crypto tests hold the module against OpenSSL (../C
         target_link_libraries(${T} ${SGCL_LIBCRYPTO})
         target_compile_definitions(${T} PRIVATE SGCL_TEST_OPENSSL=1)
     endforeach()
+    if(SGCL_HAVE_BLAKE3)   # BLAKE3's C library, the reference of crypto/blake3.cpp alone (../CMakeLists.txt)
+        set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/crypto/blake3.cpp" PROPERTIES
+            INCLUDE_DIRECTORIES "${SGCL_BLAKE3_ROOT}/include" COMPILE_DEFINITIONS SGCL_TEST_BLAKE3=1)
+        target_link_libraries(tests_crypto ${SGCL_LIBBLAKE3})
+        target_link_libraries(tests_crypto_portable ${SGCL_LIBBLAKE3})
+    endif()
 else()
     # without OpenSSL (a processor it has no library for: x86-64 under
     # Rosetta on Apple silicon) the ciphers' vectors alone: NIST, RFC and
@@ -117,6 +127,17 @@ sgcl_test_module(net/imap)
 sgcl_test_module(net/ssh)
 sgcl_test_module(net/sftp)
 sgcl_test_module(net/acme)
+sgcl_test_module(net/oauth2)
+sgcl_test_module(net/mail)
+sgcl_test_module(net/pop3)
+sgcl_test_module(net/mqtt)
+sgcl_test_module(net/ldap)
+sgcl_test_module(net/amqp)
+sgcl_test_module(net/nats)
+sgcl_test_module(net/jsonrpc)
+sgcl_test_module(net/socks5)
+sgcl_test_module(net/webdav)
+sgcl_test_module(net/ntp)
 sgcl_test_module(codec)
 # codec's kernels have a road of 128-bit vectors (NEON, SSE2) and one in
 # plain C++: the same sources built for the second, every file checked on both

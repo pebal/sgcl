@@ -492,6 +492,65 @@ TEST(HttpClient_Tests, IdleConnectionsExpire) {
     clock.uninstall();
 }
 
+// follow_redirects off: every redirecting status is the response itself
+// (Go's CheckRedirect returning ErrUseLastResponse), its Location and its
+// body as they came, one request sent whatever max_redirects is, a POST
+// not turned into a GET, the connection kept for the next request once the
+// body is read; its Set-Cookie into the jar; a copy keeps the setting, and
+// back on the same client follows again
+TEST(HttpClient_Tests, RedirectsNotFollowed) {
+    Script& s = new_script();
+    s.answer = [](int, const std::string& req) -> std::pair<std::string, bool> {
+        auto path = req.substr(req.find(' ') + 1, req.find(' ', req.find(' ') + 1) - req.find(' ') - 1);
+        if (path == "/end") {
+            return ok("end");
+        }
+        const std::string status = path.substr(1);
+        const bool head = req.rfind("HEAD", 0) == 0;
+        return {"HTTP/1.1 " + status + " Moved\r\nLocation: /end\r\nSet-Cookie: s" + status + "=1\r\nContent-Length: 3\r\n\r\n" + (head ? "" : "abc"), false};
+    };
+    auto c = client_of(s);
+    c.follow_redirects = false;
+    c.max_redirects = 0;   // not reached: nothing is followed
+    c.jar = net::http::cookie_jar();
+    for (int status : {301, 302, 303, 307, 308}) {
+        s.received.clear();
+        auto r = c.get(sgcl::string("http://h/" + std::to_string(status)));
+        ASSERT_TRUE(r) << status << ": " << text(r.error().message());
+        EXPECT_EQ(r->status(), status);
+        EXPECT_EQ(r->header("Location"), "/end");
+        EXPECT_EQ(r->url().path(), "/" + std::to_string(status));
+        EXPECT_EQ(body_of(r), "abc");
+        EXPECT_EQ(s.received.size(), 1u) << status;
+    }
+    EXPECT_EQ(c.jar->size(), 5u);                                 // every 3xx's Set-Cookie kept
+    s.received.clear();
+    auto posted = c.post("http://h/303", "text/plain", "data");
+    ASSERT_TRUE(posted);
+    EXPECT_EQ(posted->status(), 303);
+    EXPECT_EQ(body_of(posted), "abc");
+    ASSERT_EQ(s.received.size(), 1u);
+    EXPECT_EQ(s.received[0].substr(0, 9), "POST /303");
+    auto head = c.head("http://h/302");
+    ASSERT_TRUE(head);
+    EXPECT_EQ(head->status(), 302);
+    EXPECT_EQ(head->header("Location"), "/end");
+    auto copy = c;
+    EXPECT_FALSE(copy.follow_redirects);
+    auto again = copy.get("http://h/307");
+    ASSERT_TRUE(again);
+    EXPECT_EQ(again->status(), 307);
+    EXPECT_EQ(body_of(again), "abc");
+    c.follow_redirects = true;
+    c.max_redirects = 10;
+    auto followed = c.get("http://h/302");
+    ASSERT_TRUE(followed);
+    EXPECT_EQ(followed->status(), 200);
+    EXPECT_EQ(body_of(followed), "end");
+    EXPECT_EQ(s.dials, 1);                                       // one connection throughout
+    EXPECT_TRUE(net::http::client().follow_redirects);            // the default
+}
+
 // DESIGN 408: the redirect limit at its ends: 0 follows none (the first
 // redirect is the error, one request sent), exactly max_redirects followed
 // is a response, one more the error; a limit below zero is as 0

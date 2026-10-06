@@ -31,7 +31,7 @@ timeout and a smaller limit by default (10 s and 32 KB, where Go has none and 1 
 
 ## Rules
 
-- The routes, [not_found](not_found.md) and [access_log](access_log.md) are set before `serve`, the
+- The routes, the middlewares ([use](use.md)), [not_found](not_found.md) and [access_log](access_log.md) are set before `serve`, the
   settings too: what changes after `serve` was called does not reach its connections.
 - `serve`, `serve_tls` and `shutdown` block the calling thread (main's: `server.serve(":8080")` is Go's
   `ListenAndServe`), the connections served on the scheduler meanwhile; a task writes `co_await
@@ -150,6 +150,7 @@ The settings, read when [serve](serve.md) is called; a zero timeout is none.
 |---|---|
 | [route](route.md) | registers a handler for a pattern |
 | [not_found](not_found.md) | registers the handler of what no pattern matches |
+| [use](use.md) | adds a middleware around every request |
 | [access_log](access_log.md) | a record of every exchange through a logger |
 
 #### Serving

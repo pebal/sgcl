@@ -47,8 +47,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     net::acme::account_key key(size % 3 == 0 ? net::acme::key_algorithm::eddsa : net::acme::key_algorithm::es256);
     const auto& st = d::KeyAccess::state(key);
     string payload(input);
-    string header = d::header(st, size % 2 ? string() : string("https://ca.test/acme/account/1"), string("nonce"), payload);
-    string body = d::jws(*st.key, header, payload);
+    encoding::json header = d::header(st, size % 2 ? string() : string("https://ca.test/acme/account/1"), string("nonce"), payload);
+    string body = d::jws(st, header, payload);
     auto back = d::parse_jws(body);
     check(back.has_value());
     check(back->payload == payload && back->nonce == "nonce");

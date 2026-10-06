@@ -1,0 +1,229 @@
+(µ/ıd0tE‘<//----
+// SGCL: a C++20 application platform
+// Copyright (c) 2022-2026 Sebastian Nibisz
+// SPDX-License-Identifier: Apache-2.0
+//-
+#pragma once
+
+#include "codec_stream.h"
+#include "lz4_blockzstd_entropy../../core/root_ptrtracked_ptrhash/xxhash.h"
+<algorithm><bitcstdintcstringmemoryvector>
+
+// Zstandard's decoder (RFC 8878, section 3). A frame: the magic, a header
+// (the content size, a single segment or a window, a dictionary id, a
+// content checksum), blocks of up to 128 KB â€” raw, one byte repeated, ormpressed â€” and the low 32 bitXXH64 of . A
+// block is its literals (raw, Huffman-coded in one stream or
+// four, with a tableir own or the one before)its sequences: a
+// count, the modesree FSE codes (predefined, one symbol, a table, the
+//ackward bitfrom which every takes
+// its literal length, match lengthoffset withextra bits.
+// Anvalue of 1 to 3 names onees used last (' length of 0 shifting which), a larger one a new offset.
+//
+// The sequences are decoded and carried out inloop: thepied from thes' buffer and thethe history, 16 or
+// 32 bytes at a time where both buffers have the room (the output has
+// ZstdOutSlack bytes past its end,s many past its).
+namespace sgcl::::detail {
+    inline constexpr uint32_t ZstdMagic = 0xFD2FB528u;DMagic = 0xEC30A437Skippable184D2A50u;   // toFsize_t ZstdBlockMax = size_t(128) << 10= 32;
+SGCL_INLINE_HOT uint32_t le32(const uint8_t* p) noexcept {
+ return(p[0]) |(p[1]) << 82]) << 16324;
+    }
+
+    // The codes ofsthe match lengths: a base andthe extra bits read after it (RFC 8878, 3.1.1.3.2.1.1)LBase[36] = {    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 20, 22, 24, 28, 32, 40, 48, 64, 128, 256, 5024,
+ 2048, 4096, 8192, 16384, 32768, 65536};8its[31, 1,234}MatchBase[53719, 20, 21, 22, 235, 26, 27, 28, 29, 30, 31, 32, 33,
+  34, 35, 37, 39, 41, 43, 47, 51, 59, 67, 83, 99, 131, 259, 50051, 4099, 8195, 16387, 32771, 65539its[5   predefined distributions3.1.1.3.2.2)int16Default[364-1, -int1653] =1Offset29] =enum class ZstdCode :,match
+    };
+entry of acodeingeight:baseandnew state'sbits read to it
+    strucSeqEntry {
+ ;    unext; 8_t bits;   bitsstatic_assert(sizeof() == 8)as one word, little-endian: th innext16 above, thebits,64_t _word* euint64_t w;
+  std::memcpy(&w, e, 8);f constexpr (std::endian::native == big) {    w =64_t(e->value) |next) << 32bits) << 48) << 56w} ofcodes:FSE table (its symbols
+fencoder's usa dictionary's tables)er'entries of each codestrucSeqTable {FseEntry entry[512]   Esequnsigned log = 0;
+  bool valid = false;
+ boolthein use, entry left as it was (no copy)
+    };
+
+ Tiauilt from countsvoid zstd_fill_values(Table& t,kind) noexcepsize = 1u << t.logfor (u u < size; ++u) {    const Fse& f = t.entry[u];
+ = f.symbole = t.seq[u];
+   e.nextbits;switch (kind) {
+    caseCode:::
+   e.extra = ZstdLiteralBits[s];
+     e.valuease[sbreak;sase[s:
+   (s);
+(1) << // offset values: 2^code plus}zstd_max_symbol(kind = ? 35 : ? 52 : 31;
+log() noexcept { ? 8 : 9s' codes as the other two have// code's own number of autos = []base[3[32];
+  } t {ss < 32; ++s) {
+  t.base[s]its[s}
+   }();
+straight fromsFSE spread// symbols, then eachits and nextits code's// and, in one pass); are left as they werebuild_seq(& t,FseCounts& c,log = c.log;log;
+ unsigned mask = size - 1high =- 1;
+8_t spread[512];
+unext[64s = c.if ( > 64 ++sif (c.count[s] == -1) {spread[high--] =else {(c.count[s])}
+    tep =  >> 1) +3) + 3position = 0;
+   if (high == - 1) {no "less than one": everylandsint ii < ; ++i) {
+       = (+) & mask;
+}
+   }
+   do {
+while (> high}
+    if!= 0) {
+   unts do not fill*= ?ase : :8its :its :its;
+ux =++;
+log - (31 -l_zero(x))));
+    t.seq[u] = {base[s],(x << -),,[s]};
+true;
+// As for t alone (a block's)_from_(t.log = c.logt.    t.valid =t, c, kind)too (ones and
+    // a d's, which readsfse_build_(c, t.) &&void d c;
+ * d = n36 :53 : 2ii < ni] = d[i];
+  }
+   c. = n;
+  ? 5 : The thres, built oncs {
+  ,, match(aticZstdDs& get d;}What one block leaves tonext, and to the first// lasts (formodesthat say ""),ZstdEntropyHufTable huf  rep[3] = {8    void reset(    huf   p[0] = 1;
+ rep[1] = 4;
+     rep[2] = 8;
+}Fail none,
+  corrupt,
+ truncated,
+   overflow,a block that makes more than th's room     beforedata the frame may reachBlockResultZstdFail status =::nonewritteat = 0;// withbytes
+char* text = nullptr;// Decodes the Huffman-coded `regenerated`from
+[p, p + n) ( four) into outbool huf_decode(const* p,n, bool,outmax_t.max_stream = [&](be,_t count-> boolBitReader r;if (!r.open(b, e)) {
+  end = o + count;
+// fours a rethere are four to make
+(end - o >= 4r.refill();
+int kk < 4; ++k) {
+   Huf[r.peek(int())];
+r.skip(en.bits);
+      *o++ = en}
+   }
+   o < end}
+    r.finished()(, out,if (n < 10}
+    s1 =2 = s2]) |3]) <3 = s4]) |5]) <if (6 + s1 + s2 + s3 > n4 = n - 6 - s1 - s2 - s3q = ( + 3) / 4;
+ if (3 * q > {
+  b = p +fours side by side: four biters, one symbol fr// eachurn,each hasZstdBitReader r[4]starts[5] = {b, b + s1, b + s1 + s2 + s3 + s4}o[4] = {out, out + q, out + 2 *3 * qends[4] = {out +2 *3 * q};
+  i i < 4r[i].open(starts[i],  + 1])    }
+}
+   = - 3 * q;
+  common = std::min(q, last);has
+ // 8 bytes before its: refills without
+tests,4of 11t most(44 bits, of57leave(>= 4 && r[0].roomy8() && r[12].ro3].ro_fast();
+  [i].peek_fast[i].skip(en. *o[i]    }
+-= 4;
+  }
+ >= 4o[i] <i][i]}
+    finished()Tsat p (nblock):dl// (Max +)kept in e. Rs the
+, 0 on a failure (r says whichspnE& e,lit,&& r== 0) = { 0, 0,: a block with no "0}type = & 3;
+format = (p[0] >> 2) & 3if (type < 2// raw or one: a header of or 3head, size;
+if ((& 1)ead>> 3;
+if == 1< 2) {
+    n, "zh cut short"}2;
+   >> 44;
+  3) {
+3;
+  >Max) {corrupt, 0, 0holds 0;
+  }
+   n - head < size) {
+    n, "zrawcut short"};    }
+sgcl::detail::copy_(p + head, size);
++n, "z0;
+   fill_[head]1;
+   or treeless: or 5  of header
+ ,, compressedbool four =!3) {
+= 3;
+v06;
+   = (v& 0x3FFcompressed = (v >> 14) 2) {
+4) {
+4;
+  e32(p)F;
+  18) & 0x3FFF;
+   {< 5)5;
+  64_t 64_t(<< 32(FF);
+2F);
+ if (}
+    qhead;
+=2) {
+ t = huf_read_table(q,, e.huf!t) {
+     e.hufathat is    }
+q += t;
+   -treelessno}
+    if (!zstd_huf_decode(e.huf, q,,)-do not;
+   + comits mode at p (n;// read, or SIZE_MAXseq_table(mode,mode)case 0:(void)tase 1:< 1 ||kind))rle(t.entry,s(t1;
+  2: {
+used =readp, n, c, + 1,log(kind));
+     || !t, c, used;
+   }
+   default:
+? 0 :as decoded: its' length, its's length andits(a of 0,check of
+ then refusesSeq {
+ll;ml;
+ Ting ofhreesstates. On the stack
+ nd used through inlined members only, so that all of it may live ingistersDecoderbits;
+ZstdSeqEntry* ll_t = nullptr;
+of_t ml_t ll_s =of_s ml_s rep01 = 02template<bool Fast>
+   void refill(fexpr (Fastbits.The next.: 16so tha(threefirst moves back 8other two 4 each) need no tests. Last: no
+ // stafter itLast>
+<Fast> as one (fewer than its four fields):
+     extra
+ le =ll_t + ll_soe = + of_s);
+  me = + ml_s);
+  le_extra =(le >> 56 oe_(oe >> 56);
+ mme >>le_bits =4FF;
+  ooe >>me_bime >> 56 bitleast: amostly// fit,(oneone
+ //Last ? 0u :+ me_bits +one = ole_ex<= 56,size_toe) +(ad(int()));
+ if  > 1) {
+    = v -p2 = rep1;
+rep0;
+;peat: the value 1..3 (a code of 0 or 1), shifted by one
+    is 0 (only its code 0 ha0index1 +le) == 0);
+if (indexs, not(a conditionatwo
+// members would select betweir addressesr0 = rep0;
+1;
+  2;
+  = 1 ? r1 :2 ? r2 : r0- == 0;no: SIZE_MAX2 : r10;
+  0 = offset;
+    }
+one) {two'i (32)s'likewis// (26): fewer steps through the reader'smlm(>> lll = le) +& ((1) - 1)!Last) {
+  )));
+(32) &FF) + (+ o;
+   me >>oe_bits) & (oe >>next made here,their
+// branchempiler would rather make them after): a
+// mispredicted branch// done
+ __asm__ volatile("" : "+r"(ll_s), "+r"(mof_{ll, ml, offset};}// Carries out a:lp// history (low on), both to op, 16 or 32a time (bothbuffers past ends). False, with nothingdone, run past lend, dst_enlow
+xecute& s,& op, & l lend,lows.ll;
+s.ml;
+ s.'s source asked fortare(a
+ // prefetch of any address is harmless come)
+   _tin_(reinterpret_cast<>ptr_t(op) + ll - offsettest
+ ll >(lend - lp)) | (ll + ml >( - op)) | (op - low) + ll)) {}
+   : 32 bytes whatever (most are shorter:
+   // one branch less to rest 32lz4_copy16(op, lp + 16, lp + 16);
+ if (ll [[unlikely]] o = op + 32q = le = op + ll, q);
+qo += 32q += );
+   }
+   ll;
+ lp +=:16 back or further(16 andcond
+ // fromhave madeor 16nearer, as LZ4's
+ if= 16) [[likely]] {m = o -, m);
+m + 1if (m    m32) {
+m16;
+ 16;
+ op =_(o, offset, ml);
+}
+
+    //‡ƒ¨ÓÄ‚ĞÄ
+¤H†6éC 1PD*™NGÛ¨;@Á‰h”¡@L‚$ˆ!…2"#""""’$I†›Â:ÚÒí¢5yÌ/ t~x„æé»öwgĞªh1âé÷Â(tŞq"‡:‘â@öå#Fí¸°5ÿÛuyK†jÁÚTPˆKŠ£[ê¦)ì£Zş¶m|ûİö*ÅH˜£xNèpƒ0Ï*¡€d< 6³õîw¥Ã(ùæes0·ÿŸ
+î±“~ìIEF?Bé—Ÿ,¾Zu>…üë’¶Pçà¨ÓĞFLÄP±Eó
+ mÛêıĞœfü„ôà*üÊÌUŠÎ_$rĞc¹v¢>ú&C&„Õì€Ä«¶´PÆ÷ntno¡ö™ÔÈ lóãCßQ& Ñä©ãAA„eÛ!éÆ<†Œ›%ıå®D[åÙ×7£Säó»¥ˆĞ®‰[2õ\{wŞ°øÆ';ÌôªP oÔlœ"@´Dêh@€ña±Òš7°`‚}¸ç‹"(ƒç‡>j—b{¤€$•…Â=/Éª.L*ì®D¸óïÍÍ>1 6§R+^gÉŸù*A±—ëw!©OJDŞüapµcªŞ*jú¥ƒ,Ö©PÆg¡UÒ–‰Êo„ ¦Q‰Ò7ÉãĞ’‡” ñÓ/VqÏClknAD‰x¢å!1œ4¤¶ÂÆA^¼œôË~ih )Ş¸å×àØ8¾áGóÑÃ?¢o|»Î©à Ö~ÎbŠÍ¸<úÁâÚ¥5/pÑ1'qØ?@/“?”¿i„	ZDÒæå®T°ï#Û ­\ûMğ&[‰æòÿ9vöÆ„xV‚€
+Ö.CçrŸLam1Xèè«“b^u6Dïª¿ãğwbagĞÕyÉºÔh<“v*	kJA„.bCz¨Ó÷ş©×ËµCyÒœfò©_ûNJp‚ò°Ğ†Ö×K¥±.“­öU»µâkNsÑKcJ×S4˜A­_Ë\T¦5|Æ†ãòxæ)Å‹uEÌ;»ÍMl.xÕvã‘•ZV2=Ü:Sš‹_üª­JüYºş£QÆÈ%‡Jï¼Hj(÷ˆŠıûZÈR[åÉÎ²“ú·›*gLşğMò‹üaÔñ’Ûÿİ4^–Šñ){Ä´_`ô›5FÎ¼»OEs÷]ŒÂ=•ÔìQ^"¹V4ªãçt|4‡xéîÑ„™EÒI¼}½iE‡h3xF‡‘m.÷Ì-şEP›¡n áëÇq¾ŞÏUxí–¨şj¨©Äà­şF•{`|®°aâ½k&LLX2ƒpŒ•Cu¤„›,"<œZ‰L€»çnG¯‚óít=xëmÕ‘^Áßc
+$ éí¹@åºä½{9ø M.èÿÕ^g•¶PÉ1ÃŒ­2—k‰ç5sÍw²(}ôP°ÿıøKo£§$‘ß«»mÃ,+ÆÏ’"D·‡Öa+C“çKëŒmQğ6ŸRÉí„W½]mmJ£T+½¬Ï±µx¦ê¼eÈåCnÜ0Ùr×±¤cì[w¢8‚I)†GÒğP²÷8¥«@âÀ s†å%¿=ÚYŞ~±'äõ)³S¨,<§l‡ïv9±~7˜Öoê;•,Á&Ûë»Î+A±*Â¢¶,}’Ş–ôK%	'÷²@có?­|LrPIuB·5Wò4z/6ZÜ:‰ºÁ»Vøc‹u³q<!š-6m4%a?¥"j%nßô‘œ~u¿„·šÉ¤2?Z¾_IjF23¨ú\1™ó+S8º¢®$ØJ>ã¨Mq£˜AgÙ75È—†>ÈÃe„L2¬c[®£ùo.Pı§,y³—èšÚD›m7!óLRQı)ÇÅ‹–8'lĞ6¡W¾ OÂÄG÷@J4‰Dh8­`qğŞc²h3‰fk±+J8Y•Fû3Â4ğ1ã^C´ĞD”øÄ4Ïató363FÛm«`=“â€dJ¨âá‚EŞáTe°&¨g{ë´Ah~aœlÒİ(c@y$-¥5Å®Ds`˜8`¯‘ÜX@¶ñ¦( «r#{foO¢øøn½rf
+ŞL„’ÜE/@'ë|ÑZ+ÇuÀ4ëÕä¡|KG)eÓò³ô« UÊåJÜwtQèŸ}¬r›¢±û¥ÊêäÔ…f †cTV,àÓÖ½ĞtGëéÔÙKÅ/­&.œk‚ª½Ñhö8iÙ—„Ñ "éhG²(9Qè”>;éy°<öÎ½d5Ûâ–~¨nv‘Ğ£?®@ñŸ Î)Š³pœçñ‹)‚ëÈí.¶"¦±2MƒÈ:m©"LL&l”Ü(Cı2ëc¶-8ï&^ÎdÇñ_	,HÒ”}·-æxo¢·g^fÁŸ 4NgSx<{&Ÿ:¹ğÊ }QQ ÿÂ=— *`˜gvS€=EŸÃÕ^y.GWKãOqKòÎ¥PjĞšZŒóPĞI¨ô)DFv¯:¹Ê]=n9–2C7É@ÛqŞÀOCõ'’è-¬ÃùV"ò[%E¡¾i(w–èŸÍÒ7şnãc1ÕÙ,„½äf5z6>ÊËÌ\1ŸÜÇûX!àçxD
+;‹¦àf:ô2Û§bDÎxÌf-ª@LxëìSHÜØ+w\b«ÄÑåy—“Ãeí'kJÎğ üNıLıQ¥Â}ú§Õ®ô~ö5S¥'!@pƒ=…-”†=xS ¹ÆÊ¢]|éŒ¢R—´2_dH¿µÓÄLx²ás&+Æ72&š«›±µ,)PÆ‹´ÖwF&ç,P¦Ş&dÜşL.!Â€+;ã[UÕgš?™ÅòL	¿£Ø"dH‹·b øqodQñJ‰j)!¿â/"é+|ŠÅäDOD7+V*ù{1%mQdåó"tqJ¨‡ır˜Õ#œG\@[şô}6²GÖ‘íÅY%ıK{kE—J8o]¤p•ïbe-£­WåNn}\vß˜ËèW¯é¢MW²\¼”Çb¨NÀõ\Çq¬±KããÒúEÆˆÙ¼×N¶~ã‹YÁQg,ßÛb¦#Ãm8ã¨è 
+²,Ë!#ëì$3
+1üŠÀa]‚GJg´…¤]oå;)¸eos ˜P“¥0ZJ4yi¿®‘åE î¶-$CyÎ¿œ£‘áhL‚ŠA°y» ¼¢Ø¤•«¸
+İ±«:8™V¡¶Ÿú8G©¯ÈA,„pŠAhÁ-z,Áz¹é
+l“´ğ"ue °f0h¨âösÔNL±˜rÓû2á’ùâöGQˆU°X?Î\'ôØñ÷zleíNôÊŠG4¶Ë´d4‚ô¾CS\@>vygÛ8ğ êÔeÀTkŒ“\†Pªy!9ĞÑÎ=¶Ò˜biñH~
+#"ñ[:¸/P·}nØ€>
+Í½ª•­F¡Òè÷–§‡Š­A*7à
+…_Wè6©T	§B¦÷Bü–Ù W²Ávg¿Ì	º#JâO•Zœø‚9B+fÏ÷Æ ÙeúIe<Ç²“Y2ç‰¸.†™†S¯/·Ì–9@ÇÊ©Ã¶4îââ'|=Ÿ#_Ÿ*W&çRôÑ‡œ2¼Xõ (®4O©/o;2(çGZIb"­´Uˆa–;“l¤àÌîI«é€KXVœLN‹ï†^³£¸ŸD!IA¥‘¨“â¡E1ihp…Â4¶¯ÆàÛ_ßÃtvÍ“‘ÙÍI’g£ƒ7 "ÙĞ@?$Â<¾§0#ø ÉŠZñ¤'o—Á <l9Â5Èüİ`˜¦‚Ec²C‡•¶L#3[%ÑĞäwp40÷û<<‰.
+Tˆªï&µÌï%¸€^T¶xpÕ¯û@¸\"®®v’¶RM/(a`BBâß–dÚ
+úIbÚ\{ítÍsòÕ0(‡F%w:`¿O¼«™)`õj¬Ñ#¥æxWÀâF¡ÉœX™}!I˜%:$7€(À° Lt+{È–éAûcy…X<ô9ó±”ñæ¾™)‹kA€Û±Ààn©4pÛ`@&%z`ğn"S&0Ö| ¹‹mĞÖqhÏ2¹å¡¯¢ÊABÉFê×,ÃS¥ƒèÿ/ûcÂÑÛ¦(aÂè¾ë±U8P/ZˆLŞ0Âœ†û/„õ]ı —?£€Ò®ƒêÔŠâŠ”èHéÓÛÄq¨;ÕëœCqDò‚ 7Ôn.a×BMÓl«jÇCÛÌÂöi6âå–Áê¹Öˆ¨—"Ásiñ½Ô¡ÌÍoR¨ÎÊx82’Vô=O@hb)æzÿ¥ÆÈuë"•Îç–„:<ÈZQÁ^ı…ùÒ	¯Ä=µÖB5Ò8˜²]•á¥¿ßc˜.ÉV*S©#Ğ@+¤BÈ½\©ãïeaöXşø˜\jéf°Eˆ¶0kñÔ9ËVÌˆï”= á&ÿ!ğSxùkË<LÉÈÔ+IÁ s4’¹ı…Áe*hmÏ±a­áFaràñR[Û‹E¹SJ—8TK´Ö÷;Í¬y ÛüúZÌN¤ŒJfğŸrè72-Ú®swwØ\Ö:Ù’œã‘WqYG})ltš©—{÷SÃ”p¸@K{Æ][4.^xÛÕôƒ8¹,-"}ŞFûZI~¶¿ê{­ Jqb~d sC
+íøxs2Z=¤ÃäÈÙ{T#ñÂ,ú4"’¢¢ñ©CÙÿÚ“ïÿŞ¡–õ ·ŒÄJÚ\—,61êÙqÉBª€ğ»>%"E¥°½AW¸ô>ôÅ!lI\äSÊ„¼¡úÈC]KKUû¾dƒL“eSõ‰ï%y>eé?Ê;ÕŠÇá#3ëzŸÒ=úT¨CÒE8‰šj½b‚HúºÅFÑáRõı$Ô…}ÅİUúwYn]­ã‡ßh]Ièƒ÷zOR iUu¡ÕƒÁ¸P*’Fè) uºzfƒˆyÙsz_¤¯¨x"Tç„ğsØaµ?‘—æ‚àÈa}ˆë.‚Is_ÙÕ}àÁ#Üº_1™28tÁx2ğ vrŞ¡9cÆtšƒÔ>”|ñ˜R›»ÙF/óÊ¸¨yôyöÒpXJĞ fRÏ–Ä#(ƒ5¨«)yš°™Ê®åš(LÙÄ§@H·M ĞúLó	èGğ¹?;„—Æ î3'ògúƒyìi =7"`ØæG´bì²Ït×A
+ªñ­À™AUDu¬SËD1ù'ûÄMŠÌ½y	è%7R8ŸœÉù(p®;Ü™†‘ALkx——”N¤D.4öÚ„Y¸X1IÎ=ô7	*ñ¹Z¨ üV{=ñiâ=
+ˆJNÄ(Üÿÿã†¦%¨÷@è	c	-"ºí]^«”…·ëó5Z~)Pæu_ErÎäö¸¤âÏS%7ñpãg •ìÆÉO˜¢&R‚pâ¹#5F/t­(/í§˜2rT'éùe“³K3Ç¤N×µ“xËŒñ/9èŠ{Q•1Iµ`ˆÇ ÏyH}ù¤5<=»\A¤zq9V-'w©qvcÀñE§µòUÒµ¯LxĞä}=Tm\ÑvÕW¬KÉ4ØìëUÁ¹%…„Ò9¡e•ÎbÔH:¯ÓSƒ©3Ó¾ØÒ›D{öM<j;÷q,g—'»I¤¼ˆ¸ñöôÎ"[ôà*¤ª‡¦Q(JXWÆ¶¯aÎ…Ìqó•¢àò.±Ş=b³ĞÍÏ»]GËÜ”‘§,W®rŠŒQ(A¾u‰¬¿èõ½éñ78~Û

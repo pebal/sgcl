@@ -28,6 +28,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <concepts>
 #include <exception>
 #include <iostream>
 #include <mutex>
@@ -42,10 +43,57 @@ namespace sgcl::net::http {
     class server;
 
     namespace detail {
+        // A step of a handler: the request served as far as it goes without
+        // waiting, the task of the rest when something waits (nullopt: done).
+        // What a middleware wraps and passes the request on to: a plain
+        // handler under plain middlewares runs with no frame of theirs
+        using Step = function<optional<async::task<>>(request&, response_writer&)>;
+
+        // A route's handler: one of a plain function, a task, or a step (a
+        // handler made of middlewares, http::handler's)
         struct Handler {
             function<void(request, response_writer)> plain;
             function<async::task<>(request, response_writer)> awaited;
+            Step step;
         };
+
+        // A middleware of the library's: its private _wrap(Step) reached by
+        // server::use and http::handler
+        struct MiddlewareAccess {
+            template<class M>
+            requires requires(const M& m, Step s) { m._wrap(std::move(s)); }
+            SGCL_INLINE_HOT static Step wrap(const M& m, Step next) {
+                return m._wrap(std::move(next));
+            }
+        };
+
+        template<class M>
+        concept LibraryMiddleware = requires(const M& m, Step s) {
+            { MiddlewareAccess::wrap(m, s) } -> std::same_as<Step>;
+        };
+
+        // A hook chained after the ones set before it
+        inline void add_before_head(WriterImpl& w, function<void(WriterImpl&)> f) {
+            if (w.before_head) {
+                w.before_head = [first = std::move(w.before_head), f = std::move(f)](WriterImpl& x) {
+                    first(x);
+                    f(x);
+                };
+            } else {
+                w.before_head = std::move(f);
+            }
+        }
+
+        inline void add_after_end(WriterImpl& w, function<void(const WriterImpl&, uint64_t)> f) {
+            if (w.after_end) {
+                w.after_end = [first = std::move(w.after_end), f = std::move(f)](const WriterImpl& x, uint64_t bytes) {
+                    first(x, bytes);
+                    f(x, bytes);
+                };
+            } else {
+                w.after_end = std::move(f);
+            }
+        }
 
         // What a serve() runs with: the server's fields as they were when
         // it was called
@@ -62,6 +110,7 @@ namespace sgcl::net::http {
             function<void(const string&)> on_error;
             optional<slog::logger> access_log;   // a record per exchange, when set (server::access_log)
             function<void(const request&)> observe;   // every request before its route (a test server's record, test.h)
+            Step chain;                          // the middlewares of use() around the routing; empty: the routing alone
 
             SGCL_INLINE_HOT void report(const string& what) const {
                 if (on_error) {
@@ -72,20 +121,15 @@ namespace sgcl::net::http {
             }
         };
 
-        // The access log's record of one exchange, when the server has one:
-        // at info, or at error for a 5xx; every attribute a view of the
-        // request and of the response's counts, the remote address written
-        // into the line (endpoint::write_text), so that a request adds
-        // nothing to the managed heap (DESIGN 283). A request-id field
-        // (X-Request-ID) is written when the request has one. `bytes` is
-        // the writer's body_bytes() taken before the finish, which gives
-        // the body's blocks back
-        inline void log_access(const ServerSettings& cfg, const RequestImpl& req, const WriterImpl& w, uint64_t bytes, std::string_view path,
+        // The record of one exchange, at info, or at error for a 5xx; every
+        // attribute a view of the request and of the response's counts, the
+        // remote address written into the line (endpoint::write_text), so
+        // that a request adds nothing to the managed heap (DESIGN 283). A
+        // request-id field (X-Request-ID) is written when the request has
+        // one. `bytes` is the writer's body_bytes() taken before the finish,
+        // which gives the body's blocks back
+        inline void log_record(const slog::logger& log, const RequestImpl& req, const WriterImpl& w, uint64_t bytes, std::string_view path,
                                std::string_view proto, time_point start) {
-            if (!cfg.access_log) {
-                return;
-            }
-            const slog::logger& log = *cfg.access_log;
             const slog::level l = w.status >= 500 ? slog::level::error : slog::level::info;
             if (!log.enabled(l)) {
                 return;
@@ -99,6 +143,15 @@ namespace sgcl::net::http {
             } else {
                 log.log(l, "request", "method", method, "path", path, "proto", proto, "status", w.status, "bytes", bytes, "duration", took,
                         "remote", req.remote, "user_agent", agent);
+            }
+        }
+
+        // The access log's record of one exchange, when the server has one
+        // (server::access_log)
+        SGCL_INLINE_HOT void log_access(const ServerSettings& cfg, const RequestImpl& req, const WriterImpl& w, uint64_t bytes, std::string_view path,
+                                        std::string_view proto, time_point start) {
+            if (cfg.access_log) {
+                log_record(*cfg.access_log, req, w, bytes, path, proto, start);
             }
         }
 
@@ -124,6 +177,7 @@ namespace sgcl::net::http {
             RouteTable routes;
             vector<Handler> handlers;
             Handler not_found;
+            vector<function<Step(Step)>> middleware;  // use(), the first the outermost
             async::detail::WaitGroupState running;
             async::stop_source closing;               // close(): every request's stop
             std::atomic<bool> shutting_down = {false};
@@ -313,7 +367,14 @@ namespace sgcl::net::http {
                         h.plain(r, writer);
                         return nullopt;
                     }
-                    return h.awaited(r, writer);
+                    if (h.step) {
+                        return h.step(r, writer);
+                    }
+                    if (h.awaited) {
+                        return h.awaited(r, writer);
+                    }
+                    writer.error(status::not_found);   // an empty http::handler
+                    return nullopt;
                 }
                 case RouteTable::Found::redirect: {
                     std::string to = found.location;
@@ -333,6 +394,9 @@ namespace sgcl::net::http {
                         s.not_found.plain(r, writer);
                         return nullopt;
                     }
+                    if (s.not_found.step) {
+                        return s.not_found.step(r, writer);
+                    }
                     if (s.not_found.awaited) {
                         return s.not_found.awaited(r, writer);
                     }
@@ -340,6 +404,52 @@ namespace sgcl::net::http {
                     return nullopt;
             }
             return nullopt;
+        }
+
+        // The request through the server's middlewares (use()) to its route,
+        // or to its route alone when there are none: the host and the path
+        // kept on the request for the innermost step, the router's
+        inline optional<async::task<>> run_request(const ServerSettings& cfg, ServerImpl& s, const tracked_ptr<RequestImpl>& req, request& r,
+                                                   response_writer& writer, std::string_view method, std::string_view host_text, std::string_view path) {
+            req->dispatch_host = host_text;
+            req->dispatch_path = path;
+            if (cfg.chain) {
+                return cfg.chain(r, writer);
+            }
+            return dispatch(s, req, r, writer, method, host_text, path);
+        }
+
+        // The innermost step of a chain: the router, on what run_request kept
+        // (a request a middleware made of its own is routed by its URL)
+        inline Step routing_step(tracked_ptr<ServerImpl> s) {
+            return [s = std::move(s)](request& r, response_writer& w) -> optional<async::task<>> {
+                auto& req = RequestAccess::impl(r);
+                if (req->dispatch_path.empty()) {
+                    auto u = req->url_of();
+                    const string path = u ? u->path() : string("/");
+                    const string host = u ? u->host() : string();
+                    return dispatch(*s, req, r, w, req->method.view(), host.view(), path.view());
+                }
+                return dispatch(*s, req, r, w, req->method.view(), req->dispatch_host, req->dispatch_path);
+            };
+        }
+
+        // The middlewares of use() around the routing, the first the outermost;
+        // empty when there are none
+        inline Step compose_chain(const tracked_ptr<ServerImpl>& s) {
+            vector<function<Step(Step)>> mw;
+            {
+                std::lock_guard<std::mutex> g(s->lock);
+                mw = s->middleware;
+            }
+            if (mw.empty()) {
+                return Step();
+            }
+            Step chain = routing_step(s);
+            for (size_t i = mw.size(); i-- > 0;) {
+                chain = mw[i](std::move(chain));
+            }
+            return chain;
         }
 
         // A handler threw: on_error hears of it, a 500 when nothing was

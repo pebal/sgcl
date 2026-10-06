@@ -21,6 +21,7 @@
 // above the GOAWAY's last; the streams open stay within ours; after a
 // connection error nothing more is read and the output ends with GOAWAY.
 #include "sgcl/net/http/detail/h2/client_connection.h"
+#include "tests/fuzz/input.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -139,11 +140,15 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     std::vector<uint8_t> payload(70000, 'q');
 
     auto feed = [&]() {
-        auto r = m.feed(reinterpret_cast<const uint8_t*>(wire.data()), wire.size(), now);
+        // the bytes waiting from a buffer of their own size: a std::string's
+        // capacity and terminator let a read past them through unseen
+        // (tests/fuzz/input.h)
+        const sgcl_fuzz::exact bytes(wire);
+        auto r = m.feed(bytes.u8(), bytes.size(), now);
         if (!r.has_value()) {
             check(r.error().what != nullptr);
             failed = true;
-            auto again = m.feed(reinterpret_cast<const uint8_t*>(wire.data()), wire.size(), now);
+            auto again = m.feed(bytes.u8(), bytes.size(), now);
             check(!again.has_value());
             wire.clear();
             return;

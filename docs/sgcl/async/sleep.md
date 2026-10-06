@@ -78,7 +78,9 @@ timer is a push on the scheduler or a signal on a channel; the thread never runs
 is a thread of the program to the collector, like any other.
 
 A timer fires at its time or a little after, never before: the resolution is the steady clock's and the timer
-thread's wake-up.
+thread's wake-up. On macOS the thread sleeps on a kernel timer marked critical, which the system does not delay to
+fire it together with others (its timer coalescing lets an ordinary timed wait fire up to a quarter of its span
+late, a kevent's timeout, Go's, an eighth); elsewhere on a condition variable, late by the system's timer slack.
 
 ## Example
 

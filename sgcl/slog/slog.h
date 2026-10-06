@@ -20,3 +20,5 @@
 #include "logger.h"
 #include "memory.h"
 #include "record.h"
+#include "rotating_file.h"
+#include "syslog.h"

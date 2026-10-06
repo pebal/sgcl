@@ -28,6 +28,7 @@
 #include "sgcl/compress/zip.h"
 #include "sgcl/compress/zlib.h"
 #include "sgcl/core/utf8.h"
+#include "tests/fuzz/input.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -202,7 +203,8 @@ namespace {
                 if (e.kind == 1) {
                     check(w.create(string(e.name)).has_value());
                 } else if (stored && !e.data.empty() && e.data.size() % 2) {
-                    check(w.add(string(e.name), view(reinterpret_cast<const uint8_t*>(e.data.data()), e.data.size())).has_value());
+                    const sgcl_fuzz::exact whole(e.data);   // a buffer of the data's own size (tests/fuzz/input.h)
+                    check(w.add(string(e.name), whole.bytes()).has_value());
                 } else {
                     compress::zip::entry h;
                     h.name = string(e.name);

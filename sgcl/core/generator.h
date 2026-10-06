@@ -18,10 +18,10 @@
 namespace sgcl {
     // A coroutine that co_yields values, consumed with a range-for or
     // next()/value(); an exception it throws comes out of next() (or the
-    // iterator's ++). Its frame is managed (coroutine.h: managed_frame),
-    // so its locals and parameters are roots while it is suspended; it
-    // runs where next() is called, on no scheduler, and leaves the frame's
-    // header as it was allocated, zero.
+    // iterator's first look at an element). Its frame is managed
+    // (coroutine.h: managed_frame), so its locals and parameters are roots
+    // while it is suspended; it runs where next() is called, on no
+    // scheduler, and leaves the frame's header as it was allocated, zero.
     template<class T>
     class generator {
     public:
@@ -54,8 +54,15 @@ namespace sgcl {
             }
         };
 
+        // Lazy, as async::channel's: the coroutine runs to its next co_yield
+        // at the first look at an element (*it, or it == end), and ++ only
+        // marks it used, so an iterator left after its ++ (views::take) has
+        // run the coroutine no further and the next begin() goes on from the
+        // element after the last one looked at; the end is
+        // std::default_sentinel
         class iterator {
         public:
+            using iterator_concept = std::input_iterator_tag;
             using iterator_category = std::input_iterator_tag;
             using value_type = T;
             using difference_type = std::ptrdiff_t;
@@ -64,31 +71,30 @@ namespace sgcl {
 
             iterator() noexcept = default;
 
-            SGCL_INLINE_HOT reference operator*() const noexcept {
+            SGCL_INLINE_HOT reference operator*() const {
+                _fill();
                 return _g->value();
             }
 
-            SGCL_INLINE_HOT pointer operator->() const noexcept {
+            SGCL_INLINE_HOT pointer operator->() const {
+                _fill();
                 return &_g->value();
             }
 
-            SGCL_INLINE_HOT iterator& operator++() {
-                if (!_g->next()) {
-                    _g = nullptr;
-                }
+            SGCL_INLINE_HOT iterator& operator++() noexcept {
+                _held = false;
                 return *this;
             }
 
-            SGCL_INLINE_HOT void operator++(int) {
+            SGCL_INLINE_HOT void operator++(int) noexcept {
                 ++*this;
             }
 
-            SGCL_INLINE_HOT bool operator==(const iterator& o) const noexcept {
-                return _g == o._g;
-            }
-
-            SGCL_INLINE_HOT bool operator!=(const iterator& o) const noexcept {
-                return _g != o._g;
+            // At the end once the coroutine has returned: the look runs it
+            // to its next co_yield when the iterator holds no element
+            SGCL_INLINE_HOT friend bool operator==(const iterator& it, std::default_sentinel_t) {
+                it._fill();
+                return !it._g;
             }
 
         private:
@@ -96,7 +102,18 @@ namespace sgcl {
             : _g(g) {
             }
 
-            generator* _g = nullptr;
+            SGCL_INLINE_HOT void _fill() const {
+                if (!_held && _g) {
+                    if (_g->next()) {
+                        _held = true;
+                    } else {
+                        _g = nullptr;
+                    }
+                }
+            }
+
+            mutable generator* _g = nullptr;
+            mutable bool _held = false;
 
             friend class generator;
         };
@@ -120,12 +137,12 @@ namespace sgcl {
             return *_frame.promise().value;
         }
 
-        SGCL_INLINE_HOT iterator begin() {
-            return next() ? iterator(this) : iterator();
+        SGCL_INLINE_HOT iterator begin() noexcept {
+            return iterator(this);
         }
 
-        SGCL_INLINE_HOT iterator end() noexcept {
-            return iterator();
+        SGCL_INLINE_HOT std::default_sentinel_t end() const noexcept {
+            return std::default_sentinel;
         }
 
         SGCL_INLINE_HOT void destroy() noexcept {

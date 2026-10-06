@@ -46,7 +46,11 @@ namespace sgcl::net {
         smtp_auth_failed,
         smtp_tls_required,
         smtp_unsupported,
-        malformed_smtp_reply
+        malformed_smtp_reply,
+        sftp_failure,
+        sftp_protocol,
+        malformed_message,
+        malformed_dmarc
     };
 }
 
@@ -113,6 +117,8 @@ the program, `is_not_found()` for a unix socket's path that is not there.
 | `malformed_smtp_reply` | "malformed SMTP reply": a reply that breaks RFC 5321, bytes after STARTTLS's 220 in clear text |
 | `sftp_failure` | "SFTP failure": a request of [net::sftp](sftp/README.md) the server failed with no more specific status (a directory that is there, one not empty), the server's message after the path |
 | `sftp_protocol` | "SFTP protocol error": an SFTP packet that breaks the protocol, a version other than 3, no answer to INIT in time |
+| `malformed_message` | "malformed mail message": a message [dkim::signer::sign](dkim/signer/sign.md) cannot sign (no head, no From, a line of the head that is no field, `l=` past the body), an Authentication-Results value that breaks RFC 8601 ([smtp::authentication_results::parse](smtp/authentication_results/parse.md)) |
+| `malformed_dmarc` | "malformed DMARC record": a record that breaks RFC 7489 ([dmarc::record::parse](dmarc/record/parse.md)), an aggregate report that cannot be read ([dmarc::report::parse](dmarc/report/parse.md)) |
 
 ## Example
 

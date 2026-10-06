@@ -375,7 +375,7 @@ TEST(Crypto_X509, TheFieldsOfACertificateOpenSslMade) {
 // The keys: each kind the module has, and those it has not (the certificate
 // still read, its key none)
 TEST(Crypto_X509, KeysOfEveryKind) {
-    for (auto k : {key_type::rsa2048, key_type::rsa1024, key_type::p256, key_type::p384, key_type::ed25519}) {
+    for (auto k : {key_type::rsa2048, key_type::rsa1024, key_type::p256, key_type::p384, key_type::ed25519, key_type::p521}) {
         SCOPED_TRACE(key_name(k));
         auto m = make_cert(root_spec(k));
         auto c = parse_or_fail(m.der);
@@ -396,16 +396,20 @@ TEST(Crypto_X509, KeysOfEveryKind) {
                 ASSERT_EQ(c.public_key().kind(), x509::key_kind::ed25519);
                 EXPECT_EQ(to_bytes(c.public_key().ed25519().to_pkix_der()), to_bytes(c.raw_subject_public_key_info()));
                 break;
+            case key_type::p521:
+                ASSERT_EQ(c.public_key().kind(), x509::key_kind::p521);
+                EXPECT_EQ(to_bytes(c.public_key().p521().to_pkix_der()), to_bytes(c.raw_subject_public_key_info()));
+                break;
         }
         EXPECT_TRUE(c.check_signature_from(c));   // self-signed, a CA
     }
-    // P-521 and X25519: read, the key none, its algorithm named
+    // secp256k1 and X25519: read, the key none, its algorithm named
     struct other {
         const char* type;
         const char* curve;
         const char* oid;
     };
-    for (auto o : {other{"EC", "P-521", "1.2.840.10045.2.1"}, other{"X25519", nullptr, "1.3.101.110"}, other{"RSA", nullptr, "1.2.840.113549.1.1.1"}}) {
+    for (auto o : {other{"EC", "secp256k1", "1.2.840.10045.2.1"}, other{"X25519", nullptr, "1.3.101.110"}, other{"RSA", nullptr, "1.2.840.113549.1.1.1"}}) {
         SCOPED_TRACE(o.type);
         pkey_ptr key(o.curve ? EVP_PKEY_Q_keygen(nullptr, nullptr, o.type, o.curve) : std::string(o.type) == "RSA" ? EVP_PKEY_Q_keygen(nullptr, nullptr, "RSA", size_t(768))
                                                                                                                        : EVP_PKEY_Q_keygen(nullptr, nullptr, o.type), EVP_PKEY_free);
@@ -420,7 +424,7 @@ TEST(Crypto_X509, KeysOfEveryKind) {
         // what it signs cannot be verified: its key is none
         if (std::string(o.type) == "EC") {
             spec child = leaf_spec(key_type::p256);
-            spec ca = root_spec(key_type::p256, "P-521 CA");
+            spec ca = root_spec(key_type::p256, "secp256k1 CA");
             ca.use_key = key;
             auto ca_cert = make_cert(ca, &root);
             auto leaf = make_cert(child, &ca_cert);

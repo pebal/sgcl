@@ -1,0 +1,1 @@
+Digest username*=UTF-8''%C3%A4, realm="d", nonce="x", uri="/", qop=auth-int, nc=00000002, cnonce="c", response="ab", algorithm=MD5-sess

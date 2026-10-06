@@ -9,6 +9,7 @@
 // compressed (in memory and through the writer in pieces) and must come
 // back as it was.
 #include "sgcl/compress/compress.h"
+#include "tests/fuzz/input.h"
 
 #include <cstring>
 #include <string>
@@ -75,7 +76,9 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     for (auto& c : plain) {
         c = char(uint8_t(c) & ((1u << width) - 1));
     }
-    slice<const std::byte> p(reinterpret_cast<const std::byte*>(plain.data()), plain.size());
+    // the encoder reads a buffer of the data's own size (tests/fuzz/input.h)
+    const sgcl_fuzz::exact masked(plain);
+    slice<const std::byte> p = masked.bytes();
     auto c = lzw::compress(p, o, width);
     auto back = lzw::decompress(slice<const std::byte>(c.data(), c.size()), o, width, compress::limits{UINT64_MAX});
     if (!back || text(*back) != plain) {

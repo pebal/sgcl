@@ -31,6 +31,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
+#include <vector>
 
 namespace sgcl::net {
     namespace detail { using namespace sgcl::detail; }
@@ -1455,8 +1456,9 @@ namespace sgcl::net {
     // listener made; listen creates the socket's file (an error when
     // something is at the path already, as in Go), and the listener's
     // close() removes it. A path is at most 103 bytes on macOS (107 on
-    // Linux). `unix_domain` and not `unix`: `unix` is a macro in the GNU
-    // modes of GCC and Clang on Linux.
+    // Linux). Descriptors pass over such a connection with its own
+    // send_descriptors and receive_descriptors. `unix_domain` and not
+    // `unix`: `unix` is a macro in the GNU modes of GCC and Clang on Linux.
     struct unix_domain {
         // `connect(...)` on this thread, `co_await async_connect(...)` in a task
         SGCL_INLINE_HOT static expected<net::connection, io::error> connect(const string& path) {

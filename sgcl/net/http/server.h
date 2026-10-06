@@ -30,6 +30,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <concepts>
 #include <exception>
 #include <iostream>
 #include <mutex>
@@ -187,7 +188,7 @@ namespace sgcl::net::http {
                 cfg->observe(r);
             }
             try {
-                if (auto t = dispatch(*s, req, r, writer, method, host_text, path)) {
+                if (auto t = run_request(*cfg, *s, req, r, writer, method, host_text, path)) {
                     co_await *t;
                 }
             } catch (const std::exception& e) {
@@ -245,6 +246,9 @@ namespace sgcl::net::http {
                 sent = co_await *rest;
             }
             log_access(*cfg, *req, *w, body_bytes, path, line.minor == 1 ? std::string_view("HTTP/1.1") : std::string_view("HTTP/1.0"), start);
+            if (w->after_end) [[unlikely]] {
+                w->after_end(*w, body_bytes);
+            }
             if (!sent) {
                 node->stop.request_stop();
                 co_return Next::end;
@@ -377,6 +381,167 @@ namespace sgcl::net::http {
     // ends; the server goes on.
     namespace detail {
         struct ServerAccess;
+        struct HandlerAccess;
+
+        // A handler of either kind run to its end, as a task
+        inline async::task<> run_handler(Handler h, request r, response_writer w) {
+            if (h.step) {
+                if (auto t = h.step(r, w)) {
+                    co_await *t;
+                }
+            } else if (h.plain) {
+                h.plain(r, w);
+            } else if (h.awaited) {
+                co_await h.awaited(r, w);
+            } else {
+                w.error(status::not_found);
+            }
+        }
+
+        template<class H>
+        concept HandlerCallable = std::is_invocable_v<H&, request, response_writer>;
+
+        // A middleware of the program's that filters: true, the request goes on
+        template<class M>
+        concept MiddlewareFilter = requires(M& m, request& r, response_writer& w) {
+            { m(r, w) } -> std::convertible_to<bool>;
+        };
+    }
+
+    // A handler of either kind, type-erased: a plain function of (request,
+    // response_writer) or one that returns async::task<>, or what a
+    // middleware's wrap() made of one. What server::route takes as it takes
+    // the callable itself, and what a middleware passes a request on to:
+    //
+    //     net::http::handler api = [](net::http::request, net::http::response_writer w) { w.write("hi"); };
+    //     srv.route("/api/", net::http::cors().wrap(api));
+    //
+    // A value: a copy calls the same function
+    class handler {
+    public:
+        // Every request answered 404
+        handler() noexcept = default;
+
+        template<class H>
+        requires(!std::is_same_v<std::decay_t<H>, handler> && detail::HandlerCallable<std::decay_t<H>>)
+        handler(H h) {
+            using R = std::invoke_result_t<std::decay_t<H>&, request, response_writer>;
+            if constexpr (std::is_void_v<R>) {
+                _h.plain = function<void(request, response_writer)>(std::move(h));
+            } else {
+                static_assert(std::is_same_v<R, async::task<>>, "a handler returns void or async::task<>");
+                _h.awaited = function<async::task<>(request, response_writer)>(std::move(h));
+            }
+        }
+
+        class call;
+
+        // The request served when the call is awaited, `co_await next(req,
+        // w)` in a middleware of the program's: a plain handler (and every
+        // plain middleware before it) run then without suspending, one that
+        // waits awaited in the awaiting task's frame, with no frame of its
+        // own. What the handler throws comes out of the co_await. A call
+        // never awaited runs nothing; one that must outlive its expression
+        // is task() made of it
+        call operator()(request req, response_writer w) const noexcept;
+
+        // The request served as a task (a frame of its own; for a handler
+        // started and kept, or one given to async::spawn)
+        SGCL_INLINE_HOT async::task<> task(request req, response_writer w) const {
+            return detail::run_handler(_h, std::move(req), std::move(w));
+        }
+
+    private:
+        friend struct detail::HandlerAccess;
+        detail::Handler _h;
+    };
+
+    // What handler::operator() gives: an awaitable, run when awaited
+    class handler::call {
+    public:
+        SGCL_INLINE_HOT bool await_ready() {
+            const detail::Handler& h = *_h;
+            optional<async::task<>> t;
+            if (h.step) {
+                t = h.step(_r, _w);
+            } else if (h.plain) {
+                h.plain(_r, _w);
+            } else if (h.awaited) {
+                t = h.awaited(_r, _w);
+            } else {
+                _w.error(status::not_found);
+            }
+            if (!t) {
+                return true;
+            }
+            _t.emplace(std::move(*t));
+            _a.emplace(_t->operator co_await());
+            return _a->await_ready();
+        }
+
+        template<class P>
+        SGCL_INLINE_HOT bool await_suspend(std::coroutine_handle<P> h) {
+            return _a->await_suspend(h);
+        }
+
+        SGCL_INLINE_HOT void await_resume() {
+            if (_a) {
+                _a->await_resume();
+            }
+        }
+
+    private:
+        friend class handler;
+
+        SGCL_INLINE_HOT call(const detail::Handler* h, request r, response_writer w) noexcept
+        : _h(h), _r(std::move(r)), _w(std::move(w)) {
+        }
+
+        const detail::Handler* _h;
+        request _r;
+        response_writer _w;
+        optional<async::task<>> _t;
+        optional<async::task<>::awaiter> _a;
+    };
+
+    SGCL_INLINE_HOT handler::call handler::operator()(request req, response_writer w) const noexcept {
+        return call(&_h, std::move(req), std::move(w));
+    }
+
+    namespace detail {
+        struct HandlerAccess {
+            SGCL_INLINE_HOT static const Handler& inner(const handler& h) noexcept {
+                return h._h;
+            }
+
+            // The handler as a step: its own, or one made of its function
+            static Step step(const handler& h) {
+                if (h._h.step) {
+                    return h._h.step;
+                }
+                if (h._h.plain) {
+                    return [f = h._h.plain](request& r, response_writer& w) -> optional<async::task<>> {
+                        f(r, w);
+                        return nullopt;
+                    };
+                }
+                if (h._h.awaited) {
+                    return [f = h._h.awaited](request& r, response_writer& w) -> optional<async::task<>> {
+                        return f(r, w);
+                    };
+                }
+                return [](request&, response_writer& w) -> optional<async::task<>> {
+                    w.error(status::not_found);
+                    return nullopt;
+                };
+            }
+
+            SGCL_INLINE_HOT static handler make(Step s) {
+                handler out;
+                out._h.step = std::move(s);
+                return out;
+            }
+        };
     }
 
     class server {
@@ -400,6 +565,46 @@ namespace sgcl::net::http {
                 _impl->handlers.resize(i + 1);
             }
             _impl->handlers[i] = std::move(h);
+            return *this;
+        }
+
+        // A middleware around every request: around the routing, so that a
+        // request of no route (404, 405, the router's redirects) goes
+        // through it too, as Go's cors(mux); the first given the outermost.
+        // A middleware of the library (cors, recovery, request_log,
+        // body_limit, rate_limit, sessions, csrf, basic_auth, digest_auth,
+        // compression), a filter of the program's, `(request,
+        // response_writer) -> bool` (true: the request goes on), or an
+        // around, `(request, response_writer, const handler& next) ->
+        // async::task<>`. Read when serve() is called, as the fields are
+        template<class M>
+        server& use(M m) {
+            function<detail::Step(detail::Step)> wrap;
+            if constexpr (detail::LibraryMiddleware<M>) {
+                wrap = [m](detail::Step next) {
+                    return detail::MiddlewareAccess::wrap(m, std::move(next));
+                };
+            } else if constexpr (detail::MiddlewareFilter<M>) {
+                wrap = [m](detail::Step next) -> detail::Step {
+                    return [m, next = std::move(next)](request& r, response_writer& w) mutable -> optional<async::task<>> {
+                        if (!m(r, w)) {
+                            return nullopt;
+                        }
+                        return next(r, w);
+                    };
+                };
+            } else {
+                static_assert(std::is_same_v<std::invoke_result_t<M&, request, response_writer, const handler&>, async::task<>>,
+                              "a middleware is one of the library's, (request, response_writer) -> bool, or "
+                              "(request, response_writer, const handler& next) -> async::task<>");
+                wrap = [m](detail::Step next) -> detail::Step {
+                    return [m, h = detail::HandlerAccess::make(std::move(next))](request& r, response_writer& w) mutable -> optional<async::task<>> {
+                        return m(r, w, h);
+                    };
+                };
+            }
+            std::lock_guard<std::mutex> g(_impl->lock);
+            _impl->middleware.push_back(std::move(wrap));
             return *this;
         }
 
@@ -517,15 +722,19 @@ namespace sgcl::net::http {
 
         template<class H>
         static detail::Handler _handler(H h) noexcept(std::is_nothrow_move_constructible_v<H>) {
-            detail::Handler out;
-            using R = std::invoke_result_t<H&, request, response_writer>;
-            if constexpr (std::is_void_v<R>) {
-                out.plain = function<void(request, response_writer)>(std::move(h));
+            if constexpr (std::is_same_v<std::decay_t<H>, handler>) {
+                return detail::HandlerAccess::inner(h);
             } else {
-                static_assert(std::is_same_v<R, async::task<>>, "a handler returns void or async::task<>");
-                out.awaited = function<async::task<>(request, response_writer)>(std::move(h));
+                detail::Handler out;
+                using R = std::invoke_result_t<H&, request, response_writer>;
+                if constexpr (std::is_void_v<R>) {
+                    out.plain = function<void(request, response_writer)>(std::move(h));
+                } else {
+                    static_assert(std::is_same_v<R, async::task<>>, "a handler returns void or async::task<>");
+                    out.awaited = function<async::task<>(request, response_writer)>(std::move(h));
+                }
+                return out;
             }
-            return out;
         }
 
         tracked_ptr<detail::ServerSettings> _settings() const noexcept {
@@ -541,6 +750,7 @@ namespace sgcl::net::http {
             cfg->max_concurrent_streams = max_concurrent_streams ? max_concurrent_streams : 1;
             cfg->on_error = on_error;
             cfg->access_log = _access_log;
+            cfg->chain = detail::compose_chain(_impl);
             return cfg;
         }
 

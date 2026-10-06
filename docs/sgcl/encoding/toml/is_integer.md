@@ -1,0 +1,53 @@
+[sgcl](../../README.md) › [encoding](../README.md) › [toml](README.md)
+
+# sgcl::encoding::toml::is_integer
+
+```cpp
+bool is_integer() const noexcept;
+```
+
+Whether the value is an integer: one question of [type](type.md).
+
+## Parameters
+
+None.
+
+## Return value
+
+`true` when it is.
+
+## Complexity
+
+Constant.
+
+## Exceptions
+
+None.
+
+## Example
+
+```cpp
+#include "sgcl/encoding.h"
+#include "sgcl/io.h"
+
+using namespace sgcl;
+
+int main() {
+    auto v = encoding::toml::parse("a = [{}, [1], 'x', 7, 2.5, true, 07:32:00]").value();
+    for (const auto& e : v["a"].elements()) {
+        print("{} ", e.is_integer());
+    }
+    println();
+}
+```
+
+Output:
+
+```text
+false false false true false false false 
+```
+
+## See also
+
+- [type](type.md)
+- [sgcl::encoding::toml](README.md)

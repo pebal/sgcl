@@ -1,0 +1,1 @@
+public, max-age="30", no-cache="Set-Cookie, X", s-maxage=99999999999, max-stale, min-fresh=5

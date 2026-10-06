@@ -36,8 +36,10 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <fcntl.h>
 #include <sys/uio.h>
 #include <unistd.h>
+#include <vector>
 #if defined(__linux__)
 #include <csignal>
 #include <pthread.h>
@@ -462,6 +464,60 @@ namespace sgcl::net {
                 return _co_send_file_blocks(tracked_ptr<ConnImpl>(this), fd, offset, n);
             }
 
+            // Descriptors passed with bytes over a unix-domain socket
+            // (SCM_RIGHTS: connection::send_descriptors and
+            // receive_descriptors), the write's and the read's locks taken as
+            // a write and a read take them. A transport without a socket of
+            // its own (TLS, the pair in memory) refuses: EOPNOTSUPP
+            struct RightsRead {
+                size_t bytes = 0;
+                std::vector<int> fds;   // owned by the receiver from now on, close-on-exec
+            };
+
+            expected<size_t, io::error> send_rights(const slice<const byte>& data, const slice<const int>& fds) {
+                std::lock_guard<sgcl::async::mutex> guard(_write_lock);
+                return raw_send_rights(data, fds);
+            }
+
+            async::task<expected<size_t, io::error>> async_send_rights(slice<const byte> data, std::vector<int> fds) noexcept {
+                auto guard = co_await _write_lock.scoped_lock();
+                co_return co_await awaited_raw_send_rights(data, std::move(fds));
+            }
+
+            // A read with descriptors bypasses read_line's buffer: bytes
+            // waiting in it would be skipped, and are refused (EBUSY)
+            expected<RightsRead, io::error> receive_rights(const slice<byte>& buffer, size_t max) {
+                std::lock_guard<sgcl::async::mutex> guard(_read_lock);
+                if (_buffered && _buffered->buffered()) {
+                    return fail(system_error(EBUSY, "receive_descriptors", describe()));
+                }
+                return raw_receive_rights(buffer, max);
+            }
+
+            async::task<expected<RightsRead, io::error>> async_receive_rights(slice<byte> buffer, size_t max) noexcept {
+                auto guard = co_await _read_lock.scoped_lock();
+                if (_buffered && _buffered->buffered()) {
+                    co_return fail(system_error(EBUSY, "receive_descriptors", describe()));
+                }
+                co_return co_await awaited_raw_receive_rights(buffer, max);
+            }
+
+            virtual expected<size_t, io::error> raw_send_rights(const slice<const byte>&, const slice<const int>&) {
+                return fail(system_error(EOPNOTSUPP, "send_descriptors", describe()));
+            }
+
+            virtual async::task<expected<size_t, io::error>> awaited_raw_send_rights(slice<const byte> data, std::vector<int> fds) noexcept {
+                co_return raw_send_rights(data, slice<const int>(fds));
+            }
+
+            virtual expected<RightsRead, io::error> raw_receive_rights(const slice<byte>&, size_t) {
+                return fail(system_error(EOPNOTSUPP, "receive_descriptors", describe()));
+            }
+
+            virtual async::task<expected<RightsRead, io::error>> awaited_raw_receive_rights(slice<byte> buffer, size_t max) noexcept {
+                co_return raw_receive_rights(buffer, max);
+            }
+
             // Ends the connection both ways; the operations in progress end
             // with io::errc::closed. close and set_deadline wake the waits
             // in progress and never wait themselves (noexcept, as the
@@ -469,6 +525,14 @@ namespace sgcl::net {
             // close_notify through the record's lock)
             virtual expected<void, io::error> close() noexcept = 0;
             virtual bool is_closed() const noexcept = 0;
+
+            // The socket's descriptor, for a call the library does not make
+            // (send_descriptors of another connection); -1 for a
+            // transport without one of its own (TLS, the pair in memory) or
+            // a closed one
+            virtual int socket_fd() const noexcept {
+                return -1;
+            }
             virtual expected<void, io::error> close_write() = 0;
             virtual void set_deadline(int dir, time_point t) noexcept = 0;
             virtual time_point deadline(int dir) const noexcept = 0;   // time_point() for none
@@ -737,6 +801,108 @@ namespace sgcl::net {
 
             readiness raw_readable() noexcept override {
                 return readiness(_d, *this);
+            }
+
+            // The bytes with the descriptors (SCM_RIGHTS in the first
+            // sendmsg; the rest of the bytes, if that one took part of them,
+            // as a write sends them), waiting as a write waits. The bytes may
+            // not be empty: a stream carries descriptors with bytes only
+            expected<size_t, io::error> raw_send_rights(const slice<const byte>& data, const slice<const int>& fds) override {
+                Operation op(_d);
+                if (!op) {
+                    return fail(closed_error("send_descriptors", describe()));
+                }
+                if (auto e = _rights_args(data, fds.size())) {
+                    return fail(*e);
+                }
+                size_t written = 0;
+                bool look = true;
+                for (;;) {
+                    auto would_wait = written == 0 ? _sendmsg_now(data, fds, written, look) : _send_now(data, written, look);
+                    if (!would_wait) {
+                        return fail(would_wait);
+                    }
+                    if (!*would_wait) {
+                        return written;
+                    }
+                    auto r = _d.wait(Descriptor::Write, look);
+                    if (r != WaitResult::ready) {
+                        return fail(wait_error(r, _d, "send_descriptors", describe()));
+                    }
+                    look = !look;
+                }
+            }
+
+            async::task<expected<size_t, io::error>> awaited_raw_send_rights(slice<const byte> data, std::vector<int> fds) noexcept override {
+                Operation op(_d);
+                if (!op) {
+                    co_return fail(closed_error("send_descriptors", describe()));
+                }
+                if (auto e = _rights_args(data, fds.size())) {
+                    co_return fail(*e);
+                }
+                size_t written = 0;
+                bool look = true;
+                for (;;) {
+                    auto would_wait = written == 0 ? _sendmsg_now(data, fds, written, look) : _send_now(data, written, look);
+                    if (!would_wait) {
+                        co_return fail(would_wait);
+                    }
+                    if (!*would_wait) {
+                        co_return written;
+                    }
+                    auto r = co_await _d.async_wait(Descriptor::Write, look);
+                    if (r != WaitResult::ready) {
+                        co_return fail(wait_error(r, _d, "send_descriptors", describe()));
+                    }
+                    look = !look;
+                }
+            }
+
+            // Bytes, and the descriptors that came with them (at most `max`),
+            // waiting as a read waits
+            expected<RightsRead, io::error> raw_receive_rights(const slice<byte>& b, size_t max) override {
+                Operation op(_d);
+                if (!op) {
+                    return fail(closed_error("receive_descriptors", describe()));
+                }
+                bool look = true;
+                for (;;) {
+                    auto n = _recvmsg_now(b, max, look);
+                    if (!n) {
+                        return fail(n);
+                    }
+                    if (*n) {
+                        return std::move(**n);
+                    }
+                    auto r = _d.wait(Descriptor::Read, look);
+                    if (r != WaitResult::ready) {
+                        return fail(wait_error(r, _d, "receive_descriptors", describe()));
+                    }
+                    look = !look;
+                }
+            }
+
+            async::task<expected<RightsRead, io::error>> awaited_raw_receive_rights(slice<byte> b, size_t max) noexcept override {
+                Operation op(_d);
+                if (!op) {
+                    co_return fail(closed_error("receive_descriptors", describe()));
+                }
+                bool look = true;
+                for (;;) {
+                    auto n = _recvmsg_now(b, max, look);
+                    if (!n) {
+                        co_return fail(n);
+                    }
+                    if (*n) {
+                        co_return std::move(**n);
+                    }
+                    auto r = co_await _d.async_wait(Descriptor::Read, look);
+                    if (r != WaitResult::ready) {
+                        co_return fail(wait_error(r, _d, "receive_descriptors", describe()));
+                    }
+                    look = !look;
+                }
             }
 
             expected<size_t, io::error> raw_write(const slice<const byte>& data) override {
@@ -1063,6 +1229,10 @@ namespace sgcl::net {
                 return _d.fd();
             }
 
+            int socket_fd() const noexcept override {
+                return _d.closing() ? -1 : _d.fd();
+            }
+
         private:
             // One receive without waiting, for the three reads (the blocking,
             // the awaited, the try): the descriptor's state looked at first
@@ -1117,6 +1287,120 @@ namespace sgcl::net {
                     return true;
                 }
                 return false;
+            }
+
+            // The most descriptors one message carries (SCM_MAX_FD on Linux)
+            static constexpr size_t MaxRights = 253;
+
+            // What send_descriptors refuses before a call: a socket that is no
+            // unix-domain one (EOPNOTSUPP), no bytes or too many descriptors
+            // (EINVAL)
+            optional<io::error> _rights_args(const slice<const byte>& data, size_t n) const noexcept {
+                if (_tcp) {
+                    return system_error(EOPNOTSUPP, "send_descriptors", describe());
+                }
+                if (data.empty() || n == 0 || n > MaxRights) {
+                    return system_error(EINVAL, "send_descriptors", describe());
+                }
+                return nullopt;
+            }
+
+            // The first sendmsg, with the descriptors; as _send_now otherwise
+            expected<bool, io::error> _sendmsg_now(const slice<const byte>& data, const slice<const int>& fds, size_t& written, bool deadline) noexcept {
+                for (;;) {
+                    if (auto e = _check(Descriptor::Write, "send_descriptors", deadline)) {
+                        return fail(*e);
+                    }
+                    _d.prepare(Descriptor::Write);
+                    alignas(struct ::cmsghdr) char control[CMSG_SPACE(sizeof(int) * MaxRights)] = {};
+                    struct ::iovec iov = {const_cast<byte*>(data.data()), data.size()};
+                    struct ::msghdr m = {};
+                    m.msg_iov = &iov;
+                    m.msg_iovlen = 1;
+                    m.msg_control = control;
+                    m.msg_controllen = socklen_t(CMSG_SPACE(sizeof(int) * fds.size()));
+                    struct ::cmsghdr* c = CMSG_FIRSTHDR(&m);
+                    c->cmsg_level = SOL_SOCKET;
+                    c->cmsg_type = SCM_RIGHTS;
+                    c->cmsg_len = socklen_t(CMSG_LEN(sizeof(int) * fds.size()));
+                    sgcl::detail::copy_bytes(CMSG_DATA(c), fds.data(), sizeof(int) * fds.size());
+                    ssize_t n = ::sendmsg(_d.fd(), &m, SendFlags);
+                    if (n >= 0) {
+                        written = size_t(n);
+                        return written < data.size() ? expected<bool, io::error>(_send_now(data, written, true)) : expected<bool, io::error>(false);
+                    }
+                    int e = errno;
+                    if (e == EINTR) {
+                        continue;
+                    }
+                    if (e != EAGAIN && e != EWOULDBLOCK) {
+                        return fail(system_error(e, "send_descriptors", describe()));
+                    }
+                    return true;
+                }
+            }
+
+            // One recvmsg without waiting: the bytes and the descriptors
+            // (close-on-exec), nullopt when the socket would wait. Descriptors
+            // past `max` the kernel dropped (MSG_CTRUNC): what came is closed
+            // and the read is EMSGSIZE
+            expected<optional<RightsRead>, io::error> _recvmsg_now(const slice<byte>& b, size_t max, bool deadline) noexcept {
+                max = std::min(max, MaxRights);
+                for (;;) {
+                    if (auto e = _check(Descriptor::Read, "receive_descriptors", deadline)) {
+                        return fail(*e);
+                    }
+                    _d.prepare(Descriptor::Read);
+                    alignas(struct ::cmsghdr) char control[CMSG_SPACE(sizeof(int) * MaxRights)] = {};
+                    struct ::iovec iov = {b.data(), b.size()};
+                    struct ::msghdr m = {};
+                    m.msg_iov = &iov;
+                    m.msg_iovlen = 1;
+                    m.msg_control = control;
+                    m.msg_controllen = socklen_t(CMSG_SPACE(sizeof(int) * std::max<size_t>(max, 1)));
+#if defined(MSG_CMSG_CLOEXEC)
+                    ssize_t n = ::recvmsg(_d.fd(), &m, MSG_CMSG_CLOEXEC);
+#else
+                    ssize_t n = ::recvmsg(_d.fd(), &m, 0);
+#endif
+                    if (n < 0) {
+                        int e = errno;
+                        if (e == EINTR) {
+                            continue;
+                        }
+                        if (e != EAGAIN && e != EWOULDBLOCK) {
+                            return fail(system_error(e, "receive_descriptors", describe()));
+                        }
+                        return optional<RightsRead>();
+                    }
+                    RightsRead r;
+                    r.bytes = size_t(n);
+                    for (struct ::cmsghdr* c = CMSG_FIRSTHDR(&m); c; c = CMSG_NXTHDR(&m, c)) {
+                        if (c->cmsg_level != SOL_SOCKET || c->cmsg_type != SCM_RIGHTS) {
+                            continue;
+                        }
+                        // what the header says came, but no more than the
+                        // control block holds: under MSG_CTRUNC macOS keeps
+                        // the length of all that was sent, and the ints past
+                        // the block's end (zeros) were closed as descriptor 0
+                        const unsigned char* at = CMSG_DATA(c);
+                        const size_t room = size_t((const unsigned char*)control + m.msg_controllen - at);
+                        const size_t count = std::min<size_t>((c->cmsg_len - CMSG_LEN(0)) / sizeof(int), room / sizeof(int));
+                        for (size_t i = 0; i < count; ++i) {
+                            int fd;
+                            std::memcpy(&fd, at + i * sizeof(int), sizeof(int));   // an int of the control block, unaligned as it may be
+                            ::fcntl(fd, F_SETFD, FD_CLOEXEC);
+                            r.fds.push_back(fd);
+                        }
+                    }
+                    if (m.msg_flags & MSG_CTRUNC) {
+                        for (int fd : r.fds) {
+                            ::close(fd);
+                        }
+                        return fail(system_error(EMSGSIZE, "receive_descriptors", describe()));
+                    }
+                    return optional<RightsRead>(std::move(r));
+                }
             }
 
             enum class FileSend : uint8_t { done, would_wait, unsupported };
@@ -1689,6 +1973,60 @@ namespace sgcl::net {
             return _get().is_closed();
         }
 
+        // The socket's descriptor, owned by the connection, for a call of
+        // the system the library does not make (passing the socket to
+        // another process: send_descriptors); -1 for a
+        // connection without a socket of its own (TLS, in_memory) or a
+        // closed one
+        SGCL_INLINE_HOT int fd() const noexcept {
+            return _get().socket_fd();
+        }
+
+        // What receive_descriptors read: the bytes, and the descriptors that
+        // came with them, each a file the program owns from now on (a file,
+        // a socket, a pipe: io::file is every descriptor)
+        struct received {
+            size_t size = 0;
+            vector<io::file> files;
+        };
+
+        // Descriptors passed to the process at the other end of a
+        // unix-domain connection (SCM_RIGHTS, Go's UnixConn.WriteMsgUnix
+        // with syscall.UnixRights): the bytes of `data`, not empty, with the
+        // descriptors `fds` (1 to 253) in their first message, duplicated
+        // into the receiver as it reads them; the sender's stay its own.
+        // EOPNOTSUPP for TCP, TLS and the pair in memory. The bytes written.
+        // `send_descriptors(...)` on this thread, `co_await
+        // async_send_descriptors(...)` in a task (which copies `fds` before
+        // it starts)
+        SGCL_INLINE_HOT expected<size_t, io::error> send_descriptors(const slice<const byte>& data, const slice<const int>& fds) const {
+            return _get().send_rights(data, fds);
+        }
+
+        SGCL_INLINE_HOT async::task<expected<size_t, io::error>> async_send_descriptors(const slice<const byte>& data, const slice<const int>& fds) const noexcept {
+            return _get().async_send_rights(data, std::vector<int>(fds.begin(), fds.end()));
+        }
+
+        // A read of the bytes there (at most the buffer's size; 0 at the end
+        // of the stream) and of the descriptors that came with them (at
+        // most `max`; those past it the kernel drops, and the read is
+        // EMSGSIZE with what came closed). Bytes read_line has buffered are
+        // refused (EBUSY): descriptors are read beside the connection's
+        // buffer, not through it.
+        // `receive_descriptors(...)` on this thread, `co_await
+        // async_receive_descriptors(...)` in a task
+        SGCL_INLINE_HOT expected<received, io::error> receive_descriptors(const slice<byte>& buffer, size_t max = 16) const {
+            auto r = _get().receive_rights(buffer, max);
+            if (!r) {
+                return detail::fail(r);
+            }
+            return _received(*r);
+        }
+
+        SGCL_INLINE_HOT async::task<expected<received, io::error>> async_receive_descriptors(const slice<byte>& buffer, size_t max = 16) const noexcept {
+            return _co_receive_descriptors(_impl, buffer, max);
+        }
+
         // The addresses of the two ends; empty for a unix socket and for
         // the pair in memory
         SGCL_INLINE_HOT endpoint local_endpoint() const noexcept {
@@ -1838,6 +2176,23 @@ namespace sgcl::net {
 
         SGCL_INLINE_HOT async::task<expected<size_t, io::error>> _co_write(const string& text) const noexcept {
             return _get().async_write(as_bytes(text.as_slice()));
+        }
+
+        static received _received(const detail::ConnImpl::RightsRead& r) noexcept {
+            received out;
+            out.size = r.bytes;
+            for (int fd : r.fds) {
+                out.files.push_back(io::from_fd(fd, string("descriptor")));
+            }
+            return out;
+        }
+
+        static async::task<expected<received, io::error>> _co_receive_descriptors(tracked_ptr<detail::ConnImpl> c, slice<byte> buffer, size_t max) noexcept {
+            auto r = co_await c->async_receive_rights(buffer, max);
+            if (!r) {
+                co_return detail::fail(r);
+            }
+            co_return _received(*r);
         }
 
         static async::task<expected<size_t, io::error>> _co_read_from(connection self, io::file f) noexcept {

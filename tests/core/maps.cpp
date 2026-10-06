@@ -111,9 +111,8 @@ namespace {
         size_t raw = 0;
     };
 
-    // Data that happens to hold an address inside a live object, not at
-    // its start (two small ints packed in a word, as an immutable map's
-    // node holds them): no pointer of any kind
+    // A plain object a word may point into: a pointer to a member is a
+    // pointer to the object
     struct Blob {
         char bytes[256] = {};
     };
@@ -128,6 +127,11 @@ namespace {
 
     struct Packed {
         Packed() {}
+        size_t word = 0;
+    };
+
+    struct PackedInArray {
+        PackedInArray() {}
         size_t word = 0;
     };
 
@@ -392,6 +396,9 @@ TEST(Maps_Tests, ARawWordNoOwnerCoversIsReported) {
 // object holds is not reported, though the address is the start of the
 // next slot: a slice's end, which nothing reads through
 TEST(Maps_Tests, AnEndWordItsOwnerCoversIsNotReported) {
+#if defined(SGCL_ASAN)
+    GTEST_SKIP() << "under the address sanitizer no object ends where the next slot starts: a redzone lies between (page_info.h: SlotSize)";
+#endif
     tracked_ptr<Blob> first = make_tracked<Blob>();
     tracked_ptr<Blob> next;
     for (int i = 0; i < 64 && !next; ++i) {   // a Blob in the slot right after first's
@@ -419,6 +426,9 @@ TEST(Maps_Tests, AnEndWordItsOwnerCoversIsNotReported) {
 // holds it is the evidence, not the registration (the HTTP/2 owned slices,
 // DESIGN 440)
 TEST(Maps_Tests, AnEndWordOfAFreshOwnedObjectIsNotReported) {
+#if defined(SGCL_ASAN)
+    GTEST_SKIP() << "under the address sanitizer no object ends where the next slot starts: a redzone lies between (page_info.h: SlotSize)";
+#endif
     collector::stepper s;
     sgcl::vector<tracked_ptr<Slot>> old;
     tracked_ptr<FreshEndCovered> data = make_tracked<FreshEndCovered>();
@@ -440,6 +450,9 @@ TEST(Maps_Tests, AnEndWordOfAFreshOwnedObjectIsNotReported) {
 // A raw word at the start of an old object whose predecessor, fresh, the
 // holder does not name: reported, the raw word keeping nothing
 TEST(Maps_Tests, AStartWordWhosePredecessorIsNotHeldIsReported) {
+#if defined(SGCL_ASAN)
+    GTEST_SKIP() << "under the address sanitizer no object ends where the next slot starts: a redzone lies between (page_info.h: SlotSize)";
+#endif
     collector::stepper s;
     sgcl::vector<tracked_ptr<Slot>> old;
     tracked_ptr<FreshEndUncovered> data = make_tracked<FreshEndUncovered>();
@@ -458,9 +471,10 @@ TEST(Maps_Tests, AStartWordWhosePredecessorIsNotHeldIsReported) {
     EXPECT_NE(output.find("FreshEndUncovered"), std::string::npos) << output;
 }
 
-// Data that lands inside a live object, not at its start, is not taken
-// for a pointer: a pointer names an object by its start
-TEST(Maps_Tests, DataInsideAnObjectIsNotReported) {
+// A raw word inside a plain object, not at its start, is reported: a
+// pointer to a member keeps the object as one to its start would, and the
+// raw word keeps nothing
+TEST(Maps_Tests, AWordInsideAPlainObjectIsReported) {
     tracked_ptr<Blob> target = make_tracked<Blob>();
     tracked_ptr<Packed> data = make_tracked<Packed>();
     tracked_ptr<Packed> inside = make_tracked<Packed>();
@@ -471,6 +485,22 @@ TEST(Maps_Tests, DataInsideAnObjectIsNotReported) {
         collector::force_collect(true);
     }
     auto output = ::testing::internal::GetCapturedStderr();
-    EXPECT_EQ(output.find("Packed"), std::string::npos) << output;
+    EXPECT_NE(output.find("Packed"), std::string::npos) << output;
+}
+
+// A raw word inside an array (a buffer), not at its start, is not: a
+// pointer to an array names its start, an element is reached through it
+TEST(Maps_Tests, AWordInsideAnArrayIsNotReported) {
+    sgcl::vector<char> target(256);
+    tracked_ptr<PackedInArray> data = make_tracked<PackedInArray>();
+    tracked_ptr<PackedInArray> inside = make_tracked<PackedInArray>();
+    data->word = 12345;
+    inside->word = (size_t)target.data() + 64;
+    ::testing::internal::CaptureStderr();
+    for (int i = 0; i < 4; ++i) {
+        collector::force_collect(true);
+    }
+    auto output = ::testing::internal::GetCapturedStderr();
+    EXPECT_EQ(output.find("PackedInArray"), std::string::npos) << output;
 }
 #endif

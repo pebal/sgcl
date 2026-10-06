@@ -26,8 +26,7 @@
 // the derivation did. It is for deriving a key from a password where a
 // format or a protocol names PBKDF2 (PKCS #5, PKCS #12, WPA2, a password
 // manager's vault); for storing passwords to be checked, a memory-hard
-// function (Argon2id, scrypt) is the better choice, and the module will
-// have one after version 1.
+// function is the better choice: argon2 (argon2.h), or scrypt.
 //
 // One block of the result is F(P, S, c, i) = U1 ^ U2 ^ ... ^ Uc, with U1 =
 // HMAC(P, S || i) (i as four bytes, big-endian, from 1) and Uj =

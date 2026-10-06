@@ -6,6 +6,7 @@
 // The zip reader on any bytes: the archive opened from memory, every
 // entry read whole (under a limit) and through its reader
 #include "sgcl/compress/compress.h"
+#include "tests/fuzz/input.h"
 
 #include <string>
 #include <vector>
@@ -25,7 +26,9 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             e.name = string("f" + std::to_string(k));
             e.method = data[at] & 1 ? compress::zip::method::store : compress::zip::method::deflate;
             auto ew = w.create(e);
-            if (!ew || !ew->write(slice<const std::byte>(reinterpret_cast<const std::byte*>(parts.back().data()), n))) {
+            // the encoder reads a buffer of the part's own size (tests/fuzz/input.h)
+            const sgcl_fuzz::exact part(parts.back());
+            if (!ew || !ew->write(part.bytes())) {
                 __builtin_trap();
             }
             at += n;

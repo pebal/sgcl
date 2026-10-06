@@ -72,6 +72,8 @@ alive. Its fields are a [headers](../headers/README.md) of its own, which [heade
 | [set_body](set_body.md) | sets the body to send: text, bytes, a stream or a form |
 | [set_url](set_url.md) | sets the URL to send to |
 | [set_stop](set_stop.md) | ties the exchange to a stop token: a stop cancels it |
+| [set_basic_auth](set_basic_auth.md) | sets `Authorization: Basic` of a user and a password, sent at once |
+| [set_credentials](set_credentials.md) | gives credentials to answer a 401 of the request's origin with: Digest or Basic |
 
 #### Received by a server
 
@@ -84,6 +86,8 @@ alive. Its fields are a [headers](../headers/README.md) of its own, which [heade
 | [remote_endpoint](remote_endpoint.md) | the address and the port of the client |
 | [tls](tls.md) | what the TLS handshake of its connection settled: the client's certificates, the resumption |
 | [stop](stop.md) | a token stopped when the server closes, a write fails or the connection is lost |
+| [basic_auth](basic_auth.md) | the user and the password of an `Authorization: Basic` |
+| [authenticated_user](authenticated_user.md) | the user an authentication middleware let in |
 
 #### The body
 

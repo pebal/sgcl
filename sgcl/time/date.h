@@ -17,6 +17,10 @@
 #include <iosfwd>
 #include <string>
 
+namespace sgcl::txt {
+    class locale;
+}
+
 namespace sgcl::time {
     class datetime;
     class layout;
@@ -25,6 +29,17 @@ namespace sgcl::time {
     namespace detail {
         struct layout_writer;
     }
+
+    // The four lengths of CLDR's patterns of a date or a time (CLDR's
+    // short, medium, long and full), and none: localized.h writes them,
+    // t.format(txt::locale("pl"), time::style::full)
+    enum class style : uint8_t {
+        none,
+        brief,      // CLDR short: 24.09.2026, 14:05
+        medium,     // CLDR medium: 24 wrz 2026, 14:05:09
+        detailed,   // CLDR long: 24 września 2026 14:05:09 CEST
+        full,       // CLDR full: czwartek, 24 września 2026 14:05:09 czas środkowoeuropejski letni
+    };
 
     // How a time of the clock that a change of the clock makes happen
     // twice (the hour repeated in autumn) is read: the earlier of the two
@@ -362,6 +377,11 @@ namespace sgcl::time {
         // 2026"; a specifier of a time of day or of a zone is written as
         // it stands
         string format(const string& pattern) const noexcept;
+
+        // The date as a locale writes it (localized.h): in one of its four
+        // patterns, or in its pattern for the fields of a skeleton ("yMMMd")
+        string format(const txt::locale& l, style date = style::medium) const;
+        string format(const txt::locale& l, const string& skeleton) const;
 
         // ISO 8601's extended calendar date, as std::format's %F writes
         // it: "2026-09-24", "-0044-03-15", "10000-01-01"

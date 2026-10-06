@@ -42,6 +42,62 @@
 //             the road above; prints both and their ratio (A/B for
 //             setting the thresholds of sgcl/math/detail/mul.h)
 //
+// decimal (sgcl only; n is the number of digits of the operands, which
+// have two of them after the point; the same cases as benchmarks/math/
+// decimal_python.py over Python's decimal, and Go's big.Rat for orientation):
+//   dadd      a + b
+//   daddmix   a + b, b at scale 4: one of the two brought to the other
+//   dmul      a * b
+//   dmoney    (a * b).rescale(2): a price times a rate, back to cents
+//   ddiv      a.div_precision(b, n): the quotient to n digits (Python's
+//             context of precision n)
+//   dsqrt     2.sqrt(n)
+//   dparse    parse() of the text of a
+//   dformat   to_string() of a
+//   dsum      sum += x over a thousand values of n digits, per term
+//
+// algebra (sgcl, or plain: the same arithmetic as the plain loops the
+// compiler vectorizes as it likes, against the NEON / SSE2 paths):
+//   mat4mul   a * b of two 4×4 matrices
+//   mat4apply apply() of a 4×4 matrix to n vectors, per vector
+//   affine    the composition of two affine transforms and a point through it
+//
+// curves (sgcl; no reference: Go has none, and these are measured as they are):
+//   ease      easing::ease (CSS's cubic-bezier, solved for the progress) at
+//             a progress that changes each time
+//   bounce    easing::ease_in_out_bounce likewise
+//   flatten   a cubic Bézier of about 200 units flattened within 0.25, per
+//             curve (into a vector kept from one to the next)
+//   curvelen  the length of the same cubic, to 1e-3
+//
+// fft (sgcl; the reference is Apple's vDSP, measured by a scratch program,
+// Go having no FFT):
+//   fft       a forward and an inverse complex transform of n doubles in
+//             place, reported per transform
+//   fftf      the same in float
+//   rfftf     forward_real of n floats
+//   dftf      a forward complex transform of n floats, n not a power of two
+//
+// big_float (sgcl; n is the precision in bits, Go's big.Float the same):
+//   fadd      a + b
+//   fmul      a * b
+//   fdiv      a / b
+//   fsqrt     a.sqrt()
+//   ftext     to_string(), the shortest decimal that reads back (Go's
+//             Text('g', -1))
+//   fparse    parse() of that text
+//
+// statistics (sgcl; the reference is Python's statistics module by
+// benchmarks/math/statistics_python.py for the functions of a sequence, none
+// for the accumulators: Go has none; n values, a million by default):
+//   ssummary  summary::add, per value
+//   sdigest   t_digest::add, per value
+//   squantile t_digest::quantile of a digest of n values
+//   shist     histogram::add into 30 exponential buckets, per value
+//   smean     mean() of n values, per value
+//   smedian   median() of n values, per value
+//   spct      quantile(values, 0.99) of n values, per value
+//
 // random (sgcl or std; n is ignored):
 //   uint64    next_uint64 (std: mt19937_64())
 //   intn      next_int(1000) (std: uniform_int_distribution)
@@ -62,6 +118,7 @@
 
 #include <algorithm>
 #include <bit>
+#include <complex>
 #include <cstring>
 #include <random>
 #include <string>
@@ -144,6 +201,366 @@ namespace {
             }
             count *= 2;
         }
+    }
+
+    // n digits, the first not zero, with the point before the last two
+    std::string decimal_text(std::mt19937_64& rng, long n) {
+        std::string t;
+        for (long i = 0; i < n; ++i) {
+            t += char('0' + (i ? rng() % 10 : 1 + rng() % 9));
+        }
+        if (n > 2) {
+            t.insert(t.end() - 2, '.');
+        }
+        return t;
+    }
+
+    double float_op(const char* op, long n) {
+        using math::big_float;
+        std::mt19937_64 rng(1);
+        auto bits = uint32_t(n ? n : 256);
+        long limbs = long(bits + 63) / 64;
+        auto value = [&] {
+            big_integer m = random_big(rng, limbs) >> (uint64_t(limbs) * 64 - bits);   // bits bits
+            return big_float(math::rational(m, big_integer(1) << (bits / 2)), bits);
+        };
+        big_float a = value();
+        big_float b = value();
+        auto run = [&](auto f) {
+            return measure([&](long count) {
+                for (long i = 0; i < count; ++i) {
+                    use(uint64_t(f().sign()));
+                }
+            });
+        };
+        if (!std::strcmp(op, "fadd")) {
+            return run([&] { return a + b; });
+        }
+        if (!std::strcmp(op, "fmul")) {
+            return run([&] { return a * b; });
+        }
+        if (!std::strcmp(op, "fdiv")) {
+            return run([&] { return a / b; });
+        }
+        if (!std::strcmp(op, "fsqrt")) {
+            return run([&] { return a.sqrt(); });
+        }
+        if (!std::strcmp(op, "ftext")) {
+            return measure([&](long count) {
+                for (long i = 0; i < count; ++i) {
+                    use(a.to_string().size());
+                }
+            });
+        }
+        if (!std::strcmp(op, "fparse")) {
+            string text = a.to_string();
+            return measure([&](long count) {
+                for (long i = 0; i < count; ++i) {
+                    use(uint64_t(big_float::parse(text, bits)->sign()));
+                }
+            });
+        }
+        return -1;
+    }
+
+    double decimal_op(const char* op, long n) {
+        using math::decimal;
+        std::mt19937_64 rng(1);
+        std::string at = decimal_text(rng, n);
+        decimal a(string(at.c_str()));
+        decimal b(string(decimal_text(rng, n).c_str()));
+        if (!std::strcmp(op, "dadd")) {
+            return measure([&](long count) {
+                for (long i = 0; i < count; ++i) {
+                    decimal c = a + b;
+                    use(uint64_t(c.sign()));
+                }
+            });
+        }
+        if (!std::strcmp(op, "daddmix")) {
+            decimal b4(b.unscaled(), 4);
+            return measure([&](long count) {
+                for (long i = 0; i < count; ++i) {
+                    decimal c = a + b4;
+                    use(uint64_t(c.sign()));
+                }
+            });
+        }
+        if (!std::strcmp(op, "dmul")) {
+            return measure([&](long count) {
+                for (long i = 0; i < count; ++i) {
+                    decimal c = a * b;
+                    use(uint64_t(c.sign()));
+                }
+            });
+        }
+        if (!std::strcmp(op, "dmoney")) {
+            decimal rate("0.0825");
+            return measure([&](long count) {
+                for (long i = 0; i < count; ++i) {
+                    decimal c = (a * rate).rescale(2);
+                    use(uint64_t(c.sign()));
+                }
+            });
+        }
+        if (!std::strcmp(op, "ddiv")) {
+            return measure([&](long count) {
+                for (long i = 0; i < count; ++i) {
+                    decimal c = a.div_precision(b, int32_t(n));
+                    use(uint64_t(c.sign()));
+                }
+            });
+        }
+        if (!std::strcmp(op, "dsqrt")) {
+            decimal two(2);
+            return measure([&](long count) {
+                for (long i = 0; i < count; ++i) {
+                    decimal c = two.sqrt(int32_t(n));
+                    use(uint64_t(c.sign()));
+                }
+            });
+        }
+        if (!std::strcmp(op, "dparse")) {
+            string text(at.c_str());
+            return measure([&](long count) {
+                for (long i = 0; i < count; ++i) {
+                    use(uint64_t(decimal::parse(text)->scale()));
+                }
+            });
+        }
+        if (!std::strcmp(op, "dformat")) {
+            return measure([&](long count) {
+                for (long i = 0; i < count; ++i) {
+                    use(a.to_string().size());
+                }
+            });
+        }
+        if (!std::strcmp(op, "dsum")) {
+            sgcl::vector<decimal> values;
+            for (int i = 0; i < 1000; ++i) {
+                values.push_back(decimal(string(decimal_text(rng, n).c_str())));
+            }
+            return measure([&](long count) {
+                for (long i = 0; i < count; ++i) {
+                    decimal sum;
+                    for (auto& v : values) {
+                        sum += v;
+                    }
+                    use(uint64_t(sum.sign()));
+                }
+            }) / 1000.0;
+        }
+        return -1;
+    }
+
+    double algebra_op(bool plain, const char* op, long n) {
+        using math::mat4;
+        using math::vec4;
+        std::mt19937 rng(1);
+        std::uniform_real_distribution<float> d(-1, 1);
+        auto random_mat = [&] {
+            mat4 m;
+            for (int i = 0; i < 16; ++i) {
+                (&m.columns[0].x)[i] = d(rng);
+            }
+            return m;
+        };
+        if (!std::strcmp(op, "mat4mul")) {
+            // a chain, so that one product waits on the one before, as in a
+            // scene graph's walk
+            mat4 a = random_mat();
+            mat4 b = random_mat();
+            return measure([&](long count) {
+                mat4 r = a;
+                for (long i = 0; i < count; ++i) {
+                    r = plain ? math::detail::multiply_plain(r, b) : r * b;
+                    r.columns[0].x *= 0.5f;   // kept bounded
+                }
+                use(uint64_t(r.columns[3].w != 0));
+            });
+        }
+        if (!std::strcmp(op, "mat4apply")) {
+            // a rotation, so that the vectors stay as long as they were
+            // however many times it is applied
+            mat4 m = mat4::rotation({1, 2, 3}, 0.5f);
+            sgcl::vector<vec4> v(size_t(n ? n : 1000));
+            for (auto& x : v) {
+                x = vec4(d(rng), d(rng), d(rng), 1);
+            }
+            slice<vec4> all = v;
+            return measure([&](long count) {
+                for (long i = 0; i < count; ++i) {
+                    if (plain) {
+                        math::detail::apply_plain(m, v.data(), v.size());
+                    } else {
+                        m.apply(all);
+                    }
+                }
+                use(uint64_t(v[1].x != 0));
+            }) / double(v.size());
+        }
+        if (!std::strcmp(op, "ease") || !std::strcmp(op, "bounce")) {
+            const math::easing& e = op[0] == 'e' ? math::easing::ease : math::easing::ease_in_out_bounce;
+            return measure([&](long count) {
+                float sum = 0;
+                float x = 0;
+                for (long i = 0; i < count; ++i) {
+                    sum += e(x);
+                    x += 0.000123f;
+                    x = x > 1 ? x - 1 : x;
+                }
+                use(uint64_t(sum));
+            });
+        }
+        math::cubic_bezier curve{{0, 0}, {30, 180}, {170, 190}, {200, 20}};
+        if (!std::strcmp(op, "flatten")) {
+            sgcl::vector<math::point> line;
+            return measure([&](long count) {
+                for (long i = 0; i < count; ++i) {
+                    line.clear();
+                    line.push_back(curve.p0);
+                    curve.flatten(line, 0.25f);
+                }
+                use(line.size());
+            });
+        }
+        if (!std::strcmp(op, "curvelen")) {
+            return measure([&](long count) {
+                float sum = 0;
+                for (long i = 0; i < count; ++i) {
+                    curve.p3.y = float(i & 15);
+                    sum += curve.length();
+                }
+                use(uint64_t(sum));
+            });
+        }
+        if (!std::strcmp(op, "fft") || !std::strcmp(op, "fftf") || !std::strcmp(op, "dftf")) {
+            size_t len = size_t(n ? n : 1024);
+            math::fft plan(len);
+            auto run = [&](auto zero) {
+                using C = std::complex<decltype(zero)>;
+                std::vector<C> x(len);
+                for (size_t i = 0; i < len; ++i) {
+                    x[i] = C(decltype(zero)(std::sin(double(i))), decltype(zero)(std::cos(double(i) * 0.3)));
+                }
+                bool both = std::strcmp(op, "dftf") != 0;
+                double ns = measure([&](long count) {
+                    for (long i = 0; i < count; ++i) {
+                        plan.forward(x);
+                        if (both) {
+                            plan.inverse(x);
+                        }
+                    }
+                    use(uint64_t(x[1].real() != 0));
+                });
+                return both ? ns / 2 : ns;
+            };
+            return !std::strcmp(op, "fft") ? run(0.0) : run(0.0f);
+        }
+        if (!std::strcmp(op, "rfftf")) {
+            size_t len = size_t(n ? n : 1024);
+            math::fft plan(len);
+            std::vector<float> x(len);
+            for (size_t i = 0; i < len; ++i) {
+                x[i] = float(std::sin(double(i)));
+            }
+            std::vector<std::complex<float>> out(len / 2 + 1);
+            return measure([&](long count) {
+                for (long i = 0; i < count; ++i) {
+                    plan.forward_real(x, out);
+                }
+                use(uint64_t(out[1].real() != 0));
+            });
+        }
+        if (op[0] == 's' && op[1] != 'm' && std::strcmp(op, "small") && std::strcmp(op, "sum") && std::strcmp(op, "sqr")
+            && std::strcmp(op, "sqrt") && std::strcmp(op, "shuffle")) {
+            size_t count = size_t(n ? n : 1000000);
+            std::mt19937_64 g(5);
+            std::lognormal_distribution<double> d(0, 1);
+            std::vector<double> values(count);
+            for (auto& v : values) {
+                v = d(g);
+            }
+            if (!std::strcmp(op, "ssummary")) {
+                return measure([&](long times) {
+                    for (long i = 0; i < times; ++i) {
+                        math::summary s(values);
+                        use(uint64_t(s.mean() > 0));
+                    }
+                }) / double(count);
+            }
+            if (!std::strcmp(op, "sdigest")) {
+                return measure([&](long times) {
+                    for (long i = 0; i < times; ++i) {
+                        math::t_digest t;
+                        for (double v : values) {
+                            t.add(v);
+                        }
+                        use(t.count());
+                    }
+                }) / double(count);
+            }
+            if (!std::strcmp(op, "squantile")) {
+                math::t_digest t;
+                for (double v : values) {
+                    t.add(v);
+                }
+                double q = 0;
+                return measure([&](long times) {
+                    for (long i = 0; i < times; ++i) {
+                        q = q > 0.99 ? 0.01 : q + 0.001;
+                        use(uint64_t(t.quantile(q) > 0));
+                    }
+                });
+            }
+            if (!std::strcmp(op, "shist")) {
+                math::histogram h = math::histogram::exponential(0.01, 1.5, 30);
+                return measure([&](long times) {
+                    for (long i = 0; i < times; ++i) {
+                        for (double v : values) {
+                            h.add(v);
+                        }
+                    }
+                    use(h.count());
+                }) / double(count);
+            }
+            if (!std::strcmp(op, "smedian") || !std::strcmp(op, "spct")) {
+                bool median = op[1] == 'm';
+                return measure([&](long times) {
+                    for (long i = 0; i < times; ++i) {
+                        use(uint64_t((median ? math::median(values) : math::quantile(values, 0.99)) > 0));
+                    }
+                }) / double(count);
+            }
+        }
+        if (!std::strcmp(op, "smean") || !std::strcmp(op, "smedian")) {
+            size_t count = size_t(n ? n : 1000000);
+            std::mt19937_64 g(5);
+            std::lognormal_distribution<double> d(0, 1);
+            std::vector<double> values(count);
+            for (auto& v : values) {
+                v = d(g);
+            }
+            bool median = op[1] == 'm' && op[2] == 'e' && op[3] == 'd';
+            return measure([&](long times) {
+                for (long i = 0; i < times; ++i) {
+                    use(uint64_t((median ? math::median(values) : math::mean(values)) > 0));
+                }
+            }) / double(count);
+        }
+        if (!std::strcmp(op, "affine")) {
+            math::affine a = math::affine::rotation(0.3f) * math::affine::translation(1, 2);
+            math::affine b = math::affine::scaling(1.0001f, 0.9999f);
+            return measure([&](long count) {
+                math::point p(1, 1);
+                for (long i = 0; i < count; ++i) {
+                    a = a * b;
+                    p = a.apply(p);
+                }
+                use(uint64_t(p.x != 0));
+            });
+        }
+        return -1;
     }
 
     double big_op(const char* op, long n) {
@@ -446,10 +863,16 @@ namespace {
 }
 
 int main(int argc, char** argv) {
-    if (argc < 3 || !bench::has_variant(argv[1], {"sgcl", "std"})) {
+    if (argc < 3 || !bench::has_variant(argv[1], {"sgcl", "std", "plain"})) {
         std::fprintf(stderr, "usage: bench_math <sgcl|std> <op> [n]\n"
                              "  big_integer (sgcl): add mul sqr div tostr parse sum fact small pow modpow gcd modinv sqrt prime pi\n"
                              "    factorial binomial fib harmonic, cross <n> <threshold>\n"
+                             "  decimal (sgcl): dadd daddmix dmul dmoney ddiv dsqrt dparse dformat dsum\n"
+                             "  algebra (sgcl, plain): mat4mul mat4apply affine\n"
+                             "  curves (sgcl): ease bounce flatten curvelen\n"
+                             "  fft (sgcl): fft fftf rfftf dftf\n"
+                             "  big_float (sgcl): fadd fmul fdiv fsqrt ftext fparse\n"
+                             "  statistics (sgcl): ssummary sdigest squantile shist smean smedian spct\n"
                              "  random: uint64 intn double normal exp shuffle make\n");
         return 1;
     }
@@ -459,6 +882,10 @@ int main(int argc, char** argv) {
     bool std_side = !std::strcmp(variant, "std");
     if (!std_side && !std::strcmp(op, "cross")) {
         return crossover(argc > 4 ? argv[4] : "", n);
+    }
+    if (double ns = algebra_op(!std::strcmp(variant, "plain"), op, n); ns >= 0) {
+        std::printf("%s op=%s n=%ld ns/op=%.2f\n", variant, op, n, ns);
+        return 0;
     }
     double ns = random_op(std_side, op);
     if (ns < 0) {
@@ -472,7 +899,10 @@ int main(int argc, char** argv) {
                 : !std::strcmp(op, "modpow") || !std::strcmp(op, "prime") ? 1024
                 : !std::strcmp(op, "fib") ? 100000 : 10;
         }
-        ns = big_op(op, n);
+        ns = op[0] == 'd' && std::strcmp(op, "div") && std::strcmp(op, "double") ? decimal_op(op, n)
+             : op[0] == 'f' && std::strcmp(op, "fact") && std::strcmp(op, "factorial") && std::strcmp(op, "fib")
+                 ? float_op(op, n)
+                 : big_op(op, n);
     }
     if (ns < 0) {
         std::fprintf(stderr, "math: no op called %s\n", op);

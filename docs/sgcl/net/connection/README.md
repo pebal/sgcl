@@ -20,7 +20,8 @@ namespace sgcl::net {
 [remote_endpoint](remote_endpoint.md)), its deadlines and its socket options, and what Go takes from
 `io` and `bufio` for it: `io.ReadFull`, `io.ReadAll` and `io.Copy(c, c)` are [read_full](read_full.md),
 [read_all](read_all.md) and [copy_to](copy_to.md), `bufio.NewReader(c).ReadString('\n')` is
-[read_line](read_line.md).
+[read_line](read_line.md). Over a unix socket it carries descriptors too, as Go's `UnixConn.WriteMsgUnix` and
+`ReadMsgUnix` do ([send_descriptors](send_descriptors.md), [receive_descriptors](receive_descriptors.md)).
 
 A connection is a handle of one word, a `tracked_ptr` to the object inside, as a [string](../../core/string/README.md) is: a
 copy is the same connection, as a `*net.TCPConn` is in Go, and a handle passed by value into a task keeps the
@@ -68,6 +69,12 @@ descriptor, which neither a close nor the manual clock could interrupt.
   127.0.0.1:50000->127.0.0.1:8080: Operation timed out`, a unix socket named by its path and a pair in memory by
   `pipe`.
 
+## Member types
+
+| Type | Definition |
+|---|---|
+| [received](../connection-received.md) | what [receive_descriptors](receive_descriptors.md) read: the bytes, the files |
+
 ## Member functions
 
 | Function | Description |
@@ -96,6 +103,13 @@ descriptor, which neither a close nor the manual clock could interrupt.
 | [read_from, async_read_from](read_from.md) | sends a file from its position to its end (`sendfile` over TCP) |
 | [copy_to, async_copy_to](copy_to.md) | copies everything to the end of this stream into another connection |
 
+#### Passing descriptors
+
+| Function | Description |
+|---|---|
+| [send_descriptors, async_send_descriptors](send_descriptors.md) | passes descriptors with bytes to the other end (unix socket) |
+| [receive_descriptors, async_receive_descriptors](receive_descriptors.md) | reads bytes and the descriptors that came with them (unix socket) |
+
 #### Closing
 
 | Function | Description |
@@ -103,6 +117,7 @@ descriptor, which neither a close nor the manual clock could interrupt.
 | [close, async_close](close.md) | ends the connection both ways, and the operations in progress |
 | [close_write](close_write.md) | ends the writing half (`shutdown(SHUT_WR)`) |
 | [is_closed](is_closed.md) | checks whether the connection was closed |
+| [fd](fd.md) | the socket's descriptor, `-1` without one |
 
 #### Deadlines
 

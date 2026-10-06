@@ -88,4 +88,5 @@ first 290x48, second 290x48
 - [frame](../frame.md): one frame
 - [decode_frames](../decode_frames.md): the frames of a GIF or a WebP, told by the signature
 - [gif](../gif/README.md), [webp](../webp/README.md): the formats
+- [gif::encode](../gif/encode.md), [webp::encode](../webp/encode.md): frames written as an animation
 - [codec](../README.md)

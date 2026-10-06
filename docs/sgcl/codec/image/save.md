@@ -11,7 +11,8 @@ async::task<expected<void, error>> async_save(const string& path,               
 ```
 
 Writes the image into the file at `path`, in the format the path's extension names, in letters of either case:
-`.png`, `.jpg` or `.jpeg`, and `.heic` or `.heif` where the system writes HEIC (macOS). `.gif`, `.webp` and `.avif`
+`.png`, `.jpg` or `.jpeg`, `.gif`, `.webp`, `.tif` or `.tiff`, `.bmp`, `.ico`, `.cur`, `.qoi`, `.pbm`, `.pgm`, `.ppm`,
+`.pam`, `.pnm`, and `.heic` or `.heif` where the system writes HEIC (macOS). `.avif` and `.jxl`
 are formats the module reads and does not write. The file is written as `path + ".part"` and renamed over `path`
 when it is whole: a failure, of the encoder or of the file, an exception too, leaves no part and `path` as it was.
 It is [codec::save](../save.md) of this image.
@@ -72,7 +73,7 @@ int main() {
     println("jpg: {}", written.has_value());
     codec::image back = codec::load("picture.jpg");
     println("{}x{}", back.width(), back.height());
-    auto refused = picture.save("picture.gif");
+    auto refused = picture.save("picture.avif");
     println(refused.error().message());
     io::remove("picture.png");
     io::remove("picture.jpg");
@@ -85,13 +86,13 @@ Output:
 png: true
 jpg: true
 64x48
-offset 0: codec: .gif is read, not written (no encoder)
+offset 0: codec: .avif is read, not written (no encoder)
 ```
 
 ## See also
 
 - [save_options](../save_options.md): the options
 - [codec::save](../save.md), [codec::load](../load.md): images on files
-- [png::encode](../png/encode.md), [jpeg::encode](../jpeg/encode.md), [heif::encode](../heif/encode.md): the
-  encoders
+- [png::encode](../png/encode.md), [jpeg::encode](../jpeg/encode.md), [gif::encode](../gif/encode.md),
+  [webp::encode](../webp/encode.md), [heif::encode](../heif/encode.md): the encoders
 - [sgcl::codec::image](README.md)

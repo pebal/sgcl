@@ -12,6 +12,7 @@
 
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 
 namespace sgcl::config {
     [[maybe_unused]] static constexpr auto   long_sleep_time = std::chrono::seconds(30);
@@ -160,6 +161,25 @@ namespace sgcl::config {
     // thread to mark (reading only, no shared state).
     [[maybe_unused]] static constexpr size_t stack_scan_threshold = size_t(4) << 20;
     [[maybe_unused]] static constexpr size_t stack_scan_segment = size_t(256) << 10;
+    // Prototype (proto-stack-sp): a thread that allocates records its stack
+    // pointer once per cycle, after it has read the cycle's epoch (heap.h:
+    // record_stack); the collector scans such a thread's stack from that
+    // pointer to the top, without asking the system
+    // which pages are in use (collector.h: _mark_stack_roots). 0 off (the
+    // full query for every thread), 1 recorded when an allocator takes a
+    // new page, 2 checked at every allocation, 3 recorded when an
+    // allocator loads the next word of 64 slots.
+#ifndef SGCL_STACK_SP
+#define SGCL_STACK_SP 1
+#endif
+    [[maybe_unused]] static constexpr int stack_sp = SGCL_STACK_SP;
+    // The bits of the record's epoch the collector compares: all of them.
+    // Fewer only to show the failure of a short tag (tests/core/stack.cpp:
+    // IdleThreadDeepInItsStackKeepsItsRoots fails with 0xF).
+#ifndef SGCL_STACK_SP_TAG_MASK
+#define SGCL_STACK_SP_TAG_MASK (~uint64_t(0))
+#endif
+    [[maybe_unused]] static constexpr uint64_t stack_sp_tag_mask = SGCL_STACK_SP_TAG_MASK;
     // generational collection with sticky mark bits: a young cycle keeps the
     // marks of the previous cycles, traces only the objects marked for the
     // first time (the young ones) and the marked objects on pages a pointer

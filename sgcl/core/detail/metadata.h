@@ -30,6 +30,9 @@ namespace sgcl::detail {
         bool is_cell_block;
         bool is_root_holder;
         bool is_string;
+#if defined(SGCL_ASAN)
+        size_t user_size;   // sizeof the type; object_size is its slot with the redzone (page_info.h: SlotSize)
+#endif
     };
 
     struct Metadata;
@@ -69,10 +72,14 @@ namespace sgcl::detail {
         SGCL_INLINE_HOT static constexpr TypeConstants constants_of() noexcept {
             using Info = TypeInfo<T>;
             using Type = std::remove_cv_t<T>;
-            return {Info::get_destroy_function(), Info::Allocator::free, &typeid(T), Info::ObjectSize, Info::HeaderSize,
+            return {Info::get_destroy_function(), Info::Allocator::free, &typeid(T), Info::SlotSize, Info::HeaderSize,
                     (unsigned)Info::ObjectCount, Info::IsArray, Info::Allocator::IsPoolAllocator::value,
                     std::is_same_v<Type, WeakCell>, std::is_same_v<Type, CellBlock>,
-                    std::is_same_v<Type, SharedHolder> || std::is_same_v<Type, CellBlock>, Info::IsString};
+                    std::is_same_v<Type, SharedHolder> || std::is_same_v<Type, CellBlock>, Info::IsString
+#if defined(SGCL_ASAN)
+                  , Info::ObjectSize
+#endif
+                   };
         }
 
         // The Metadata of a type or of a pool described by data, from its
@@ -146,7 +153,11 @@ namespace sgcl::detail {
         , is_cell_block(c.is_cell_block)
         , is_root_holder(c.is_root_holder)
         , is_string(c.is_string)
-        , type_info(*c.type) {
+        , type_info(*c.type)
+#if defined(SGCL_ASAN)
+        , user_size(c.user_size)
+#endif
+        {
         }
 
         ChildPointers& child_pointers;
@@ -162,6 +173,9 @@ namespace sgcl::detail {
         const bool is_root_holder;   // a SharedHolder (tracked_ptr.h: the object under a to_shared) or a CellBlock (cell_block.h: the cells of the root_ptrs): a root by state, never the target of a tracked_ptr, so a word naming one (the word of a shared_ptr's holder or of a root_ptr inside a managed object) is data (collector.h: _mark_childs)
         const bool is_string;        // string_data.h: the object holds a string's characters; a slice of the whole of one becomes the string (string.h)
         const std::type_info& type_info;
+#if defined(SGCL_ASAN)
+        const size_t user_size;   // sizeof the type, the bytes a slot has unpoisoned while its object lives (TypeConstants)
+#endif
         std::atomic<Page*> pages_buffer = {nullptr};   // a pool type's emptied pages, sorted, for the allocators of every thread to refill from (object_pool_allocator_base.h, under its _buffers_mutex)
         Page* empty_page = {nullptr};
         Metadata* next = {nullptr};
@@ -177,7 +191,11 @@ namespace sgcl::detail {
         if (p) {
             return *p;
         }
+#if defined(SGCL_ASAN)
+        auto mine = make(r.may_contain_tracked, r.constants.user_size, *r.constants.type, r.conservative);   // the object's words, not the redzone's
+#else
         auto mine = make(r.may_contain_tracked, r.constants.object_size, *r.constants.type, r.conservative);
+#endif
         if (r.child_pointers.compare_exchange_strong(p, mine, std::memory_order_acq_rel, std::memory_order_acquire)) {
             return *mine;
         }

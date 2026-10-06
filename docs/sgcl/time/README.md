@@ -9,9 +9,10 @@
 What Go has in `time`, less what the [async](../async/README.md) module already has: dates of the calendar, the
 zones of the system's tz database, an instant seen in a zone, the time elapsed, and the text of all of them — the
 formats known by name (RFC 3339, the date of HTTP and of e-mail, ISO 8601) and patterns of `%` as `std::format`
-has them for `<chrono>`, both ways. The module depends on [core](../core/README.md),
-[concurrent](../concurrent/README.md) (the registry of zones) and [txt](../txt/README.md) (`txt::format`); the
-index of the whole interface is [the modules](../README.md).
+has them for `<chrono>`, both ways, and the times of a [cron](cron/README.md) expression. The module depends on
+[core](../core/README.md), [concurrent](../concurrent/README.md) (the registry of zones), [txt](../txt/README.md)
+(`txt::format`) and [async](../async/README.md) (the timers under [every](every.md)); the index of the whole interface
+is [the modules](../README.md).
 
 A span of time is [sgcl::duration](../core/duration/README.md), a class of core, not of this module: the timers of async
 take one, so it lives below both. It is Go's `time.Duration` with Go's text (`"1h30m"`, `duration::parse`,
@@ -61,8 +62,8 @@ there — `%Y %y %C %G %g %m %d %e %j %U %W %V %u %w %a %A %b %B %h %H %I %M %S 
 %Z %n %t %%` and the `E` and `O` forms of the C locale — written as libc++'s `std::format` writes them, byte for
 byte (compared over the whole range of a datetime and the years -32767 to 32767 of a date), and read as
 `std::chrono::parse` reads them (compared with Howard Hinnant's date library, its reference implementation). Names
-are English, as `std::format` writes them without a locale; names of months in other languages (`"24 września"`)
-need CLDR's data and are not here.
+are English, as `std::format` writes them without a locale; a date in a locale's language and patterns
+(`"24 września 2026"`) is written from CLDR's data ([Localized](#localized)).
 
 `%` rather than Go's reference time (`"02.01.2006 15:04"`) or CLDR's letters (`"dd.MM.yyyy HH:mm"`): it is one
 language with `txt::format` (`{:%F}` means there what it means in `std::format`), known from C, C++ and Python,
@@ -94,6 +95,17 @@ with no letters to quote; Go's and CLDR's both have their traps of a silent wron
   the first specifier (libc++ before each), no precision for a duration (the standard's text cuts characters —
   `{:.3}` of 1.23456s is `1.2` — which is refused where the program is compiled).
 
+### Localized
+
+What a reader expects in a language — `"czwartek, 24 września 2026 14:05"`, `"Thursday, September 24, 2026 at
+2:05 PM"` — is written by `localized.h` from the data of CLDR 46 for every locale: the four lengths of a locale's
+patterns of a date and a time ([style](style.md)), `t.format(txt::locale("pl"), time::style::full)`; its pattern for
+the fields of a skeleton, `t.format(l, "MMMd")`; intervals, `t.format_interval(t2, l, "yMMMd")` `"24–26 wrz 2026"`;
+the names of months and days, `time::to_string(m, l)`; and patterns of CLDR's letters,
+[date_format](date_format/README.md), which keeps a locale's format resolved. The calendar is the Gregorian one of
+the module; the names of zones (`CEST`, "Central European Summer Time") are display names, outside this, and without
+them a zone is written in the localized GMT format (`GMT+2`).
+
 ### Formatting with txt
 
 In `txt::format` a time is a value like any other: `{}` writes its `to_string()` (a datetime RFC 3339 with the
@@ -111,14 +123,17 @@ nothing allocated ([txt::format](../txt/format.md)).
 
 | Function | Header | Description |
 |---|---|---|
+| [every](every.md) | `cron.h` | calls a function at every time of a cron until a stop |
 | [now](now.md) | `datetime.h` | the time now, on the system's clock, in the local zone; follows a test's `manual_clock` |
-| [to_string, operator\<\<](to_string.md) | `date.h` | the English name of a month or a day of the week, as Go writes it: `"September"`, `"Monday"` |
+| [to_string, operator\<\<](to_string.md) | `date.h` | the name of a month or a day of the week, in English as Go writes it (`"September"`) or in a locale (`"września"`) |
 
 ## Classes
 
 | Class | Header | Description |
 |---|---|---|
+| [cron](cron/README.md) | `cron.h` | a cron expression and the zone its times are read in: the next times across the changes of the clock, ISC cron's rule; Quartz's L, W and # |
 | [date](date/README.md) | `date.h` | a date of the Gregorian calendar, with no time of day and no zone: the fields, the ISO week, the calendar's arithmetic (`add_months` cut to the month's end), ISO 8601 and patterns of `%` read and written, `at(9, 30, zone)` |
+| [date_format](date_format/README.md) | `localized.h` | a locale's format of dates and times, resolved once: its styles, a skeleton matched to its patterns, or a pattern of CLDR's letters |
 | [datetime](datetime/README.md) | `datetime.h` | an instant and the zone it is seen in (Go's `time.Time`): the fields of the zone's clock, `t + d` and `t2 - t1`, the calendar's arithmetic across a change of the clock, `truncate`, `round`, the layouts and patterns |
 | [earlier_t, later_t](earlier_t.md) | `date.h` | the tags that choose which instant a time of the clock shown twice, or skipped, is read as |
 | [error](error/README.md) | `error.h` | why a text is not a date or a file not a zone: `message()` and `offset()` |
@@ -132,6 +147,7 @@ nothing allocated ([txt::format](../txt/format.md)).
 | Enumeration | Header | Description |
 |---|---|---|
 | [month](month.md) | `date.h` | a month of the year, January 1 to December 12, as Go's `time.Month` |
+| [style](style.md) | `date.h` | the four lengths of a locale's patterns of a date or a time, and none: brief, medium, detailed, full |
 | [weekday](weekday.md) | `date.h` | a day of the week in ISO's numbering, Monday 1 to Sunday 7 |
 
 ## Constants

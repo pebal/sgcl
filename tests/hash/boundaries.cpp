@@ -561,6 +561,13 @@ TEST(Hash_HugeInput, Xxh3PastFourGiB) {
     pieces_past_4_gib<hash::xxh3_128>(true);
 }
 
+// XXH32 adds only the low 32 bits of the length, and a length of 2^32 + 5
+// is still past a stripe: the lanes, not the seed's start
+TEST(Hash_HugeInput, Xxh32AndXxh64PastFourGiB) {
+    pieces_past_4_gib<hash::xxh32>(true);
+    pieces_past_4_gib<hash::xxh64>(true);
+}
+
 TEST(Hash_HugeInput, SipHashPastFourGiB) {
     pieces_past_4_gib<hash::siphash>(false);   // its update and its one-shot share no loop
 }
