@@ -18,3 +18,33 @@ Copyright 2013 Google Inc. (https://opensource.org/licenses/MIT).
                                               from libbrotli 1.2.0's tables
 The file is covered by the MIT License, not by the Apache License, and keeps
 the data's notice.
+
+This product contains code derived from the following third-party sources.
+Each is being rewritten from the published specifications; until then the
+derived code is distributed under the terms of its source, whose notices
+are kept in licenses/:
+
+The Go standard library, Copyright 2009 The Go Authors, BSD 3-Clause License
+(licenses/Go-LICENSE).
+  sgcl/io/detail/go_text.h       integer and special-value parsing, from Go's
+                                 strconv (ParseUint, ParseInt, underscoreOK, special),
+                                 translated to C++
+
+The Independent JPEG Group's software, Copyright (C) 1991-2020 Thomas G. Lane,
+Guido Vollbeding (licenses/IJG-README). This software is based in part on the
+work of the Independent JPEG Group.
+  sgcl/codec/detail/jpeg_idct.h  the accurate integer IDCT, from jidctint.c, translated to C++
+  sgcl/codec/detail/jpeg_fdct.h  the accurate integer FDCT, from jfdctint.c, translated to C++
+  sgcl/codec/detail/jpeg_color.h the YCbCr to RGB tables, from jdcolor.c, translated to C++
+
+musl libc, Copyright (c) 2005-2020 Rich Felker, et al., MIT License
+(licenses/musl-COPYRIGHT).
+  sgcl/net/imap/detail/search.h  the Two-Way substring search, from musl's memmem,
+                                 rewritten in C++
+
+The red-black tree rebalancing of the SGI/HP Standard Template Library,
+Copyright (c) 1994 Hewlett-Packard Company, Copyright (c) 1996,1997 Silicon
+Graphics Computer Systems, Inc. (licenses/SGI-HP-STL-NOTICE).
+  sgcl/core/detail/rb_tree.h     rotations, insert and erase rebalancing
+
+The Brotli data's license: licenses/Brotli-LICENSE.
